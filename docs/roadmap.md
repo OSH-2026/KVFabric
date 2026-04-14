@@ -41,6 +41,7 @@
   - 在本地 Linux / WSL2 环境中部署官方 vLLM
   - 跑通 offline inference 与 online serving
   - 记录环境与最小可用验证结果
+  - 在仓库内沉淀可复用的 `vllm_baseline/` 工作区
 
 ### M5: vLLM 代码路径梳理与基线测试
 

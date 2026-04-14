@@ -1,80 +1,90 @@
-# vLLM Baseline Bring-Up Plan
+# vLLM Baseline
 
-## 为什么先做 vLLM 基线
+这个文档负责说明 KVFabric 当前使用的项目级基线：为什么先做 `vLLM`、运行它需要什么前提、仓库里已经准备了哪些入口，以及什么时候可以离开 baseline 阶段进入后续设计。
 
-KVFabric 的长期目标是做一个比现有默认 vLLM 路径更强、也更可移植的 KV Cache scheduler / runtime。但在进入自研实现前，必须先把官方 vLLM 的真实行为弄清楚，否则后续设计很容易建立在错误假设上。
+如果你想直接执行脚本，请先看：
 
-本阶段需要回答的问题包括：
+- [`vllm_baseline/README.md`](../../vllm_baseline/README.md)
+- [`logs/2026-04-14-vllm-bringup.md`](../../logs/2026-04-14-vllm-bringup.md)
 
-- vLLM 当前的 block 管理路径是什么
-- prefix cache 和 scheduler 是如何配合的
-- 哪些地方已经做得很好，不应重复发明
-- 哪些地方确实存在未来值得重写或独立实现的空间
+## 当前快照
+
+- 默认验证模型：`Qwen/Qwen2.5-0.5B-Instruct`
+- 已验证能力：offline inference + online serving
+- 可选预设：`Qwen/Qwen3-8B`
+- 运行方式：相对仓库根目录的脚本化工作流
+
+`Qwen/Qwen3-8B` 保留为后续更大显存机器上的对照选项，不作为当前这台 `8 GiB` GPU 的默认 bring-up 目标。
+
+## 为什么先做 vLLM
+
+KVFabric 的长期方向是独立的 KV Cache scheduler / runtime，但第一步不是自己写一套运行时，而是先把参考系统跑通、看清、测明白。对于当前仓库，这个参考系统就是官方 `vLLM`。
+
+这一阶段最关心的是：
+
+- `vLLM` 现在如何管理 KV blocks
+- `prefix cache` 和 `scheduler` 是怎样配合工作的
+- 哪些能力值得保留，哪些地方值得在后续系统里重做
+- 哪些约束会直接影响未来 C++ 模块边界
 
 ## 环境约束
 
-根据 **2026-04-14** 查阅的当前官方 vLLM 安装文档与 quickstart 文档：
+按 `2026-04-14` 查阅的官方安装文档，`vLLM` 的 GPU 安装目标系统是 `Linux`，并且官方明确说明 `vLLM does not support Windows natively`。
 
-- GPU 安装要求的操作系统是 `Linux`
-- 官方文档明确说明 `vLLM does not support Windows natively`
-- 在 Windows 上运行 vLLM，官方建议路径是 `WSL` 或其他非官方维护分支
+对这台 Windows 工作站，推荐路径是：
 
-对当前这个 Windows 工作站来说，比较合理的本地基线路径是：
+1. `WSL2 + Ubuntu`
+2. 或者原生 Linux 机器 / 远程服务器
 
-1. `WSL2 + Ubuntu`，优先
-2. 或者使用一台原生 Linux 机器 / 远程服务器
+开始之前，至少先确认：
 
-## 推荐的本地验证顺序
+- Linux 侧能正常识别 GPU
+- Python 版本满足官方要求
+- 代理或网络环境足以访问官方安装源和 Hugging Face
 
-### Step 1: 准备 Linux 环境
+## 快速执行
 
-- Windows 用户优先准备 `WSL2`
-- 确认 GPU 驱动、CUDA 或 ROCm 环境可被 Linux 侧识别
-- 确认 Python 版本满足当前官方要求
-
-### Step 2: 创建干净环境并安装 vLLM
-
-官方 quickstart 推荐使用 `uv` 创建环境。最小安装路径为：
+仓库已经把常用 bring-up 流程收敛到了 `vllm_baseline/`：
 
 ```bash
-uv venv --python 3.12 --seed
-source .venv/bin/activate
-uv pip install vllm --torch-backend=auto
+cd KVFabric
+cd vllm_baseline
+
+bash scripts/setup_venv.sh
+bash scripts/download_model.sh qwen2_5_0_5b_instruct
+bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
+bash scripts/serve_local.sh qwen2_5_0_5b_instruct
+bash scripts/verify_server.sh qwen2_5_0_5b_instruct
+bash scripts/stop_server.sh qwen2_5_0_5b_instruct
 ```
 
-如果选择 `pip`，官方 GPU 安装文档也给出了直接安装方式：
-
-```bash
-pip install vllm --extra-index-url https://download.pytorch.org/whl/cu129
-```
-
-### Step 3: 跑通最小服务
-
-先用官方 quickstart 中的最小命令跑通 OpenAI-compatible server：
+官方 quickstart 常见的是直接执行类似下面的命令：
 
 ```bash
 vllm serve Qwen/Qwen2.5-1.5B-Instruct
 ```
 
-然后在本机验证：
+仓库里之所以默认切到 `qwen2_5_0_5b_instruct`，只是为了给当前这台机器保留一条更轻、更稳、更容易复现的最小链路。
 
-```bash
-curl http://localhost:8000/v1/models
-```
+## 预期现象
 
-### Step 4: 跑通最小离线推理
+服务启动后，下面这些现象都正常：
 
-除了服务模式，还需要验证 offline inference，确认：
+- `/docs`：FastAPI / Swagger UI 页面
+- `/health`：浏览器里可能像空白页，只用于健康检查
+- `/v1/models`：返回 JSON；如果出现 `qwen2.5-0.5b-local`，说明模型已经加载成功
 
-- 模型可以正常加载
-- decode 可以正常执行
-- GPU/内存占用符合预期
+常用的验证方式有三种：
 
-### Step 5: 做第一轮基线记录
+- 在 `/docs` 里用 `Try it out`
+- 用 `curl` 调 `POST /v1/chat/completions`
+- 用 `vllm_baseline/examples/openai_client_smoke.py`
 
-至少需要记录以下信息：
+## 建议记录
 
-- vLLM 版本
+第一轮基线记录建议至少包含：
+
+- `vLLM` 版本
 - Python 版本
 - CUDA / ROCm 版本
 - GPU 型号
@@ -84,40 +94,29 @@ curl http://localhost:8000/v1/models
 - 服务是否成功
 - 最小推理是否成功
 
-## 本阶段重点测试内容
+仓库内可直接引用的记录入口：
 
-完成最小 bring-up 后，下一步应聚焦：
+- [`logs/2026-04-14-vllm-bringup.md`](../../logs/2026-04-14-vllm-bringup.md)
+- [`vllm_baseline/runtime/`](../../vllm_baseline/runtime/) 下的临时运行日志
 
-### 1. Prefix caching 基线
+## 下一步关注点
 
-- 默认前缀复用行为
-- 命中与未命中的表现差异
-- 对模板化 prompt 的适配情况
+完成最小 bring-up 之后，下一步建议集中在：
 
-### 2. Scheduler 与 block 管理
+- prefix caching 的命中行为和稳定复现方式
+- scheduler 与 block 分配、释放、驱逐路径
+- latency、tok/s、memory footprint 和 prefix reuse 相关观测
 
-- 请求进入、排队与调度路径
-- block 分配与释放路径
-- 驱逐与重算相关逻辑
+## 退出条件
 
-### 3. 可观测性
+进入自研实现之前，至少需要满足：
 
-- tok/s
-- latency
-- memory footprint
-- prefix hit behavior
-- 不同负载下的表现变化
-
-## 进入自研代码阶段前的退出条件
-
-在真正开始写 KVFabric 自身代码前，至少应满足：
-
-- 官方 vLLM 已经成功部署
+- 官方 `vLLM` 已成功部署
 - offline / online 两条主路径已跑通
-- 与 KV Cache 相关的关键调用链已经读清
-- 已经形成明确的“保留什么、重写什么、抽象什么”的结论
+- 与 KV Cache 相关的关键调用链已基本读清
+- 已形成明确的“保留什么、重写什么、抽象什么”的结论
 
-## 参考文档
+## 参考资料
 
 - vLLM Installation: https://docs.vllm.ai/en/latest/getting_started/installation/
 - vLLM GPU Installation: https://docs.vllm.ai/en/latest/getting_started/installation/gpu/

@@ -1,12 +1,16 @@
 # vLLM Baseline Workspace
 
-这个目录用于在当前仓库内独立完成 `vLLM` 的环境配置、模型下载、offline smoke test、online serving smoke test，以及最基本的 OpenAI-compatible API 使用验证。
+`vllm_baseline/` 是 KVFabric 仓库里的可运行基线工作区。它负责把 `vLLM` 的本地 bring-up 流程整理成一套可以复用、可以共享、也方便后续扩展的脚本和说明。
 
-它的定位是：
+这个目录覆盖的内容很明确：
 
-- 为当前 `KVFabric` 项目提供一个可重复执行的 `vLLM` 基线工作区
-- 不包含 KVFabric 自研 runtime 实现
-- 默认复用仓库根目录下的 `.venv` 与 `.cache`，避免重复下载和重复安装
+- 环境配置
+- 模型下载
+- offline smoke test
+- local serving
+- OpenAI-compatible API 验证
+
+默认情况下，它会复用仓库根目录下的 `.venv` 和 `.cache`，避免重复安装与重复下载。
 
 ## 目录结构
 
@@ -44,9 +48,9 @@ vllm_baseline/
 - PyTorch：`2.10.0+cu129`
 - vLLM：`0.19.0`
 
-## GitHub 提交边界
+## Git 提交边界
 
-这个工作区现在适合提交到 GitHub，但只应提交：
+这个工作区适合提交到 GitHub，但仓库里建议只保留：
 
 - `vllm_baseline/README.md`
 - `vllm_baseline/configs/`
@@ -55,7 +59,7 @@ vllm_baseline/
 - `vllm_baseline/examples/`
 - 与之配套的 `.gitignore` 调整
 
-不应提交：
+不建议提交：
 
 - `.venv/`
 - `.cache/`
@@ -63,7 +67,7 @@ vllm_baseline/
 - `vllm_baseline/runtime/` 下的日志和 PID
 - `__pycache__/`、`.pyc`
 
-也就是说，当前目录已经被整理成“可分享的脚本和文档”，而不是“绑死在某一台机器上的运行结果”。
+换句话说，仓库里应该保留的是脚本、profile 和文档，而不是本地机器专属的运行结果。
 
 ## 两个模型预设
 
@@ -98,9 +102,9 @@ vllm_baseline/
 这些值在配置层都写成“相对 `KVFabric/` 仓库根目录”的形式。  
 如果你想改成单独的虚拟环境或单独的缓存目录，可以复制 `configs/env.example` 为 `.env.local` 后修改。
 
-## 适用前提
+## 运行前提
 
-最推荐的运行环境：
+推荐的运行环境：
 
 - Linux
 - 或 Windows + `WSL2 + Ubuntu`
@@ -122,7 +126,7 @@ sudo apt update
 sudo apt install -y python3 python3-venv python3-pip curl
 ```
 
-如果你是从 GitHub 新 clone 下来的仓库，一个最典型的起点是：
+如果你是从 GitHub 新 clone 下来的仓库，可以从这里开始：
 
 ```bash
 git clone <your-repo-url> KVFabric
@@ -248,7 +252,7 @@ ps -ef | grep vllm
 
 ## 浏览器里会看到什么
 
-很多同学第一次打开这些地址时会误以为“页面不正常”，其实下面这些现象都是正常的：
+第一次打开这些地址时，最容易误会的是“为什么看起来不像网页应用”。下面这些现象都正常：
 
 ### 1. `/docs`
 
@@ -341,9 +345,9 @@ python examples/openai_client_smoke.py \
   --prompt "用一句话解释什么是KV Cache。"
 ```
 
-## 一条命令一条命令复现
+## 复现流程
 
-给其他同学时，最实用的是下面这组命令：
+要给其他人复现时，下面这组命令最直接：
 
 ```bash
 cd KVFabric
@@ -460,7 +464,7 @@ python examples/openai_client_smoke.py \
 
 ## 后续计划
 
-当前这个工作区已经包含：
+这个工作区已经包含：
 
 - 环境安装脚本
 - 模型下载脚本
@@ -468,7 +472,7 @@ python examples/openai_client_smoke.py \
 - online serving smoke test
 - OpenAI-compatible API 验证脚本
 
-后续还会继续补充：
+后续计划补充：
 
 - 更多自动化测试脚本
 - 更完整的 benchmark / profiling 脚本
@@ -491,7 +495,7 @@ python examples/openai_client_smoke.py \
 
 ### 3. 为什么 `Qwen3-8B` 只是可选？
 
-因为这个模型对显存和磁盘的要求明显更高。当前这套工作区的“默认能跑通基线”目标，是让更多同学先把 `Qwen/Qwen2.5-0.5B-Instruct` 跑起来，再继续做代码路径分析。
+因为这个模型对显存和磁盘的要求明显更高。对当前工作区来说，`Qwen/Qwen2.5-0.5B-Instruct` 更适合作为默认 bring-up 模型，`Qwen/Qwen3-8B` 更适合放到更大显存机器上做后续对照。
 
 ### 4. 现在这套内容能直接给别人用吗？
 
@@ -513,5 +517,3 @@ python examples/openai_client_smoke.py \
 - `vllm_baseline/runtime/*.pid`
 
 如果只提交脚本、profile、README 和 `.gitignore`，这套内容就是适合共享的。
-
-因为它对显存要求明显更高。当前已知可稳定跑通的是 `Qwen/Qwen2.5-0.5B-Instruct` 这条小模型链路，适合作为本地 bring-up 基线。

@@ -4,11 +4,18 @@
 
 当前第一阶段不是评测自研系统，而是评测和记录官方 vLLM 基线。
 
+当前仓库内已经提供统一执行入口：
+
+- `vllm_baseline/scripts/`
+- `vllm_baseline/examples/`
+- `logs/2026-04-14-vllm-bringup.md`
+
 ### Baseline targets
 
 - vanilla `vLLM` offline inference
 - vanilla `vLLM` OpenAI-compatible serving
 - prefix caching enabled / disabled when possible
+- repository-local reproducible bring-up flow
 
 ### Workloads
 
@@ -18,6 +25,14 @@
 
 - 验证模型可加载
 - 验证 offline inference 和 online serving 都可正常工作
+
+当前默认使用：
+
+- `Qwen/Qwen2.5-0.5B-Instruct`
+
+当前可选使用：
+
+- `Qwen/Qwen3-8B`，但更适合更大显存机器
 
 #### 2. Template-heavy prompts
 
@@ -41,6 +56,7 @@
 - request latency
 - peak memory usage
 - prefix reuse related observations
+- whether the shared workspace scripts reproduce the same behavior across machines
 
 ## Phase 2: Future KVFabric Comparison
 

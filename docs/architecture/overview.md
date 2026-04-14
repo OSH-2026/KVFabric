@@ -22,6 +22,7 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 - 调研材料
 - 架构说明
 - vLLM 部署与测试计划
+- 可复用的 `vllm_baseline/` 基线工作区
 - 路线图与阶段日志
 
 当前阶段不保留任何“看起来像成品”的自研调度器代码。
@@ -125,6 +126,7 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 
 在进入自研实现前，当前阶段至少应完成：
 
+- 一个仓库内可复用、可分享的 vLLM baseline workspace
 - vLLM 本地部署记录
 - 最小 offline / serving 测试记录
 - 与 KV Cache 相关的关键调用链梳理
