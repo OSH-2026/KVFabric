@@ -1,0 +1,62 @@
+# Python environments for vLLM baseline
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# C / C++ build artifacts
+build/
+out/
+dist/
+*.egg-info/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and runtime outputs
+*.log
+artifacts/
+outputs/
+vllm_baseline/runtime/*
+!vllm_baseline/runtime/.gitkeep
+vllm_baseline/.env.local
+
+# Data and model artifacts
+checkpoints/
+cache/
+.cache/
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.onnx
+
+# Coverage
+.coverage
+htmlcov/
