@@ -4,7 +4,6 @@
 
 [English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md)
 
-![vLLM vs llama.cpp](docs/media/vllm-vs-llamacpp-comparison.png)
 
 ## 项目简介
 
