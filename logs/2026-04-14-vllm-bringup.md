@@ -1,5 +1,7 @@
 # vLLM Bring-up Log (2026-04-14)
 
+[English](2026-04-14-vllm-bringup.md)|[中文](2026-04-14-vllm-bringup.zh-CN.md)
+
 ## Summary
 
 - Status: `passed`

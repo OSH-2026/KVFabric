@@ -6,6 +6,25 @@
 
 KVFabric is a systems project around KV Cache scheduling and lifecycle management for LLM serving. The repository currently centers on a reproducible `vLLM` baseline, with the baseline workflow and architecture notes living side by side.
 
+## Team Members
+
+- [Zhou Jiarun](https://github.com/QY-dream)
+- [Zhao Tianxiang](https://github.com/ZTX1115)
+- [Wang Yun](https://github.com/mjswyy)
+
+---
+
+| Project Stage | Date | Progress | Task Breakdown | Outcome | Appendix |
+|:---------------------------:|:---------:|:-------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------:| ----------------------------------- |
+| Topic Selection | 2026-03-28 | Offline meeting to discuss candidate topics and identify a project direction | Zhou Jiarun: a simple eBPF-based KV Cache profiler for AIOS/vLLM and bottleneck analysis; Zhao Tianxiang: build a runnable validation OS on a loong arch development board; Wang Yun: rewrite a simple OS in Rust | Decided to use the loong arch validation OS topic | [log](logs/2026-03-28.md) |
+| Topic Selection | 2026-03-28 | Online meeting | Reported topic to the instructor and asked for feedback | Topic was rejected and needed to be revised | |
+| Topic Selection | 2026-03-29 | Individual research and online group discussion | Zhou Jiarun: [research note](docs/research/individual_research/ZhouJiarun/zjr_research.md), topic: unified KV Cache lifecycle management + chunk-level reuse + CoW branching; Zhao Tianxiang: [research note](docs/research/individual_research/ZhaoTianXiang/ztx_research.md), topic: coordinated KV Cache allocation, reuse, and eviction for LLM serving; Wang Yun: [research note](docs/research/individual_research/WangYun/wy_research.md), topic: lightweight AI user-space scheduling engine design for mobile devices | Final topic selected: "unified KV Cache lifecycle management + chunk-level reuse + CoW branching" | [log](logs/2026-03-29.md) |
+| Topic Selection | 2026-03-29 | Online meeting | Reported revised topic to the instructor and asked for feedback | Topic approved | |
+| Learning | 2026-04-07 | Studied LLM inference and KV Cache analysis; selected implementation platform | Zhou Jiarun: [LLM inference and KV Cache analysis](docs/research/group_research/investigation.pdf); Zhao Tianxiang: [KV Cache problems and solution survey](docs/research/group_research/investigation.pdf); Wang Yun: [vLLM vs llama.cpp comparison](docs/research/group_research/vllm-vs-llamacpp.md) | Completed initial study and decided to implement on vLLM | [log](logs/2026-04-07.md) |
+| Project Setup | 2026-04-13 | Brought up the vLLM baseline and established a reliable baseline workflow | Zhou Jiarun: environment setup, inference pipeline bring-up, and initial performance collection; Zhao Tianxiang: feasibility report; Wang Yun: logs and documentation | Successfully brought up vLLM, validated end-to-end inference flow, and collected initial performance data | [log](logs/2026-04-14-vllm-bringup.md) |
+
+---
+
 ## Status
 
 - Stage: `baseline bring-up / architecture freeze`
