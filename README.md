@@ -21,7 +21,7 @@ KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展
 |选题|2026-03-29|组员分别进行调研，并开展线上会议进行讨论|周家润：[调研报告](docs/research/individual_research/ZhouJiarun/zjr_research.md)，选题：KV Cache统一生命周期管理 + chunk 级复用 + CoW 分叉；赵天翔：[调研报告](docs/research/individual_research/ZhaoTianXiang/ztx_research.md)，选题：⾯向 LLM 推理服务的 KVCache 分配、复⽤与驱逐协同优化；王允：[调研报告](docs/research/individual_research/WangYun/wy_research.md)，选题：面向移动端的轻量AI用户态调度引擎设计与实现|经讨论决定采用“KV Cache统一生命周期管理 + chunk 级复用 + CoW 分叉”的选题|[log](logs/2026-03-29.md)|
 |选题|2026-03-29|线上会议|向老师报告选题并咨询意见|选题通过||
 |学习|2026-04-07|学习LLM推理与KVCache分析相关知识，并选择实现平台|周家润：[LLM推理与KVCache分析](docs\research\group_research\investigation.pdf)；赵天翔：[KVCache 现存问题与解决⽅案整理](docs\research\group_research\investigation.pdf)；王允：[vllm与llamacpp平台的优缺点比较](docs\research\group_research\vllm-vs-llamacpp.md)|完成初步学习，决定在vllm上实现该项目|[log](logs/2026-04-07.md)|
-|项目搭建|2026-04-13|搭建vLLM基线环境，围绕 vLLM 建立可靠基线|周家润：环境搭建、推理链路打通、性能数据收集；赵天翔：撰写可行性报告；王允：整理日志和文档|成功搭建vLLM环境，并完成了端到端的推理链路验证，收集了初步的性能数据|[log](logs/2026-04-14-vllm-bringup.md)|
+|项目搭建|2026-04-13|搭建vLLM基线环境，打通推理链路|周家润：环境搭建、推理链路打通、性能数据收集；赵天翔：撰写可行性报告；王允：整理日志和文档|成功搭建vLLM环境，并完成了端到端的推理链路验证，收集了初步的性能数据|[log](logs/2026-04-14-vllm-bringup.md)|
 
 ---
 ## 当前状态
