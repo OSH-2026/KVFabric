@@ -17,6 +17,7 @@ Describe the change you want.
 ## Affected area
 
 - vLLM baseline bring-up
+- vLLM Python-layer prototype
 - benchmarking
 - architecture
 - scheduler design

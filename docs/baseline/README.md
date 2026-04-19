@@ -27,6 +27,23 @@ KVFabric 的长期方向是独立的 KV Cache scheduler / runtime，但第一步
 - 哪些能力值得保留，哪些地方值得在后续系统里重做
 - 哪些约束会直接影响未来 C++ 模块边界
 
+## vLLM 源码改造边界
+
+当前判断是：如果为了实现项目功能而修改 `vLLM` 源码，短期主要应修改 Python 控制面，而不是优先修改 C++/CUDA kernel。
+
+优先关注的路径包括：
+
+- `vllm/v1/core/sched/scheduler.py`
+- `vllm/v1/core/kv_cache_manager.py`
+- `vllm/v1/core/block_pool.py`
+- `vllm/v1/core/kv_cache_utils.py`
+- `vllm/v1/core/single_type_kv_cache_manager.py`
+- `vllm/v1/core/kv_cache_coordinator.py`
+
+这些路径已经覆盖请求调度、prefix cache 命中、block 分配与释放、free queue、block hash、引用计数和基础驱逐入口，足以承载第一版生命周期元数据、共享感知驱逐和观测指标。
+
+暂不优先触碰的部分包括 attention kernel、自定义 C++/CUDA ops、底层 KV cache 物理布局和 slot mapping 语义。只有当后续功能必须改变 kernel 读写方式、block 内存布局或跨 block 拷贝机制时，才把 C++/CUDA 纳入修改范围。
+
 ## 环境约束
 
 按 `2026-04-14` 查阅的官方安装文档，`vLLM` 的 GPU 安装目标系统是 `Linux`，并且官方明确说明 `vLLM does not support Windows natively`。
@@ -105,6 +122,7 @@ vllm serve Qwen/Qwen2.5-1.5B-Instruct
 
 - prefix caching 的命中行为和稳定复现方式
 - scheduler 与 block 分配、释放、驱逐路径
+- Python 层 cache manager / block pool 的最小改造点
 - latency、tok/s、memory footprint 和 prefix reuse 相关观测
 
 ## 退出条件
@@ -114,6 +132,7 @@ vllm serve Qwen/Qwen2.5-1.5B-Instruct
 - 官方 `vLLM` 已成功部署
 - offline / online 两条主路径已跑通
 - 与 KV Cache 相关的关键调用链已基本读清
+- 短期 `vLLM` Python 层改造范围已明确
 - 已形成明确的“保留什么、重写什么、抽象什么”的结论
 
 ## 参考资料

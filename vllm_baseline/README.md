@@ -12,6 +12,8 @@
 
 默认情况下，它会复用仓库根目录下的 `.venv` 和 `.cache`，避免重复安装与重复下载。
 
+注意：这个目录只维护官方 `vLLM` 的基线运行流程，不直接承载 `vLLM` 源码 patch。若后续开始功能原型，当前建议先在 `vLLM` 的 Python 控制面修改 scheduler、KV cache manager、block pool 和元数据/指标路径；C++/CUDA kernel 不作为第一阶段默认修改目标。
+
 ## 目录结构
 
 ```text
@@ -476,6 +478,7 @@ python examples/openai_client_smoke.py \
 
 - 更多自动化测试脚本
 - 更完整的 benchmark / profiling 脚本
+- 独立记录 `vLLM` Python 层原型实验的脚本与结果
 - 一个更方便直接使用的简单对话聊天 UI
 
 ## 常见问题

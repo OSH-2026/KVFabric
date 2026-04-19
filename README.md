@@ -1,10 +1,10 @@
 # KVFabric
 
-> KV Cache scheduling for LLM serving, with a portable C++ runtime as the long-term target
+> KV Cache scheduling for LLM serving, with a vLLM Python-control-plane prototype first and a portable C++ runtime as the long-term target
 
 [English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md)
 
-KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展开的系统项目。仓库目前以 `vLLM` 基线为中心，先把部署、验证、代码路径和评测入口打磨清楚，再据此推进后续的独立 runtime 设计。
+KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展开的系统项目。仓库目前以 `vLLM` 基线为中心，先把部署、验证、代码路径和评测入口打磨清楚。如果短期需要修改 `vLLM` 源码来验证“统一生命周期管理 / 共享感知驱逐 / 共享后分叉”等功能，当前判断是优先改 `vLLM` 的 Python 控制面代码，而不是一开始就下沉到 C++/CUDA kernel。
 
 ## 项目成员
 
@@ -37,13 +37,15 @@ KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展
 
 - 跑通官方 `vLLM` 的 offline inference 和 online serving
 - 梳理 `scheduler / prefix cache / paged attention / hybrid cache` 等关键路径
+- 明确短期 `vLLM` 原型改造主要落在 Python 层的 scheduler、KV cache manager、block pool 与元数据路径
 - 用一套稳定、可复现的基线流程支撑后续 C++ 模块边界设计
 
 ## 项目方向
 
-- 目标实现语言：`C++17/20`
-- 目标形态：独立的 KV Cache scheduler / runtime
-- 短期工作：围绕 `vLLM` 建立可靠基线
+- 短期实现边界：若修改 `vLLM` 源码，优先修改 `vllm/v1/core/sched/`、`vllm/v1/core/kv_cache_manager.py`、`vllm/v1/core/block_pool.py`、`vllm/v1/core/kv_cache_utils.py`、`vllm/v1/core/single_type_kv_cache_manager.py` 等 Python 控制面
+- 暂不优先修改：C++/CUDA attention kernel、底层 KV 物理布局和自定义算子，除非后续功能必须改变 block 内存布局、slot mapping 语义或 kernel 写入/拷贝路径
+- 长期目标实现语言：`C++17/20`
+- 长期目标形态：独立的 KV Cache scheduler / runtime
 - 长期方向：在 portability、scheduler design 和 lifecycle management 上做出独立演进的系统方案
 
 ## 目标系统轮廓
@@ -117,7 +119,8 @@ bash scripts/stop_server.sh qwen2_5_0_5b_instruct
 ## 当前暂不包含
 
 - 自研 KVFabric runtime 源码
-- 面向单一框架的 patch 集
+- 已落地的 `vLLM` patch 集
+- C++/CUDA kernel 改动
 - 独立聊天前端或展示 UI
 
 ## 文档

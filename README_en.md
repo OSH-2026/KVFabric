@@ -1,10 +1,10 @@
 # KVFabric
 
-> KV Cache scheduling for LLM serving, with a portable C++ runtime as the long-term target
+> KV Cache scheduling for LLM serving, with a vLLM Python-control-plane prototype first and a portable C++ runtime as the long-term target
 
 [Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md)
 
-KVFabric is a systems project around KV Cache scheduling and lifecycle management for LLM serving. The repository currently centers on a `vLLM` baseline: first we make the deployment flow, validation path, key code paths, and evaluation entry points clear and reproducible, and then we use that foundation to drive the later independent runtime design.
+KVFabric is a systems project around KV Cache scheduling and lifecycle management for LLM serving. The repository currently centers on a `vLLM` baseline: first we make the deployment flow, validation path, key code paths, and evaluation entry points clear and reproducible. If we need to modify `vLLM` source code in the short term to validate unified lifecycle management, sharing-aware eviction, or post-sharing branching, the current boundary is Python control-plane first rather than starting with C++/CUDA kernels.
 
 ## Team Members
 
@@ -38,13 +38,15 @@ The current focus is straightforward:
 
 - run official `vLLM` for both offline inference and online serving
 - map the `scheduler / prefix cache / paged attention / hybrid cache` paths
+- identify the short-term `vLLM` prototype scope in Python scheduler, KV cache manager, block pool, and metadata paths
 - use a stable and reproducible baseline workflow to support the later C++ module boundary design
 
 ## Project Direction
 
-- Implementation language: `C++17/20`
-- System role: an independent KV Cache scheduler / runtime
-- Short-term work: build and study a clean `vLLM` baseline
+- Short-term implementation boundary: if we patch `vLLM`, start with Python control-plane files such as `vllm/v1/core/sched/`, `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/single_type_kv_cache_manager.py`
+- Not the first target: C++/CUDA attention kernels, low-level KV physical layout, or custom ops, unless a later feature must change block memory layout, slot-mapping semantics, or kernel write/copy paths
+- Long-term implementation language: `C++17/20`
+- Long-term system role: an independent KV Cache scheduler / runtime
 - Long-term goal: an independently evolving systems design around portability, scheduler design, and lifecycle management
 
 ## Planned Runtime Layout
@@ -118,7 +120,8 @@ The default validated path uses `Qwen/Qwen2.5-0.5B-Instruct`. `Qwen/Qwen3-8B` re
 ## What Is Not Here Yet
 
 - custom KVFabric runtime source code
-- a framework-specific patch set
+- an implemented `vLLM` patch set
+- C++/CUDA kernel changes
 - a standalone chat UI
 
 ## Documentation

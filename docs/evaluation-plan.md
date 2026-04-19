@@ -2,7 +2,7 @@
 
 ## Phase 1: Official vLLM Baseline
 
-当前第一阶段不是评测自研系统，而是评测和记录官方 vLLM 基线。
+当前第一阶段不是评测自研系统，也不是评测已改造的 `vLLM`，而是评测和记录官方 vLLM 基线。
 
 当前仓库内已经提供统一执行入口：
 
@@ -58,12 +58,13 @@
 - prefix reuse related observations
 - whether the shared workspace scripts reproduce the same behavior across machines
 
-## Phase 2: Future KVFabric Comparison
+## Phase 2: vLLM Python Prototype and Future KVFabric Comparison
 
-在官方 vLLM 基线稳定、并且自研系统开始实现后，再进入第二阶段对比：
+在官方 vLLM 基线稳定、并且进入功能原型后，再进入第二阶段对比：
 
 - `official vLLM`
-- `future KVFabric runtime / scheduler`
+- `vLLM Python-layer prototype`
+- `future KVFabric C++ runtime / scheduler`，如果后续已经实现到可运行状态
 
 届时重点关注：
 
@@ -72,3 +73,4 @@
 - lifecycle visibility
 - reuse / fork / eviction behavior
 - memory efficiency under mixed workloads
+- whether the Python-layer prototype can validate the policy without changing C++/CUDA kernels

@@ -39,4 +39,5 @@ docs/research/
 
 - 本地部署并验证官方 `vLLM`
 - 读清其 scheduler、prefix cache 与 KV Cache 管理路径
+- 如果进入源码原型，优先在 `vLLM` Python 控制面验证生命周期元数据、共享感知驱逐和观测指标
 - 为后续以 `C++` 为核心实现语言的自研系统冻结模块边界

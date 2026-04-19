@@ -2,9 +2,11 @@
 
 ## 项目定位
 
-KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整为：
+KVFabric 的长期目标不是停留在“现有框架内的一层 Python 原型”，而是逐步走向：
 
 > 做一个以 C++ 为核心实现语言、面向真实推理系统、强调可移植性的 KV Cache scheduler / runtime。
+
+但就当前课程周期和 `vLLM` 源码切入点而言，如果要先实现“统一生命周期管理 / 共享感知驱逐 / 共享后分叉”的最小可行原型，应先在 `vLLM` 的 Python 控制面完成验证，再判断是否需要下沉到 C++/CUDA。
 
 这里的“可移植”主要包含两层含义：
 
@@ -15,7 +17,7 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 
 当前阶段的首要原则是：
 
-> 在没有跑通、测明白、读清官方 vLLM 之前，不进入自研实现阶段。
+> 在没有跑通、测明白、读清官方 vLLM 之前，不进入自研 C++ runtime 实现阶段。
 
 因此，当前仓库只保留：
 
@@ -26,6 +28,25 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 - 路线图与阶段日志
 
 当前阶段不保留任何“看起来像成品”的自研调度器代码。
+
+## 阶段性 vLLM 改造边界
+
+基于当前已验证的 `vLLM 0.19.0` 和 `v1` 代码结构，短期若修改 `vLLM` 源码，主要应落在 Python 层：
+
+- `vllm/v1/core/sched/scheduler.py`：请求调度、prefix hit 后的 token 计算状态、preemption 与分配调用入口。
+- `vllm/v1/core/kv_cache_manager.py`：`get_computed_blocks`、`can_fit_full_sequence`、`allocate_slots`、`free`、`evict_blocks` 等 cache manager 对 scheduler 的主接口。
+- `vllm/v1/core/block_pool.py`：`BlockPool`、free block queue、block hash 映射、缓存块驱逐入口。
+- `vllm/v1/core/kv_cache_utils.py`：`KVCacheBlock`、block hash、free queue 等基础元数据结构。
+- `vllm/v1/core/single_type_kv_cache_manager.py` 与 `vllm/v1/core/kv_cache_coordinator.py`：不同 KV cache group 下的分配、命中、释放和 skipped block 处理。
+- `vllm/v1/metrics/` 相关路径：后续记录 prefix hit、block lifetime、eviction、recompute 等观测指标。
+
+第一阶段应尽量避免直接修改：
+
+- `vllm/_custom_ops.py` 背后的 C++/CUDA 扩展；
+- `vllm/v1/attention/ops/` 中的 attention kernel 热路径；
+- `vllm/v1/worker/block_table.py` 或 GPU model runner 中会改变底层 block table / slot mapping 语义的代码。
+
+判断标准是：如果只是新增生命周期元数据、命中/驱逐统计、候选块打分、调度策略或 prefix-cache 复用决策，优先在 Python 层完成；只有当功能必须改变 KV cache 的物理布局、kernel 访问方式、跨 block 拷贝语义或真正的 in-kernel CoW 写入路径时，才进入 C++/CUDA 修改范围。
 
 ## 长期系统目标
 
@@ -76,7 +97,7 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 - 驱逐排序
 - 生命周期状态流转
 
-这一层计划由 `C++17/20` 实现，是后续最重要的主体代码。
+这一层长期计划由 `C++17/20` 实现，是后续最重要的主体代码。短期在 `vLLM` 内验证策略时，可先把同一套抽象以 Python side table、manager 扩展或调度策略的形式做成最小原型。
 
 ### 2. Metadata & Block Table
 
@@ -109,9 +130,10 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 2. 跑通最小可用推理与服务
 3. 读清相关代码路径
 4. 明确其 scheduler / cache manager 的边界与不足
-5. 再决定哪些能力应在未来的 KVFabric 中被保留、重构或替换
+5. 先在 Python 控制面完成可验证原型
+6. 再决定哪些能力应在未来的 KVFabric 中被保留、重构、下沉到 C++ 或替换
 
-换句话说，vLLM 是当前阶段必须认真学习和验证的基础系统，但项目的长期目标不是成为“另一个 vLLM patch set”。
+换句话说，vLLM 是当前阶段必须认真学习和验证的基础系统；短期可以作为 Python 层原型载体，但项目的长期目标不是停留为“另一个 vLLM patch set”。
 
 ## 当前非目标
 
@@ -119,7 +141,7 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 
 - 提前写自研 runtime 代码
 - 提前确定最终 API 细节
-- 直接承诺特定 attention kernel 实现
+- 在 Python 控制面原型前直接改 C++/CUDA attention kernel
 - 在尚未验证基线前讨论过细的微优化
 
 ## 当前阶段的产出要求
@@ -131,4 +153,5 @@ KVFabric 的目标已经从“在现有框架内做一层 Python 原型”调整
 - 最小 offline / serving 测试记录
 - 与 KV Cache 相关的关键调用链梳理
 - benchmark 方案与指标清单
-- 面向 C++ 实现的模块边界说明
+- 短期 `vLLM` Python 改造范围说明
+- 面向长期 C++ 实现的模块边界说明
