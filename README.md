@@ -4,7 +4,7 @@
 
 [English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md)
 
-KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展开的系统项目。仓库目前以 `vLLM` 基线为中心，先把部署、验证、代码路径和评测入口打磨清楚。如果短期需要修改 `vLLM` 源码来验证“统一生命周期管理 / 共享感知驱逐 / 共享后分叉”等功能，当前判断是优先改 `vLLM` 的 Python 控制面代码，而不是一开始就下沉到 C++/CUDA kernel。
+KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展开的系统项目。仓库目前以 `vLLM` 基线为中心，先把部署、验证、代码路径和评测入口打磨清楚。需要修改 `vLLM` 源码来验证“统一生命周期管理 / 共享感知驱逐 / 共享后分叉”等功能，当前优先改 `vLLM` 的 Python 控制面代码。
 
 ## 项目成员
 
