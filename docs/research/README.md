@@ -7,8 +7,7 @@
 ```text
 docs/research/
 ├─ group_research/
-│  ├─ investigation.pdf
-│  ├─ LLM推理与KVCache分析.docx
+│  ├─ research_report.md
 │  └─ vllm-vs-llamacpp.md
 └─ individual_research/
    └─ ZhouJiarun/
@@ -19,10 +18,8 @@ docs/research/
 
 `group_research/` 存放小组共同使用和讨论的材料，当前包括：
 
-- [investigation.pdf](group_research/investigation.pdf)
-  前期关于 KV Cache 相关问题与研究空间的综述性调研。
-- [LLM推理与KVCache分析.docx](group_research/LLM推理与KVCache分析.docx)
-  对 LLM 推理过程、attention 与 KV Cache 机制的分析草稿。
+- [research_report.md](group_research/research_report.md)
+  小组完整研究报告，整合了 LLM 推理、KV Cache 机制、现存问题、生命周期管理、vLLM 选型与评测方案。
 - [vllm-vs-llamacpp.md](group_research/vllm-vs-llamacpp.md)
   对 vLLM 和 llama.cpp 作为项目基座的对比结论。
 
