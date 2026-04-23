@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.70)
     parser.add_argument("--max-model-len", type=int, default=1024)
     parser.add_argument("--max-num-seqs", type=int, default=1)
+    parser.add_argument("--language-model-only", action="store_true")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=32)
     return parser.parse_args()
@@ -40,6 +41,7 @@ def main() -> None:
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,
         max_num_seqs=args.max_num_seqs,
+        language_model_only=args.language_model_only,
     )
     params = SamplingParams(
         temperature=args.temperature,

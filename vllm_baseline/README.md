@@ -25,7 +25,7 @@ vllm_baseline/
 │  ├─ offline_smoke.py
 │  └─ openai_client_smoke.py
 ├─ profiles/
-│  ├─ qwen2_5_0_5b_instruct.env
+│  ├─ qwen3_5_2b.env
 │  └─ qwen3_8b.env
 └─ scripts/
    ├─ collect_env.sh
@@ -73,11 +73,12 @@ vllm_baseline/
 
 ## 两个模型预设
 
-### 1. 默认小模型
+### 1. 默认验证模型
 
-- 预设名：`qwen2_5_0_5b_instruct`
-- 官方模型：`Qwen/Qwen2.5-0.5B-Instruct`
-- 用途：当前机器的最小可运行 smoke test
+- 预设名：`qwen3_5_2b`
+- 官方模型：`Qwen/Qwen3.5-2B`
+- 用途：当前 8 GiB GPU 上的默认 baseline 和 smoke test
+- 运行方式：text-only，脚本会启用 `--language-model-only`
 - 结论：已在本机跑通 offline + online
 
 ### 2. 可选大模型
@@ -177,10 +178,10 @@ bash scripts/setup_venv.sh
 - `vllm`
 - 对应的 CUDA PyTorch wheel
 
-### Step 3: 下载默认小模型
+### Step 3: 下载默认验证模型
 
 ```bash
-bash scripts/download_model.sh qwen2_5_0_5b_instruct
+bash scripts/download_model.sh qwen3_5_2b
 ```
 
 注意：
@@ -192,7 +193,7 @@ bash scripts/download_model.sh qwen2_5_0_5b_instruct
 ### Step 4: 运行离线 smoke test
 
 ```bash
-bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
+bash scripts/run_offline_smoke.sh qwen3_5_2b
 ```
 
 跑通后你应该能看到：
@@ -205,7 +206,7 @@ bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
 ### Step 5: 启动本地服务
 
 ```bash
-bash scripts/serve_local.sh qwen2_5_0_5b_instruct
+bash scripts/serve_local.sh qwen3_5_2b
 ```
 
 默认服务地址：
@@ -221,7 +222,7 @@ bash scripts/serve_local.sh qwen2_5_0_5b_instruct
 ### Step 6: 做在线验证
 
 ```bash
-bash scripts/verify_server.sh qwen2_5_0_5b_instruct
+bash scripts/verify_server.sh qwen3_5_2b
 ```
 
 它会做两件事：
@@ -231,13 +232,13 @@ bash scripts/verify_server.sh qwen2_5_0_5b_instruct
 
 如果一切正常，你会看到：
 
-- `/v1/models` 返回 `qwen2.5-0.5b-local`
+- `/v1/models` 返回 `qwen3.5-2b-local`
 - Python 客户端输出 `MODELS:` 和 `RESPONSE:`
 
 ### Step 7: 结束服务
 
 ```bash
-bash scripts/stop_server.sh qwen2_5_0_5b_instruct
+bash scripts/stop_server.sh qwen3_5_2b
 ```
 
 如果正常停止后你还怀疑端口被占用，可以再检查一次：
@@ -278,7 +279,7 @@ curl http://127.0.0.1:8000/health
 
 - 你会看到一段 JSON 文本
 - 这也是正常的，因为它本来就是 API 返回值
-- 如果能看到例如 `qwen2.5-0.5b-local`，说明模型已经加载成功
+- 如果能看到例如 `qwen3.5-2b-local`，说明模型已经加载成功
 
 ### 4. 为什么不是“聊天网页”？
 
@@ -309,7 +310,7 @@ curl http://127.0.0.1:8000/health
 
 ```json
 {
-  "model": "qwen2.5-0.5b-local",
+  "model": "qwen3.5-2b-local",
   "messages": [
     {
       "role": "user",
@@ -327,7 +328,7 @@ curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "qwen2.5-0.5b-local",
+    "model": "qwen3.5-2b-local",
     "messages": [
       {"role": "user", "content": "用一句话解释什么是KV Cache。"}
     ],
@@ -343,7 +344,7 @@ cd KVFabric/vllm_baseline
 python examples/openai_client_smoke.py \
   --host 127.0.0.1 \
   --port 8000 \
-  --model qwen2.5-0.5b-local \
+  --model qwen3.5-2b-local \
   --prompt "用一句话解释什么是KV Cache。"
 ```
 
@@ -357,11 +358,11 @@ cd vllm_baseline
 
 cp configs/env.example .env.local
 bash scripts/setup_venv.sh
-bash scripts/download_model.sh qwen2_5_0_5b_instruct
-bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
-bash scripts/serve_local.sh qwen2_5_0_5b_instruct
-bash scripts/verify_server.sh qwen2_5_0_5b_instruct
-bash scripts/stop_server.sh qwen2_5_0_5b_instruct
+bash scripts/download_model.sh qwen3_5_2b
+bash scripts/run_offline_smoke.sh qwen3_5_2b
+bash scripts/serve_local.sh qwen3_5_2b
+bash scripts/verify_server.sh qwen3_5_2b
+bash scripts/stop_server.sh qwen3_5_2b
 ```
 
 ## 可选模型：Qwen3 8B
@@ -426,7 +427,7 @@ bash scripts/verify_server.sh qwen3_8b
 - 例如：
 
 ```bash
-bash scripts/stop_server.sh qwen2_5_0_5b_instruct
+bash scripts/stop_server.sh qwen3_5_2b
 ```
 
 ## 基础使用示例
@@ -445,7 +446,7 @@ cd KVFabric/vllm_baseline
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "qwen2.5-0.5b-local",
+    "model": "qwen3.5-2b-local",
     "messages": [
       {"role": "user", "content": "Reply with one short sentence about KV cache."}
     ],
@@ -461,7 +462,7 @@ cd KVFabric/vllm_baseline
 python examples/openai_client_smoke.py \
   --host 127.0.0.1 \
   --port 8000 \
-  --model qwen2.5-0.5b-local
+  --model qwen3.5-2b-local
 ```
 
 ## 后续计划
@@ -498,7 +499,7 @@ python examples/openai_client_smoke.py \
 
 ### 3. 为什么 `Qwen3-8B` 只是可选？
 
-因为这个模型对显存和磁盘的要求明显更高。对当前工作区来说，`Qwen/Qwen2.5-0.5B-Instruct` 更适合作为默认 bring-up 模型，`Qwen/Qwen3-8B` 更适合放到更大显存机器上做后续对照。
+因为这个模型对显存和磁盘的要求明显更高。对当前工作区来说，`Qwen/Qwen3.5-2B` 更适合作为默认 bring-up 模型，`Qwen/Qwen3-8B` 更适合放到更大显存机器上做后续对照。
 
 ### 4. 现在这套内容能直接给别人用吗？
 

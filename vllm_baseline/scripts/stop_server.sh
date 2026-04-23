@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/common.sh"
 
 load_common_env
 ensure_dirs
-load_profile "${1:-qwen2_5_0_5b_instruct}"
+load_profile "${1:-qwen3_5_2b}"
 
 pid_file=$(server_pid_file "$MODEL_PRESET")
 

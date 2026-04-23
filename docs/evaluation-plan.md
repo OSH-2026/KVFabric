@@ -28,7 +28,7 @@
 
 当前默认使用：
 
-- `Qwen/Qwen2.5-0.5B-Instruct`
+- `Qwen/Qwen3.5-2B`
 
 当前可选使用：
 

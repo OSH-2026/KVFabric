@@ -31,7 +31,7 @@ KVFabric is a systems project focused on KV Cache scheduling and lifecycle manag
 
 - Stage: `baseline bring-up / architecture freeze`
 - Baseline engine: upstream `vLLM`
-- Verified preset: `Qwen/Qwen2.5-0.5B-Instruct`
+- Verified preset: `Qwen/Qwen3.5-2B`
 - Optional preset: `Qwen/Qwen3-8B`
 - Runnable entry point: [vllm_baseline/README.md](vllm_baseline/README.md)
 - Bring-up record: [logs/2026-04-14-vllm-bringup.md](logs/2026-04-14-vllm-bringup.md)
@@ -102,14 +102,14 @@ cd KVFabric
 cd vllm_baseline
 
 bash scripts/setup_venv.sh
-bash scripts/download_model.sh qwen2_5_0_5b_instruct
-bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
-bash scripts/serve_local.sh qwen2_5_0_5b_instruct
-bash scripts/verify_server.sh qwen2_5_0_5b_instruct
-bash scripts/stop_server.sh qwen2_5_0_5b_instruct
+bash scripts/download_model.sh qwen3_5_2b
+bash scripts/run_offline_smoke.sh qwen3_5_2b
+bash scripts/serve_local.sh qwen3_5_2b
+bash scripts/verify_server.sh qwen3_5_2b
+bash scripts/stop_server.sh qwen3_5_2b
 ```
 
-The default validated path uses `Qwen/Qwen2.5-0.5B-Instruct`. `Qwen/Qwen3-8B` remains available as an optional preset for follow-up comparisons on machines with larger GPU memory.
+The default validated path uses `Qwen/Qwen3.5-2B`. `Qwen/Qwen3-8B` remains available as an optional preset for follow-up comparisons on machines with larger GPU memory.
 
 ## What Is In This Repo
 

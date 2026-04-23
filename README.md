@@ -30,7 +30,7 @@ KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展
 
 - 阶段：`baseline bring-up / architecture freeze`
 - 基线引擎：官方 `vLLM`
-- 已验证模型：`Qwen/Qwen2.5-0.5B-Instruct`
+- 已验证模型：`Qwen/Qwen3.5-2B`
 - 可选模型：`Qwen/Qwen3-8B`
 - 可运行入口：[vllm_baseline/README.md](vllm_baseline/README.md)
 - 运行记录：[logs/2026-04-14-vllm-bringup.md](logs/2026-04-14-vllm-bringup.md)
@@ -101,14 +101,14 @@ cd KVFabric
 cd vllm_baseline
 
 bash scripts/setup_venv.sh
-bash scripts/download_model.sh qwen2_5_0_5b_instruct
-bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
-bash scripts/serve_local.sh qwen2_5_0_5b_instruct
-bash scripts/verify_server.sh qwen2_5_0_5b_instruct
-bash scripts/stop_server.sh qwen2_5_0_5b_instruct
+bash scripts/download_model.sh qwen3_5_2b
+bash scripts/run_offline_smoke.sh qwen3_5_2b
+bash scripts/serve_local.sh qwen3_5_2b
+bash scripts/verify_server.sh qwen3_5_2b
+bash scripts/stop_server.sh qwen3_5_2b
 ```
 
-默认验证链路使用 `Qwen/Qwen2.5-0.5B-Instruct`。`Qwen/Qwen3-8B` 作为可选预设保留，更适合更大显存机器做后续对照。
+默认验证链路使用 `Qwen/Qwen3.5-2B`。`Qwen/Qwen3-8B` 作为可选预设保留，更适合更大显存机器做后续对照。
 
 ## 当前仓库包含
 

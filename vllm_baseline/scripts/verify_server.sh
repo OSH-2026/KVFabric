@@ -9,7 +9,7 @@ load_common_env
 ensure_dirs
 configure_proxy_if_requested
 require_venv
-load_profile "${1:-qwen2_5_0_5b_instruct}"
+load_profile "${1:-qwen3_5_2b}"
 
 health_url="http://${VLLM_HOST}:${VLLM_PORT}/health"
 models_url="http://${VLLM_HOST}:${VLLM_PORT}/v1/models"

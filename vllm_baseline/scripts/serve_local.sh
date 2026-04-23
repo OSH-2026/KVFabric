@@ -9,7 +9,7 @@ load_common_env
 ensure_dirs
 configure_proxy_if_requested
 require_venv
-load_profile "${1:-qwen2_5_0_5b_instruct}"
+load_profile "${1:-qwen3_5_2b}"
 
 if [[ ! -d "$MODEL_DIR" ]]; then
   echo "Model directory not found: ${MODEL_DIR}" >&2
@@ -43,6 +43,7 @@ server_pid=$(
   GPU_MEMORY_UTILIZATION="$GPU_MEMORY_UTILIZATION" \
   MAX_NUM_SEQS="$MAX_NUM_SEQS" \
   SERVED_MODEL_NAME="$SERVED_MODEL_NAME" \
+  LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-0}" \
   VLLM_CACHE_ROOT="$VLLM_CACHE_ROOT" \
   HF_HOME="$HF_HOME" \
   XDG_CACHE_HOME="$XDG_CACHE_HOME" \
@@ -68,6 +69,9 @@ cmd = [
     "--served-model-name",
     os.environ["SERVED_MODEL_NAME"],
 ]
+
+if os.environ.get("LANGUAGE_MODEL_ONLY") == "1":
+    cmd.append("--language-model-only")
 
 env = os.environ.copy()
 with open(os.environ["LOG_FILE"], "ab", buffering=0) as log_file:

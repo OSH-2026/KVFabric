@@ -9,7 +9,7 @@
 
 ## 当前快照
 
-- 默认验证模型：`Qwen/Qwen2.5-0.5B-Instruct`
+- 默认验证模型：`Qwen/Qwen3.5-2B`
 - 已验证能力：offline inference + online serving
 - 可选预设：`Qwen/Qwen3-8B`
 - 运行方式：相对仓库根目录的脚本化工作流
@@ -68,11 +68,11 @@ cd KVFabric
 cd vllm_baseline
 
 bash scripts/setup_venv.sh
-bash scripts/download_model.sh qwen2_5_0_5b_instruct
-bash scripts/run_offline_smoke.sh qwen2_5_0_5b_instruct
-bash scripts/serve_local.sh qwen2_5_0_5b_instruct
-bash scripts/verify_server.sh qwen2_5_0_5b_instruct
-bash scripts/stop_server.sh qwen2_5_0_5b_instruct
+bash scripts/download_model.sh qwen3_5_2b
+bash scripts/run_offline_smoke.sh qwen3_5_2b
+bash scripts/serve_local.sh qwen3_5_2b
+bash scripts/verify_server.sh qwen3_5_2b
+bash scripts/stop_server.sh qwen3_5_2b
 ```
 
 官方 quickstart 常见的是直接执行类似下面的命令：
@@ -81,7 +81,7 @@ bash scripts/stop_server.sh qwen2_5_0_5b_instruct
 vllm serve Qwen/Qwen2.5-1.5B-Instruct
 ```
 
-仓库里之所以默认切到 `qwen2_5_0_5b_instruct`，只是为了给当前这台机器保留一条更轻、更稳、更容易复现的最小链路。
+仓库里默认切到 `qwen3_5_2b`，是为了在当前这台 8 GiB GPU 上保留一条可复现、又比 0.5B 更接近实际验证需求的基线链路。这个预设按 text-only 方式运行，会启用 `--language-model-only`。
 
 ## 预期现象
 
@@ -89,7 +89,7 @@ vllm serve Qwen/Qwen2.5-1.5B-Instruct
 
 - `/docs`：FastAPI / Swagger UI 页面
 - `/health`：浏览器里可能像空白页，只用于健康检查
-- `/v1/models`：返回 JSON；如果出现 `qwen2.5-0.5b-local`，说明模型已经加载成功
+- `/v1/models`：返回 JSON；如果出现 `qwen3.5-2b-local`，说明模型已经加载成功
 
 常用的验证方式有三种：
 
