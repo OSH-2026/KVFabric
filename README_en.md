@@ -2,7 +2,7 @@
 
 > KV Cache scheduling for LLM serving, with a vLLM Python-control-plane prototype first and a portable C++ runtime as the long-term target
 
-[Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md)
+[Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
 
 KVFabric is a systems project focused on KV Cache scheduling and lifecycle management for LLM serving. The repository currently uses `vLLM` as the baseline, with an immediate goal of making the deployment flow, validation path, key code paths, and evaluation entry points clear and reproducible. If short-term source changes are needed to validate unified lifecycle management, sharing-aware eviction, or post-sharing branching, the current strategy is to modify the `vLLM` Python control plane first rather than starting from C++/CUDA kernels.
 
@@ -24,6 +24,7 @@ KVFabric is a systems project focused on KV Cache scheduling and lifecycle manag
 | Learning | 2026-04-07 | Studied LLM inference and KV Cache analysis; selected implementation platform | Zhou Jiarun: [KVFabric group research report](docs/research/group_research/research_report.md); Zhao Tianxiang: [vLLM and llama.cpp suitability study](docs/research/individual_research/ZhaoTianxiang/ztx_research3.md); Wang Yun: [vLLM vs llama.cpp comparison](docs/research/group_research/vllm-vs-llamacpp.md) | Completed initial study and decided to implement on vLLM | [log](logs/2026-04-07.md) |
 | Project Setup | 2026-04-13 | Brought up the vLLM baseline environment and validated the inference path | Zhou Jiarun: environment setup, inference pipeline bring-up, and initial performance collection; Zhao Tianxiang: drafted the [feasibility report](docs/reports/feasibility_report.md); Wang Yun: logs and documentation | Successfully brought up the vLLM environment, validated the end-to-end inference path, and collected initial performance data | [log](logs/2026-04-14-vllm-bringup.md) |
 | Group Discussion | 2026-04-19 | Offline meeting on follow-up direction and planning | Discussed the next-stage vLLM modification scope and design approach, and clarified immediate tasks | Complete first-pass vLLM source reading and KV Cache call-chain analysis before next Wednesday, then hold a follow-up meeting to finalize detailed task allocation | [log](logs/2026-04-19.md) |
+| Group Discussion | 2026-04-23 | Offline meeting to define the next-stage plan around top-tier conference papers, quantitative evaluation methods, and reproduction of project-relevant vLLM/KV Cache performance tests | Zhou Jiarun: KV Cache compression and quality evaluation; Zhao Tianxiang: KV Cache reuse and prefix-cache evaluation; Wang Yun: standard vLLM baseline service performance evaluation | Finalized the first-round task split and reproducible benchmarking direction | [log](logs/2026-04-23.md) |
 
 ---
 

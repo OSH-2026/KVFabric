@@ -2,7 +2,7 @@
 
 > KV Cache scheduling for LLM serving, with a vLLM Python-control-plane prototype first and a portable C++ runtime as the long-term target
 
-[English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md)
+[English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md) | [Research Report](docs\research\group_research\research_report.md) | [Feasibility Report](docs\reports\feasibility_report.md) |
 
 KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展开的系统项目。仓库目前以 `vLLM` 基线为中心，先把部署、验证、代码路径和评测入口打磨清楚。需要修改 `vLLM` 源码来验证“统一生命周期管理 / 共享感知驱逐 / 共享后分叉”等功能，当前优先改 `vLLM` 的 Python 控制面代码。
 
@@ -23,8 +23,8 @@ KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展
 |选题|2026-03-29|线上会议|向老师报告选题并咨询意见|选题通过||
 |学习|2026-04-07|学习LLM推理与KVCache分析相关知识，并选择实现平台|周家润：[KVFabric 小组研究报告](docs/research/group_research/research_report.md)；赵天翔：[vLLM 与 llama.cpp 适用性调研](docs/research/individual_research/ZhaoTianxiang/ztx_research3.md)；王允：[vllm与llamacpp平台的优缺点比较](docs/research/group_research/vllm-vs-llamacpp.md)|完成初步学习，决定在vllm上实现该项目|[log](logs/2026-04-07.md)|
 |项目搭建|2026-04-13|搭建vLLM基线环境，打通推理链路|周家润：环境搭建、推理链路打通、性能数据收集；赵天翔：撰写[可行性报告](docs/reports/feasibility_report.md)；王允：整理日志和文档|成功搭建vLLM环境，并完成了端到端的推理链路验证，收集了初步的性能数据|[log](logs/2026-04-14-vllm-bringup.md)|
-|小组讨论|2026-04-19|线下会议，讨论后续的方向和计划|讨论后续的vLLM改造范围和设计思路，明确接下来的任务内容|下周三之前进行对vllm源码的阅读和分析，并决定在下周三开一次会议商量之后的具体分工|[log](logs/2026-04-19.md)|
-
+|小组讨论|2026-04-19|线下会议|讨论后续的vLLM改造范围和设计思路，明确接下来的任务内容|下周三之前进行对vllm源码的阅读和分析，并决定在下周三开一次会议商量之后的具体分工|[log](logs/2026-04-19.md)|
+|小组讨论|2026-04-23|线下会议，确定后续任务是详细阅读一些前沿顶会论文，获取他们的评测量化方法，并复现项目相关的关于vllm和KVcache性能评测测试|周家润：KVCache 压缩与质量评测；赵天翔：KVCache 复用与前缀缓存评测；王允：vLLM 的标准基础服务性能评测|...|[log](logs/2026-04-23.md)|
 ---
 ## 当前状态
 
