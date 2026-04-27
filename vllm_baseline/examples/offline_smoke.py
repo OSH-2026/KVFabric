@@ -20,6 +20,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-model-len", type=int, default=1024)
     parser.add_argument("--max-num-seqs", type=int, default=1)
     parser.add_argument("--language-model-only", action="store_true")
+    prefix_group = parser.add_mutually_exclusive_group()
+    prefix_group.add_argument("--enable-prefix-caching", action="store_true")
+    prefix_group.add_argument("--no-enable-prefix-caching", action="store_true")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=32)
     return parser.parse_args()
@@ -36,12 +39,19 @@ def main() -> None:
     print(f"CUDA available: {torch.cuda.is_available()}")
     print(f"Loading local model: {model_path}", flush=True)
 
+    llm_kwargs = {}
+    if args.enable_prefix_caching:
+        llm_kwargs["enable_prefix_caching"] = True
+    elif args.no_enable_prefix_caching:
+        llm_kwargs["enable_prefix_caching"] = False
+
     llm = LLM(
         model=str(model_path),
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,
         max_num_seqs=args.max_num_seqs,
         language_model_only=args.language_model_only,
+        **llm_kwargs,
     )
     params = SamplingParams(
         temperature=args.temperature,

@@ -44,6 +44,7 @@ server_pid=$(
   MAX_NUM_SEQS="$MAX_NUM_SEQS" \
   SERVED_MODEL_NAME="$SERVED_MODEL_NAME" \
   LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-0}" \
+  ENABLE_PREFIX_CACHING="${ENABLE_PREFIX_CACHING:-auto}" \
   VLLM_CACHE_ROOT="$VLLM_CACHE_ROOT" \
   HF_HOME="$HF_HOME" \
   XDG_CACHE_HOME="$XDG_CACHE_HOME" \
@@ -72,6 +73,14 @@ cmd = [
 
 if os.environ.get("LANGUAGE_MODEL_ONLY") == "1":
     cmd.append("--language-model-only")
+
+prefix_caching = os.environ.get("ENABLE_PREFIX_CACHING", "auto").lower()
+if prefix_caching in {"1", "true", "yes"}:
+    cmd.append("--enable-prefix-caching")
+elif prefix_caching in {"0", "false", "no"}:
+    cmd.append("--no-enable-prefix-caching")
+elif prefix_caching not in {"auto", ""}:
+    raise SystemExit(f"Invalid ENABLE_PREFIX_CACHING={prefix_caching}")
 
 env = os.environ.copy()
 with open(os.environ["LOG_FILE"], "ab", buffering=0) as log_file:
