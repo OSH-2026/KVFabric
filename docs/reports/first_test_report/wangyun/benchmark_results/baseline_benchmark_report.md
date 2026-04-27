@@ -335,6 +335,6 @@ docs/reports/first_test_report/wangyun/benchmark_results/
 
 ## 附录 C: 参考链接
 
-- 评测工具综合分析： [../评测工具综合分析与使用指南.md](../评测工具综合分析与使用指南.md)
+- 评测工具综合分析： [../评测工具综合分析与使用指南.md](../vllm_test_tool_analysis.md)
 - KVFabric 评测计划: [../../../evaluation-plan.md](../../../../evaluation-plan.md)
 - vLLM Benchmark CLI: https://docs.vllm.ai/en/stable/benchmarking/cli/
