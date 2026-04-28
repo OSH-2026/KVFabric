@@ -1,0 +1,107 @@
+{
+  "name": "quality_tasks_general_v1",
+  "items": [
+    {
+      "id": "long_qa_001",
+      "category": "long_context_qa",
+      "prompt": "阅读下面的长上下文，并回答最后的问题。\n\n背景段落A：项目评审会记录了一系列无关的样例字段，包括海运编号、虚构地名、历史版本和若干重复说明。请注意，这些段落大多只是为了拉长上下文，并不直接回答问题。\n背景段落B：在 Maple Harbor 计划中，最终确认的缓存策略实验代号是 Cedar-42，负责记录长期质量回归。该代号只在这一句中给出一次。其他段落提到的 Cedar-12、Harbor-7 都是废弃草案。\n背景段落C：团队后续又记录了大量与实验无关的附注，例如设备温度、风扇噪声、会场座位编号和演示机颜色。这些内容都不是答案。\n问题：Maple Harbor 计划里最终确认的缓存策略实验代号是什么？请只回答代号本身。",
+      "reference_answer": "Cedar-42",
+      "scoring": {
+        "mode": "contains_all",
+        "keywords": [
+          "cedar-42"
+        ]
+      }
+    },
+    {
+      "id": "long_qa_002",
+      "category": "long_context_qa",
+      "prompt": "请根据下面的长文档回答问题。\n\n文档片段1：这是一份面向长上下文问答测试的合成材料，包含大量背景描述、若干无关数字，以及多次重复的提示语。\n文档片段2：在 2026 年 4 月的测试记录里，真正需要保留的结论是：若共享前缀长度不足一个 full block，prefix cache hit rate 可能维持在 0.0%。\n文档片段3：其他出现的数值如 12.5%、31.7% 和 89.0% 都是旧草稿中的示意值，不应当作为最终答案。\n问题：当共享前缀长度不足一个 full block 时，文档里给出的 prefix cache hit rate 可能是多少？请直接回答数值。",
+      "reference_answer": "0.0%",
+      "scoring": {
+        "mode": "contains_all",
+        "keywords": [
+          "0.0%"
+        ]
+      }
+    },
+    {
+      "id": "dialog_001",
+      "category": "multi_turn_dialog",
+      "prompt": "下面是一段多轮对话，请根据历史信息回答最后的问题。\n\n用户：以后帮我记录实验偏好，我更关心共享前缀命中率。\n助手：好的，我记住你更关心共享前缀命中率。\n用户：另外，汇报时请优先给我中文结论，尽量简洁。\n助手：明白，优先中文且尽量简洁。\n用户：现在总结一下我刚才强调的两个偏好。\n助手：",
+      "reference_answer": "关注共享前缀命中率；优先中文且简洁。",
+      "scoring": {
+        "mode": "contains_all",
+        "keywords": [
+          "共享前缀命中率",
+          "中文",
+          "简洁"
+        ]
+      }
+    },
+    {
+      "id": "dialog_002",
+      "category": "multi_turn_dialog",
+      "prompt": "阅读下面的多轮对话，并回答最后的问题。\n\n用户：我准备周五下午做代码走查。\n助手：好的，我记住了，是周五下午。\n用户：重点想看的是 block_pool.py 和 kv_cache_manager.py。\n助手：收到，重点关注 block_pool.py 和 kv_cache_manager.py。\n用户：请一句话提醒我本周代码走查的时间和重点文件。\n助手：",
+      "reference_answer": "周五下午，重点看 block_pool.py 和 kv_cache_manager.py。",
+      "scoring": {
+        "mode": "contains_all",
+        "keywords": [
+          "周五",
+          "下午",
+          "block_pool.py",
+          "kv_cache_manager.py"
+        ]
+      }
+    },
+    {
+      "id": "code_001",
+      "category": "code_generation",
+      "prompt": "写一个 Python 函数 `normalize_spaces(text)`，要求：\n1. 将任意连续空白折叠为单个空格。\n2. 去掉首尾空白。\n3. 返回处理后的字符串。\n只输出代码。",
+      "reference_answer": "def normalize_spaces(text): return ' '.join(text.split())",
+      "scoring": {
+        "mode": "contains_all",
+        "keywords": [
+          "def normalize_spaces",
+          "split(",
+          "join("
+        ]
+      }
+    },
+    {
+      "id": "code_002",
+      "category": "code_generation",
+      "prompt": "只输出 Python 代码：实现函数 `prefix_hit_ratio(hit, total)`，当 total 为 0 时返回 0.0，否则返回 hit / total。",
+      "reference_answer": "def prefix_hit_ratio(hit, total): return 0.0 if total == 0 else hit / total",
+      "scoring": {
+        "mode": "contains_all",
+        "keywords": [
+          "def prefix_hit_ratio",
+          "total == 0",
+          "0.0",
+          "hit / total"
+        ]
+      }
+    },
+    {
+      "id": "reason_001",
+      "category": "reasoning",
+      "prompt": "一步步思考后给出最终答案：某次测试中共有 72 个请求，其中 18 个请求没有命中共享前缀，其余都命中。命中率是多少？请在最后一行写 `Final:` 加上百分比。",
+      "reference_answer": "Final: 75%",
+      "scoring": {
+        "mode": "regex",
+        "pattern": "Final:\\s*75%"
+      }
+    },
+    {
+      "id": "reason_002",
+      "category": "reasoning",
+      "prompt": "请计算并在最后一行写出 `Final:` 结果：如果某个方案将显存占用从 10 GiB 降到 7 GiB，节省了多少百分比？",
+      "reference_answer": "Final: 30%",
+      "scoring": {
+        "mode": "regex",
+        "pattern": "Final:\\s*30%"
+      }
+    }
+  ]
+}

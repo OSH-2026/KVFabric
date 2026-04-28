@@ -1,6 +1,6 @@
 # 当前可做测试与日志方案
 
-本文档只描述当前阶段还能做什么，不替代 `/home/qy-dream/OSH_Project/work` 里的正式 benchmark 任务。
+本文档只描述当前阶段还能做什么，不替代仓库同级目录 `../work/` 里的正式 benchmark 任务。
 
 ## 当前已可运行的测试
 
@@ -54,4 +54,3 @@
 - 先写 JSONL 事件，例如 `kv_lifecycle_events.jsonl`；
 - 事件按 request/block 粒度记录，不记录大 tensor；
 - 中等测试和 soak 测试结束后用脚本汇总。
-

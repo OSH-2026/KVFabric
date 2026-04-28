@@ -2,12 +2,12 @@
 
 ## 0. 分析对象与结论摘要
 
-本报告分析的源码位于项目目录之外：
+本报告分析的源码位于 `KVFabric/` 的同级目录：
 
-- 源码路径：`/home/qy-dream/OSH_Project/vllm-v0.19.0`
+- 源码路径：`../vllm-v0.19.0`
 - 克隆版本：`v0.19.0`
 - 当前提交：`2a69949bdadf0e8942b7a1619b229cb475beef20`
-- 参考文档：`/home/qy-dream/OSH_Project/KVFabric/docs/reports/feasibility_report.md`
+- 参考文档：`../../reports/feasibility_report.md`
 
 本报告重点阅读 vLLM v1 中与 KVCache 分配、前缀复用、block 回收、worker 侧 block table 和 attention 读写相关的源码。结论如下：
 

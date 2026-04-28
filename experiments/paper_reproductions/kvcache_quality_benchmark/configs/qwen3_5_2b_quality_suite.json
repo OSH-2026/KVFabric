@@ -1,0 +1,12 @@
+{
+  "name": "qwen3_5_2b_kvcache_quality_suite",
+  "task_file": "quality_tasks_general_v1.json",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 96
+  },
+  "notes": [
+    "当前 suite 用于建立 KVCache 压缩与质量评测的统一流程。",
+    "默认控制组为官方 vLLM 基线，后续 candidate 方案可通过 variants/ 和 plans/ 接入。"
+  ]
+}

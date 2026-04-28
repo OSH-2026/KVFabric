@@ -4,10 +4,10 @@
 
 它不是一个可直接导入的 `vllm` Python 包，也不应该通过 `PYTHONPATH` 覆盖当前安装的 vLLM。这里采用 overlay 工作流：只把后续最可能修改的核心文件复制进当前项目，方便阅读、diff 和 patch 管理；真正运行时仍然应用到完整的上游源码工作树。
 
-完整上游源码当前默认位于：
+完整上游源码当前默认位于 `KVFabric/` 的同级目录：
 
 ```text
-/home/qy-dream/OSH_Project/vllm-v0.19.0
+../vllm-v0.19.0
 ```
 
 ## 为什么使用 Overlay
@@ -53,5 +53,4 @@ bash vllm_workspace/scripts/apply_to_worktree.sh
 2. 在 overlay 中做小步修改。
 3. 导出 patch 审查。
 4. 应用到完整 `vllm-v0.19.0`。
-5. 用 `experiments/` 里的当前阶段测试验证行为。
-
+5. 用 `experiments/prebenchmark_validation/` 里的当前阶段测试验证行为。
