@@ -1,0 +1,23 @@
+{
+  "name": "vllm_throughput_scan",
+  "description": "Offline throughput scan across input/output length combinations for baseline performance profiling with 8GB VRAM.",
+  "generation": {
+    "temperature": 0.0
+  },
+  "scan_points": [
+    {"input_len": 128,  "output_len": 64,  "num_prompts": 100},
+    {"input_len": 256,  "output_len": 64,  "num_prompts": 100},
+    {"input_len": 256,  "output_len": 128, "num_prompts": 80},
+    {"input_len": 512,  "output_len": 64,  "num_prompts": 80},
+    {"input_len": 512,  "output_len": 128, "num_prompts": 80},
+    {"input_len": 512,  "output_len": 256, "num_prompts": 50},
+    {"input_len": 1024, "output_len": 128, "num_prompts": 50},
+    {"input_len": 1024, "output_len": 256, "num_prompts": 30}
+  ],
+  "notes": [
+    "Scan points tuned for 8GB VRAM (RTX 4060 Laptop).",
+    "For GPUs with 16GB+, add 2048 input_len scan points.",
+    "Each scan point reloads the vLLM engine to ensure clean GPU state.",
+    "For prefix cache A/B, set random_prefix_len in the variant env."
+  ]
+}

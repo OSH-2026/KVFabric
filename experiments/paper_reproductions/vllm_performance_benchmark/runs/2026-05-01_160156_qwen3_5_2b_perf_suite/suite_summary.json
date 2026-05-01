@@ -1,0 +1,49 @@
+{
+  "run_group": "/home/llyun/KVcasha/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-05-01_160156_qwen3_5_2b_perf_suite",
+  "baseline_variant": "prefix_caching_on",
+  "baseline_summary": {
+    "successful_points": 8,
+    "total_points": 8,
+    "avg_request_throughput": 6.0725,
+    "avg_total_token_throughput": 2799.3575,
+    "avg_output_token_throughput": 602.39125,
+    "peak_kv_cache_usage_pct": 95.2,
+    "kv_cache_capacity_tokens": 16864
+  },
+  "variants": {
+    "prefix_caching_on": {
+      "variant_name": "prefix_caching_on",
+      "variant_description": "Official vLLM with prefix caching enabled. Compare with vanilla_vllm to measure prefix cache overhead and hit rate.",
+      "summary": {
+        "successful_points": 8,
+        "total_points": 8,
+        "avg_request_throughput": 6.0725,
+        "avg_total_token_throughput": 2799.3575,
+        "avg_output_token_throughput": 602.39125,
+        "peak_kv_cache_usage_pct": 95.2,
+        "kv_cache_capacity_tokens": 16864
+      },
+      "delta_vs_baseline": {
+        "request_throughput_pct": 0.0,
+        "total_token_throughput_pct": 0.0
+      }
+    },
+    "vanilla_vllm": {
+      "variant_name": "vanilla_vllm",
+      "variant_description": "Official vLLM baseline, no KV compression, no prefix caching.",
+      "summary": {
+        "successful_points": 8,
+        "total_points": 8,
+        "avg_request_throughput": 6.4487499999999995,
+        "avg_total_token_throughput": 3134.27,
+        "avg_output_token_throughput": 658.0825,
+        "peak_kv_cache_usage_pct": 100.0,
+        "kv_cache_capacity_tokens": 16864
+      },
+      "delta_vs_baseline": {
+        "request_throughput_pct": 6.2,
+        "total_token_throughput_pct": 12.0
+      }
+    }
+  }
+}

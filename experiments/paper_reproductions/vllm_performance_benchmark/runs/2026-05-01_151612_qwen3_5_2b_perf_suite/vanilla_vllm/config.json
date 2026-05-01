@@ -1,0 +1,12 @@
+{
+  "name": "qwen3_5_2b_performance_suite",
+  "description": "Standard performance baseline suite for Qwen/Qwen3.5-2B on vLLM. Measures offline throughput across input/output length combinations, with optional prefix caching A/B comparison.",
+  "scan_config": "throughput_scan.json",
+  "model_preset": "qwen3_5_2b",
+  "notes": [
+    "The scan_config is resolved relative to this suite config's directory.",
+    "Each scan point runs vllm bench throughput independently.",
+    "GPU memory and KV cache stats are captured from engine logs.",
+    "For online serving metrics (TTFT/TPOT/ITL), use vllm bench serve on bare-metal Linux."
+  ]
+}
