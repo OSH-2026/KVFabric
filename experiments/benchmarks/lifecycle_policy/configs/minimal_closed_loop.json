@@ -1,0 +1,63 @@
+{
+  "name": "minimal_closed_loop",
+  "description": "KVFabric 最小闭环使用的生命周期感知 KV cache 策略合成基准。",
+  "block_size_tokens": 16,
+  "cache_blocks": 24,
+  "regret_window_requests": 6,
+  "decode_tokens_per_request": 16,
+  "prefill_seconds_per_token": 0.0012,
+  "decode_seconds_per_token": 0.00028,
+  "metadata_overhead_seconds_per_request": 0.00015,
+  "policies": [
+    "lru",
+    "shared_aware"
+  ],
+  "workloads": [
+    {
+      "name": "exact_shared_prefix",
+      "description": "多个请求使用相同系统前缀，但用户后缀不同。",
+      "type": "shared_prefix",
+      "requests": 40,
+      "shared_blocks": 8,
+      "private_blocks": 2,
+      "repeat_hot_every": 1
+    },
+    {
+      "name": "template_fork",
+      "description": "模板型 prompt 在公共前缀后分叉。",
+      "type": "template_fork",
+      "requests": 48,
+      "shared_blocks": 6,
+      "branch_blocks": 2,
+      "private_blocks": 2,
+      "branches": 6
+    },
+    {
+      "name": "rag_long_context",
+      "description": "共享同一段长 RAG 文档，并提出多个不同问题。",
+      "type": "rag_long_context",
+      "requests": 32,
+      "shared_blocks": 12,
+      "private_blocks": 3,
+      "repeat_hot_every": 1
+    },
+    {
+      "name": "cache_pressure",
+      "description": "热点共享请求与长尾冷请求混合，制造缓存压力。",
+      "type": "cache_pressure",
+      "rounds": 10,
+      "hot_requests_per_round": 3,
+      "cold_requests_per_round": 2,
+      "hot_shared_blocks": 8,
+      "hot_private_blocks": 2,
+      "cold_blocks": 12
+    }
+  ],
+  "shared_aware_weights": {
+    "hit_count": 1.2,
+    "share_degree": 2.0,
+    "prefix_depth": 0.7,
+    "recompute_cost": 0.4,
+    "age": 1.0
+  }
+}

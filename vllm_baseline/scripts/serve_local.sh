@@ -45,6 +45,8 @@ server_pid=$(
   SERVED_MODEL_NAME="$SERVED_MODEL_NAME" \
   LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-0}" \
   ENABLE_PREFIX_CACHING="${ENABLE_PREFIX_CACHING:-auto}" \
+  KV_CACHE_METRICS="${KV_CACHE_METRICS:-0}" \
+  KV_CACHE_METRICS_SAMPLE="${KV_CACHE_METRICS_SAMPLE:-0.01}" \
   VLLM_CACHE_ROOT="$VLLM_CACHE_ROOT" \
   HF_HOME="$HF_HOME" \
   XDG_CACHE_HOME="$XDG_CACHE_HOME" \
@@ -81,6 +83,13 @@ elif prefix_caching in {"0", "false", "no"}:
     cmd.append("--no-enable-prefix-caching")
 elif prefix_caching not in {"auto", ""}:
     raise SystemExit(f"Invalid ENABLE_PREFIX_CACHING={prefix_caching}")
+
+if os.environ.get("KV_CACHE_METRICS") == "1":
+    cmd.append("--kv-cache-metrics")
+    cmd.extend([
+        "--kv-cache-metrics-sample",
+        os.environ.get("KV_CACHE_METRICS_SAMPLE", "0.01"),
+    ])
 
 env = os.environ.copy()
 with open(os.environ["LOG_FILE"], "ab", buffering=0) as log_file:
