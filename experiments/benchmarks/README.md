@@ -9,6 +9,13 @@
 - 多模型、多上下文长度、多并发配置的批量脚本
 - 汇总图表、结果摘要与对应原始输出
 
+## 当前入口
+
+- `lifecycle_policy/`
+  当前最小闭环：用确定性的 Python workload generator 和 lifecycle side table
+  对比 LRU 与共享感知驱逐策略，产出 hit rate、saved prefill tokens、
+  recompute、eviction regret、TTFT/TPOT proxy 等指标。
+
 如果某套 benchmark 已经形成稳定流程，建议继续按子目录拆分，例如：
 
 ```text
