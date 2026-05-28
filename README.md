@@ -24,7 +24,11 @@ KVFabric 是一个围绕 LLM serving 中 KV Cache 调度与生命周期管理展
 |学习|2026-04-07|学习LLM推理与KVCache分析相关知识，并选择实现平台|周家润：[KVFabric 小组研究报告](docs/research/group_research/research_report.md)；赵天翔：[vLLM 与 llama.cpp 适用性调研](docs/research/individual_research/ZhaoTianxiang/ztx_research3.md)；王允：[vllm与llamacpp平台的优缺点比较](docs/research/group_research/vllm-vs-llamacpp.md)|完成初步学习，决定在vllm上实现该项目|[log](logs/2026-04-07.md)|
 |项目搭建|2026-04-13|搭建vLLM基线环境，打通推理链路|周家润：环境搭建、推理链路打通、性能数据收集；赵天翔：撰写[可行性报告](docs/reports/feasibility_report.md)；王允：整理日志和文档|成功搭建vLLM环境，并完成了端到端的推理链路验证，收集了初步的性能数据|[log](logs/2026-04-14-vllm-bringup.md)|
 |小组讨论|2026-04-19|线下会议|讨论后续的vLLM改造范围和设计思路，明确接下来的任务内容|下周三之前进行对vllm源码的阅读和分析，并决定在下周三开一次会议商量之后的具体分工|[log](logs/2026-04-19.md)|
-|小组讨论|2026-04-23|线下会议，确定后续任务是详细阅读一些前沿顶会论文，获取他们的评测量化方法，并复现项目相关的关于vllm和KVcache性能评测测试|周家润：[KVCache 压缩与质量评测](logs/2026-04-23_work.md#L71)；赵天翔：[KVCache 复用与前缀缓存评测](logs/2026-04-23_work.md#L33)；王允：[vLLM 的标准基础服务性能评测](logs/2026-04-23_work.md#L1)|王允：[评测工具](docs/reports/first_test_report/wangyun/vllm_test_tool_analysis.md)、[测试结果](docs/reports/first_test_report/wangyun/benchmark_results/baseline_benchmark_report.md)、[测试流程](experiments/paper_reproductions/vllm_performance_benchmark/README.md)|[log](logs/2026-04-23.md)|
+|小组讨论|2026-04-23|线下会议，确定后续任务是详细阅读一些前沿顶会论文，获取他们的评测量化方法，并复现项目相关的关于vllm和KVcache性能评测测试|周家润：[KVCache 压缩与质量评测](logs/2026-04-23_work.md#L71)；赵天翔：[KVCache 复用与前缀缓存评测](logs/2026-04-23_work.md#L33)；王允：[vLLM 的标准基础服务性能评测](logs/2026-04-23_work.md#L1)|王允：[评测工具](docs/reports/first_test_report/wangyun/vllm_test_tool_analysis.md)、[测试结果](docs/reports/first_test_report/wangyun/benchmark_results/baseline_benchmark_report.md)、[测试流程](experiments/paper_reproductions/vllm_performance_benchmark/README.md)。周家润：...赵天翔：...|[log](logs/2026-04-23.md)|
+|小组讨论|2026-4-28|线下会议，KVCache相关指标评测方法以实现，准备进行中期汇报。|周家润负责中期汇报PPT的设计与制作，赵天翔和王允负责在中期汇报中对别的组的项目进行了解与提问。|周家润：[PPT](docs/media/KVFabric_midterm_report.pptx)|[log](logs/2026-04-28.md)|
+|中期汇报|2026-05-06|课上中期汇报汇报当前项目进展并回答相关问题。|周家润与赵天翔汇报PPT与回答问题，王允负责记录同学与老师的问题与建议。|老师给出[后续路径规划和建议](logs/参考.md)|[log](logs/2026-05-06.md)|
+|小组讨论|2026-05-09|线下会议，讨论后续规划|开始打造最小闭环，由赵天翔负责|[纯 Python、确定性可复现的最小闭环](experiments/benchmarks/lifecycle_policy/README.md)|[log](logs/2026-05-09.md)|
+|小组讨论|2026-05-24|线下会议，开始对vllm源码进行改造|赵天翔向原码中加入探针，监测KVblock状态。周家润实现对数据的封装。王允负责准备长时间测试所需数据集|||
 ---
 ## 当前状态
 
