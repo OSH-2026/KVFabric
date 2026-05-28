@@ -1,0 +1,32 @@
+{
+  "run_group": "/home/llyun/KVcasha/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-05-01_151612_qwen3_5_2b_perf_suite",
+  "baseline_variant": "vanilla_vllm",
+  "baseline_summary": {
+    "successful_points": 8,
+    "total_points": 8,
+    "avg_request_throughput": 6.42,
+    "avg_total_token_throughput": 3114.01625,
+    "avg_output_token_throughput": 655.2325000000001,
+    "peak_kv_cache_usage_pct": 100.0,
+    "kv_cache_capacity_tokens": 16864
+  },
+  "variants": {
+    "vanilla_vllm": {
+      "variant_name": "vanilla_vllm",
+      "variant_description": "Official vLLM baseline, no KV compression, no prefix caching.",
+      "summary": {
+        "successful_points": 8,
+        "total_points": 8,
+        "avg_request_throughput": 6.42,
+        "avg_total_token_throughput": 3114.01625,
+        "avg_output_token_throughput": 655.2325000000001,
+        "peak_kv_cache_usage_pct": 100.0,
+        "kv_cache_capacity_tokens": 16864
+      },
+      "delta_vs_baseline": {
+        "request_throughput_pct": 0.0,
+        "total_token_throughput_pct": 0.0
+      }
+    }
+  }
+}
