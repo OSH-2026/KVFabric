@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+import time
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -194,6 +195,7 @@ class BlockPool:
         Returns:
             The cached blocks if exists, or None.
         """
+        lookup_start_ns = time.monotonic_ns()
         cached_blocks = []
         for group_id in kv_cache_group_ids:
             block_hash_with_group_id = make_block_hash_with_group_id(
@@ -203,8 +205,19 @@ class BlockPool:
                 block_hash_with_group_id
             )
             if not block:
+                if self.metrics_collector:
+                    self.metrics_collector.on_cache_lookup(
+                        hit=False,
+                        elapsed_seconds=(time.monotonic_ns() - lookup_start_ns)
+                        / 1e9,
+                    )
                 return None
             cached_blocks.append(block)
+        if self.metrics_collector:
+            self.metrics_collector.on_cache_lookup(
+                hit=True,
+                elapsed_seconds=(time.monotonic_ns() - lookup_start_ns) / 1e9,
+            )
         return cached_blocks
 
     def cache_full_blocks(
@@ -269,6 +282,12 @@ class BlockPool:
             )
             blk.block_hash = block_hash_with_group_id
             self.cached_block_hash_to_block.insert(block_hash_with_group_id, blk)
+            if self.metrics_collector:
+                self.metrics_collector.on_block_cached(
+                    blk,
+                    prefix_depth=num_cached_blocks + i + 1,
+                    block_size=block_size,
+                )
             if new_hashes is not None:
                 new_hashes.append(maybe_convert_block_hash(block_hash))
 
@@ -360,10 +379,6 @@ class BlockPool:
         Returns:
             True if the block is evicted, False otherwise.
         """
-        # Clean up metrics tracking first to prevent leaks
-        if self.metrics_collector:
-            self.metrics_collector.on_block_evicted(block)
-
         block_hash = block.block_hash
         if block_hash is None:
             # The block doesn't have hash, eviction is not needed
@@ -373,6 +388,9 @@ class BlockPool:
             # block not found in cached_block_hash_to_block,
             # eviction is not needed
             return False
+
+        if self.metrics_collector:
+            self.metrics_collector.on_block_evicted(block)
 
         block.reset_hash()
 
@@ -418,6 +436,8 @@ class BlockPool:
         blocks_list = list(ordered_blocks)
         for block in blocks_list:
             block.ref_cnt -= 1
+            if self.metrics_collector:
+                self.metrics_collector.on_block_ref_count_changed(block)
         self.free_block_queue.append_n(
             [block for block in blocks_list if block.ref_cnt == 0 and not block.is_null]
         )

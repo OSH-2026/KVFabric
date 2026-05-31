@@ -128,6 +128,12 @@ class PrefixCacheStats(BaseCacheStats):
     preempted_hits: int = 0
     """The `hits` number for preempted requests."""
 
+    request_hits: int = 0
+    """The number of new requests that hit at least one prefix cache token."""
+
+    preempted_request_hits: int = 0
+    """The number of preempted requests that hit at least one prefix cache token."""
+
     def record(self, num_tokens: int, num_hits: int, preempted: bool) -> None:
         """Aggregate request information into the stats."""
         if preempted:
@@ -135,11 +141,15 @@ class PrefixCacheStats(BaseCacheStats):
             self.preempted_requests += 1
             self.preempted_queries += num_tokens
             self.preempted_hits += num_hits
+            if num_hits > 0:
+                self.preempted_request_hits += 1
         else:
             # New request
             self.requests += 1
             self.queries += num_tokens
             self.hits += num_hits
+            if num_hits > 0:
+                self.request_hits += 1
 
 
 @dataclass
@@ -165,6 +175,43 @@ class KVCacheEvictionEvent:
     lifetime_seconds: float
     idle_seconds: float
     reuse_gaps_seconds: tuple[float, ...]
+    access_count: int = 0
+    hit_count: int = 0
+    peak_ref_count: int = 0
+    prefix_depth: int = 0
+    recompute_cost_tokens: int = 0
+    branch_factor: int = 0
+    block_hash: str | None = None
+
+
+@dataclass
+class KVCacheEvictionRegretEvent:
+    """A sampled KV block was rebuilt after being evicted."""
+
+    rebuild_gap_seconds: float
+    recompute_cost_tokens: int = 0
+    prefix_depth: int = 0
+
+
+@dataclass
+class KVCacheLifecycleStats:
+    """Aggregated KV cache lifecycle stats for one scheduler interval."""
+
+    block_lookup_queries: int = 0
+    block_lookup_hits: int = 0
+    block_lookup_time_seconds: float = 0.0
+    metadata_update_time_seconds: float = 0.0
+    allocated_blocks: int = 0
+    cached_blocks: int = 0
+    reused_blocks: int = 0
+    evicted_blocks: int = 0
+    waiting_time_seconds: float = 0.0
+    waiting_requests: int = 0
+    free_blocks: int = 0
+    total_blocks: int = 0
+    active_blocks: int = 0
+    peak_active_blocks: int = 0
+    cached_entries: int = 0
 
 
 @dataclass
@@ -185,6 +232,12 @@ class SchedulerStats:
     connector_prefix_cache_stats: PrefixCacheStats | None = None
 
     kv_cache_eviction_events: list[KVCacheEvictionEvent] = field(default_factory=list)
+    kv_cache_eviction_regret_events: list[KVCacheEvictionRegretEvent] = field(
+        default_factory=list
+    )
+    kv_cache_lifecycle_stats: KVCacheLifecycleStats = field(
+        default_factory=KVCacheLifecycleStats
+    )
 
     spec_decoding_stats: SpecDecodingStats | None = None
     kv_connector_stats: dict[str, Any] | None = None

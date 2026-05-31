@@ -3,12 +3,32 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 WORKSPACE_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-PROJECT_ROOT=$(cd "$WORKSPACE_ROOT/../.." && pwd)
-UPSTREAM_ROOT="${VLLM_UPSTREAM_ROOT:-$PROJECT_ROOT/vllm-v0.19.0}"
+REPO_ROOT=$(cd "$WORKSPACE_ROOT/.." && pwd)
+LEGACY_UPSTREAM_ROOT=$(cd "$WORKSPACE_ROOT/../.." && pwd)/vllm-v0.19.0
 OVERLAY_ROOT="$WORKSPACE_ROOT/overlay"
 PATCH_DIR="$WORKSPACE_ROOT/patches"
 PATCH_FILE="$PATCH_DIR/vllm_overlay.patch"
 MANIFEST="$WORKSPACE_ROOT/upstream_manifest.txt"
+
+resolve_upstream_root() {
+  if [[ -n "${VLLM_UPSTREAM_ROOT:-}" ]]; then
+    printf '%s\n' "$VLLM_UPSTREAM_ROOT"
+    return
+  fi
+
+  if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
+    "$REPO_ROOT/.venv/bin/python" - <<'PY' 2>/dev/null && return
+import pathlib
+import vllm
+
+print(pathlib.Path(vllm.__file__).resolve().parent.parent)
+PY
+  fi
+
+  printf '%s\n' "$LEGACY_UPSTREAM_ROOT"
+}
+
+UPSTREAM_ROOT=$(resolve_upstream_root)
 
 mkdir -p "$PATCH_DIR"
 : >"$PATCH_FILE"
@@ -24,4 +44,3 @@ while IFS= read -r rel_path; do
 done <"$MANIFEST"
 
 echo "Wrote patch: ${PATCH_FILE}"
-

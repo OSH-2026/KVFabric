@@ -173,6 +173,20 @@ class KVCacheManager:
         self.prefix_cache_stats = PrefixCacheStats()
         return stats
 
+    def update_kv_cache_lifecycle_stats(self) -> None:
+        if self.metrics_collector is None:
+            return
+        total_blocks = max(self.block_pool.num_gpu_blocks - 1, 0)
+        free_blocks = self.block_pool.get_num_free_blocks()
+        active_blocks = max(total_blocks - free_blocks, 0)
+        cached_entries = len(self.block_pool.cached_block_hash_to_block)
+        self.metrics_collector.update_pool_stats(
+            free_blocks=free_blocks,
+            total_blocks=total_blocks,
+            active_blocks=active_blocks,
+            cached_entries=cached_entries,
+        )
+
     def get_computed_blocks(self, request: Request) -> tuple[KVCacheBlocks, int]:
         """Get the computed (cached) blocks for the request.
         Note that the computed blocks must be full.

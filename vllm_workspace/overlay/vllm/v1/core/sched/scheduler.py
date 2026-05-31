@@ -54,7 +54,11 @@ from vllm.v1.core.sched.utils import check_stop, remove_all
 from vllm.v1.engine import EngineCoreEventType, EngineCoreOutput, EngineCoreOutputs
 from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig
 from vllm.v1.metrics.perf import ModelMetrics, PerfStats
-from vllm.v1.metrics.stats import PrefixCacheStats, SchedulerStats
+from vllm.v1.metrics.stats import (
+    KVCacheLifecycleStats,
+    PrefixCacheStats,
+    SchedulerStats,
+)
 from vllm.v1.outputs import DraftTokenIds, KVConnectorOutput, ModelRunnerOutput
 from vllm.v1.request import Request, RequestStatus, StreamingUpdate
 from vllm.v1.spec_decode.metrics import SpecDecodingStats
@@ -1943,10 +1947,31 @@ class Scheduler(SchedulerInterface):
         if self.connector_prefix_cache_stats is not None:
             connector_prefix_cache_stats = self.connector_prefix_cache_stats
             self.connector_prefix_cache_stats = PrefixCacheStats()
+        self.kv_cache_manager.update_kv_cache_lifecycle_stats()
+        if self.kv_metrics_collector is not None:
+            now = time.time()
+            waiting_requests = list(self.waiting) + list(self.skipped_waiting)
+            waiting_time_seconds = sum(
+                max(now - req.arrival_time, 0.0) for req in waiting_requests
+            )
+            self.kv_metrics_collector.update_waiting_stats(
+                waiting_time_seconds=waiting_time_seconds,
+                waiting_requests=len(waiting_requests),
+            )
         eviction_events = (
             self.kv_metrics_collector.drain_events()
             if self.kv_metrics_collector is not None
             else []
+        )
+        regret_events = (
+            self.kv_metrics_collector.drain_regret_events()
+            if self.kv_metrics_collector is not None
+            else []
+        )
+        lifecycle_stats = (
+            self.kv_metrics_collector.drain_lifecycle_stats()
+            if self.kv_metrics_collector is not None
+            else KVCacheLifecycleStats()
         )
         spec_stats = spec_decoding_stats
         connector_stats_payload = (
@@ -1960,6 +1985,8 @@ class Scheduler(SchedulerInterface):
             prefix_cache_stats=prefix_cache_stats,
             connector_prefix_cache_stats=connector_prefix_cache_stats,
             kv_cache_eviction_events=eviction_events,
+            kv_cache_eviction_regret_events=regret_events,
+            kv_cache_lifecycle_stats=lifecycle_stats,
             spec_decoding_stats=spec_stats,
             kv_connector_stats=connector_stats_payload,
             cudagraph_stats=cudagraph_stats,
