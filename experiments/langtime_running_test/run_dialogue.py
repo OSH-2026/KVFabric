@@ -382,9 +382,10 @@ def main() -> None:
         if kv_collector is not None:
             kv_collector.close()
         elapsed = time.monotonic() - start_time
-        display.footer(success_count, elapsed)
-        if success_count > 0:
-            recorder.write_summary(metrics_acc, success_count, elapsed, mode.get_label())
+        actual_rounds = max(success_count, metrics_acc.total_rounds)
+        display.footer(actual_rounds, elapsed)
+        if actual_rounds > 0:
+            recorder.write_summary(metrics_acc, actual_rounds, elapsed, mode.get_label())
         else:
             print("⚠ 没有成功完成任何一轮对话，跳过报告生成。")
         recorder.close()

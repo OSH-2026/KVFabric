@@ -24,6 +24,7 @@
     "total_rounds": 200,
     "share_rounds_history": 5,
     "vllm_system_prompt": "你是一个耐心、专业的技术助手，请用中文简洁回答。",
+    "max_context_tokens": 650,
 
     "modes": {
       "continuous": {
