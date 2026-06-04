@@ -1,0 +1,103 @@
+{
+  "name": "langtime_dialogue_benchmark",
+  "description": "云端模型扮演用户，与本地 vLLM 长时间对话，模拟真实场景并采集指标。",
+
+  "vllm": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "qwen3.5-2b-local",
+    "temperature": 0.0,
+    "max_tokens": 256,
+    "timeout_seconds": 120
+  },
+
+  "cloud_user": {
+    "provider": "qwen3",
+    "model": "qwen3.7-plus",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "temperature": 0.8,
+    "max_tokens": 128
+  },
+
+  "conversation": {
+    "mode": "continuous",
+    "total_rounds": 200,
+    "share_rounds_history": 5,
+    "vllm_system_prompt": "你是一个耐心、专业的技术助手，请用中文简洁回答。",
+
+    "modes": {
+      "continuous": {
+        "initial_topic": "Python 编程",
+        "questions_per_topic": 6
+      },
+      "random_topic": {
+        "topic_pool": [
+          "Python 编程",
+          "算法与数据结构",
+          "Linux 运维",
+          "机器学习基础",
+          "数据库设计",
+          "网络协议",
+          "Rust 语言",
+          "分布式系统"
+        ]
+      },
+      "persona_rotation": {
+        "personas": ["大学生", "面试官", "debugger", "产品经理"],
+        "rounds_per_persona": 10
+      },
+      "dataset_driven": {
+        "dataset": "sharegpt",
+        "sample_strategy": "sequential",
+        "prefix_with_shared_system": true,
+        "shared_system_prompt": "你是一个用于 KV Cache 评测的简洁助手。请始终使用中文回答。下面是一段较长的共享系统前缀，用于制造可以被 prefix caching 复用的完整 block。回答时保持简洁，避免长篇解释。KV Cache 复用测试公共前缀。该句用于填充共享前缀长度，使其超过 vLLM full-block prefix caching 的命中粒度。所有请求都共享这段内容，只有用户问题部分发生变化。"
+      },
+      "pressure_test": {
+        "shared_prefix_ratio": 0.7,
+        "shared_prefix_tokens": 600,
+        "cold_request_tokens": 400,
+        "concurrency": 4,
+        "shared_system_prompt": "你是一个用于 KV Cache 长时间压力测试的助手。下面是一段较长的共享系统前缀，用于制造可以被 prefix caching 复用的完整 block。KV Cache 复用测试公共前缀。该句用于填充共享前缀长度。所有请求都共享这段内容，只有用户问题部分发生变化。回答时保持简洁，避免长篇解释。请始终使用中文回答。KV Cache 复用测试公共前缀。该句用于填充共享前缀长度，使其超过 vLLM full-block prefix caching 的命中粒度。"
+      },
+      "multi_turn_fork": {
+        "shared_turns": 4,
+        "fork_branches": 3,
+        "private_turns": 3,
+        "shared_system_prompt": "你是一个用于 KV Cache 分叉测试的助手。下面是一段较长的共享系统前缀，用于模拟多轮共享对话后被 prefix caching 复用的场景。KV Cache 复用测试公共前缀。该句用于填充共享前缀长度。请始终使用中文回答，保持简洁。KV Cache 复用测试公共前缀。该句用于填充共享前缀长度，使其超过 vLLM full-block prefix caching 的命中粒度。"
+      }
+    }
+  },
+
+  "datasets": {
+    "cache_dir": "./data",
+    "sources": [
+      {
+        "name": "sharegpt",
+        "url": "https://hf-mirror.com/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json",
+        "format": "json",
+        "fields": {
+          "conversations": "conversations",
+          "role_from": "from",
+          "role_value": "value"
+        }
+      }
+    ]
+  },
+
+  "output": {
+    "runs_dir": "./runs",
+    "save_dialogue": true,
+    "save_metrics": true,
+    "save_interval_rounds": 20,
+    "collect_kv_metrics": true,
+    "metrics_url": "http://127.0.0.1:8000/metrics"
+  },
+
+  "display": {
+    "show_dialogue": true,
+    "show_status_bar": true,
+    "show_metrics_snapshot": true,
+    "snapshot_interval_rounds": 10,
+    "color": true
+  }
+}
