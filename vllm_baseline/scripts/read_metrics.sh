@@ -86,6 +86,22 @@ print_hist_summary() {
     printf '%-30s samples=%-10s avg=%s\n' "$label" "$count" "$avg"
 }
 
+hist_count() {
+    local payload="$1"
+    local metric_name="$2"
+    sum_metric "$payload" "${metric_name}_count"
+}
+
+hist_avg() {
+    local payload="$1"
+    local metric_name="$2"
+    local count
+    local sum
+    count=$(sum_metric "$payload" "${metric_name}_count")
+    sum=$(sum_metric "$payload" "${metric_name}_sum")
+    ratio_or_zero "$sum" "$count"
+}
+
 payload=$(fetch_metrics)
 
 kv_cache_usage=$(avg_gauge "$payload" "vllm:kv_cache_usage_perc")
@@ -123,6 +139,31 @@ memory_headroom_proxy=$(awk -v usage="$kv_cache_usage" 'BEGIN { print 1 - usage 
 requests_running=$(avg_gauge "$payload" "vllm:num_requests_running")
 requests_waiting=$(avg_gauge "$payload" "vllm:num_requests_waiting")
 
+ttft_count=$(hist_count "$payload" "vllm:time_to_first_token_seconds")
+ttft_avg=$(hist_avg "$payload" "vllm:time_to_first_token_seconds")
+tpot_count=$(hist_count "$payload" "vllm:request_time_per_output_token_seconds")
+tpot_avg=$(hist_avg "$payload" "vllm:request_time_per_output_token_seconds")
+e2e_latency_count=$(hist_count "$payload" "vllm:e2e_request_latency_seconds")
+e2e_latency_avg=$(hist_avg "$payload" "vllm:e2e_request_latency_seconds")
+prefill_time_count=$(hist_count "$payload" "vllm:request_prefill_time_seconds")
+prefill_time_avg=$(hist_avg "$payload" "vllm:request_prefill_time_seconds")
+decode_time_count=$(hist_count "$payload" "vllm:request_decode_time_seconds")
+decode_time_avg=$(hist_avg "$payload" "vllm:request_decode_time_seconds")
+kv_block_lifetime_count=$(hist_count "$payload" "vllm:kv_block_lifetime_seconds")
+kv_block_lifetime_avg=$(hist_avg "$payload" "vllm:kv_block_lifetime_seconds")
+kv_block_idle_before_evict_count=$(hist_count "$payload" "vllm:kv_block_idle_before_evict_seconds")
+kv_block_idle_before_evict_avg=$(hist_avg "$payload" "vllm:kv_block_idle_before_evict_seconds")
+kv_block_recompute_cost_count=$(hist_count "$payload" "vllm:kv_block_recompute_cost_tokens")
+kv_block_recompute_cost_avg=$(hist_avg "$payload" "vllm:kv_block_recompute_cost_tokens")
+kv_block_branch_factor_count=$(hist_count "$payload" "vllm:kv_block_branch_factor")
+kv_block_branch_factor_avg=$(hist_avg "$payload" "vllm:kv_block_branch_factor")
+kv_block_lookup_time_count=$(hist_count "$payload" "vllm:kv_block_lookup_time_seconds")
+kv_block_lookup_time_avg=$(hist_avg "$payload" "vllm:kv_block_lookup_time_seconds")
+kv_metadata_update_time_count=$(hist_count "$payload" "vllm:kv_metadata_update_time_seconds")
+kv_metadata_update_time_avg=$(hist_avg "$payload" "vllm:kv_metadata_update_time_seconds")
+kv_block_regrets=$(sum_metric "$payload" "vllm:kv_block_eviction_regrets_total")
+kv_block_regret_rate=$(ratio_or_zero "$kv_block_regrets" "$kv_block_evictions_total")
+
 if [[ "$OUTPUT_FORMAT" == "json" ]]; then
     awk \
         -v endpoint="$METRICS_URL" \
@@ -156,6 +197,30 @@ if [[ "$OUTPUT_FORMAT" == "json" ]]; then
         -v generation_tokens="$generation_tokens" \
         -v request_success="$request_success" \
         -v recompute_ratio="$recompute_ratio" \
+        -v ttft_count="$ttft_count" \
+        -v ttft_avg="$ttft_avg" \
+        -v tpot_count="$tpot_count" \
+        -v tpot_avg="$tpot_avg" \
+        -v e2e_latency_count="$e2e_latency_count" \
+        -v e2e_latency_avg="$e2e_latency_avg" \
+        -v prefill_time_count="$prefill_time_count" \
+        -v prefill_time_avg="$prefill_time_avg" \
+        -v decode_time_count="$decode_time_count" \
+        -v decode_time_avg="$decode_time_avg" \
+        -v kv_block_lifetime_count="$kv_block_lifetime_count" \
+        -v kv_block_lifetime_avg="$kv_block_lifetime_avg" \
+        -v kv_block_idle_before_evict_count="$kv_block_idle_before_evict_count" \
+        -v kv_block_idle_before_evict_avg="$kv_block_idle_before_evict_avg" \
+        -v kv_block_recompute_cost_count="$kv_block_recompute_cost_count" \
+        -v kv_block_recompute_cost_avg="$kv_block_recompute_cost_avg" \
+        -v kv_block_branch_factor_count="$kv_block_branch_factor_count" \
+        -v kv_block_branch_factor_avg="$kv_block_branch_factor_avg" \
+        -v kv_block_lookup_time_count="$kv_block_lookup_time_count" \
+        -v kv_block_lookup_time_avg="$kv_block_lookup_time_avg" \
+        -v kv_metadata_update_time_count="$kv_metadata_update_time_count" \
+        -v kv_metadata_update_time_avg="$kv_metadata_update_time_avg" \
+        -v kv_block_regrets="$kv_block_regrets" \
+        -v kv_block_regret_rate="$kv_block_regret_rate" \
         'BEGIN {
             printf "{\n"
             printf "  \"endpoint\": \"%s\",\n", endpoint
@@ -189,7 +254,31 @@ if [[ "$OUTPUT_FORMAT" == "json" ]]; then
             printf "  \"generation_tokens_total\": %s,\n", generation_tokens
             printf "  \"request_success_total\": %s,\n", request_success
             printf "  \"saved_prefill_tokens_proxy\": %s,\n", prompt_tokens_cached
-            printf "  \"recompute_ratio_proxy\": %s\n", recompute_ratio
+            printf "  \"recompute_ratio_proxy\": %s,\n", recompute_ratio
+            printf "  \"ttft_seconds_count\": %s,\n", ttft_count
+            printf "  \"ttft_seconds_avg\": %s,\n", ttft_avg
+            printf "  \"tpot_seconds_count\": %s,\n", tpot_count
+            printf "  \"tpot_seconds_avg\": %s,\n", tpot_avg
+            printf "  \"e2e_latency_seconds_count\": %s,\n", e2e_latency_count
+            printf "  \"e2e_latency_seconds_avg\": %s,\n", e2e_latency_avg
+            printf "  \"prefill_time_seconds_count\": %s,\n", prefill_time_count
+            printf "  \"prefill_time_seconds_avg\": %s,\n", prefill_time_avg
+            printf "  \"decode_time_seconds_count\": %s,\n", decode_time_count
+            printf "  \"decode_time_seconds_avg\": %s,\n", decode_time_avg
+            printf "  \"kv_block_lifetime_seconds_count\": %s,\n", kv_block_lifetime_count
+            printf "  \"kv_block_lifetime_seconds_avg\": %s,\n", kv_block_lifetime_avg
+            printf "  \"kv_block_idle_before_evict_seconds_count\": %s,\n", kv_block_idle_before_evict_count
+            printf "  \"kv_block_idle_before_evict_seconds_avg\": %s,\n", kv_block_idle_before_evict_avg
+            printf "  \"kv_block_recompute_cost_tokens_count\": %s,\n", kv_block_recompute_cost_count
+            printf "  \"kv_block_recompute_cost_tokens_avg\": %s,\n", kv_block_recompute_cost_avg
+            printf "  \"kv_block_branch_factor_count\": %s,\n", kv_block_branch_factor_count
+            printf "  \"kv_block_branch_factor_avg\": %s,\n", kv_block_branch_factor_avg
+            printf "  \"kv_block_lookup_time_seconds_count\": %s,\n", kv_block_lookup_time_count
+            printf "  \"kv_block_lookup_time_seconds_avg\": %s,\n", kv_block_lookup_time_avg
+            printf "  \"kv_metadata_update_time_seconds_count\": %s,\n", kv_metadata_update_time_count
+            printf "  \"kv_metadata_update_time_seconds_avg\": %s,\n", kv_metadata_update_time_avg
+            printf "  \"kv_block_eviction_regrets\": %s,\n", kv_block_regrets
+            printf "  \"kv_block_eviction_regret_rate\": %s\n", kv_block_regret_rate
             printf "}\n"
         }'
     exit 0

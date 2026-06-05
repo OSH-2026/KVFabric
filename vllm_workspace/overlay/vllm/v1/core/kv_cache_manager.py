@@ -204,6 +204,14 @@ class KVCacheManager:
         # (which happens when the request requires prompt logprobs
         # or calls a pooling model with all pooling).
         if not self.enable_caching or request.skip_reading_prefix_cache:
+            if self.block_pool.kvfabric_lifecycle:
+                self.block_pool.kvfabric_lifecycle.on_prefix_lookup(
+                    request_id=request.request_id,
+                    prompt_tokens=request.num_tokens,
+                    hit_tokens=0,
+                    skipped=True,
+                    max_cache_hit_length=0,
+                )
             return self.empty_kv_cache_blocks, 0
 
         # NOTE: When all tokens hit the cache, we must recompute the last token
@@ -225,6 +233,14 @@ class KVCacheManager:
                 num_tokens=request.num_tokens,
                 num_hits=num_new_computed_tokens,
                 preempted=request.num_preemptions > 0,
+            )
+        if self.block_pool.kvfabric_lifecycle:
+            self.block_pool.kvfabric_lifecycle.on_prefix_lookup(
+                request_id=request.request_id,
+                prompt_tokens=request.num_tokens,
+                hit_tokens=num_new_computed_tokens,
+                skipped=False,
+                max_cache_hit_length=max_cache_hit_length,
             )
 
         return self.create_kv_cache_blocks(computed_blocks), num_new_computed_tokens

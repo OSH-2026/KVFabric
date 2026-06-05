@@ -13,6 +13,7 @@ from vllm.distributed.kv_events import (
 )
 from vllm.logger import init_logger
 from vllm.v1.core.kv_cache_metrics import KVCacheMetricsCollector
+from vllm.v1.core.kvfabric_lifecycle import KVFabricLifecycleTracker
 from vllm.v1.core.kv_cache_utils import (
     BlockHash,
     BlockHashList,
@@ -180,6 +181,7 @@ class BlockPool:
         self.kv_event_queue: list[KVCacheEvent] = []
 
         self.metrics_collector = metrics_collector
+        self.kvfabric_lifecycle = KVFabricLifecycleTracker.from_env()
 
     def get_cached_block(
         self, block_hash: BlockHash, kv_cache_group_ids: list[int]
@@ -248,6 +250,17 @@ class BlockPool:
         """
         if num_cached_blocks >= num_full_blocks:
             return
+        if self.kvfabric_lifecycle is not None:
+            total_blocks = max(self.num_gpu_blocks - 1, 0)
+            num_full_blocks = self.kvfabric_lifecycle.limit_cache_blocks(
+                request_id=request.request_id,
+                num_cached_blocks=num_cached_blocks,
+                num_full_blocks=num_full_blocks,
+                free_blocks=self.get_num_free_blocks(),
+                total_blocks=total_blocks,
+            )
+            if num_cached_blocks >= num_full_blocks:
+                return
         new_full_blocks = blocks[num_cached_blocks:num_full_blocks]
         assert len(request.block_hashes) >= num_full_blocks
         if block_size == self.hash_block_size:
@@ -284,6 +297,12 @@ class BlockPool:
             self.cached_block_hash_to_block.insert(block_hash_with_group_id, blk)
             if self.metrics_collector:
                 self.metrics_collector.on_block_cached(
+                    blk,
+                    prefix_depth=num_cached_blocks + i + 1,
+                    block_size=block_size,
+                )
+            if self.kvfabric_lifecycle:
+                self.kvfabric_lifecycle.on_block_sealed(
                     blk,
                     prefix_depth=num_cached_blocks + i + 1,
                     block_size=block_size,
@@ -350,7 +369,40 @@ class BlockPool:
         if num_blocks > self.get_num_free_blocks():
             raise ValueError(f"Cannot get {num_blocks} free blocks from the pool")
 
-        ret: list[KVCacheBlock] = self.free_block_queue.popleft_n(num_blocks)
+        use_shared_aware = (
+            self.kvfabric_lifecycle is not None
+            and self.kvfabric_lifecycle.use_kvfabric_eviction()
+        )
+        candidate_window = num_blocks
+        if use_shared_aware and self.kvfabric_lifecycle is not None:
+            candidate_window = self.kvfabric_lifecycle.eviction_candidate_window(
+                num_blocks=num_blocks,
+                free_blocks=self.get_num_free_blocks(),
+            )
+        lru_candidates = self.free_block_queue.peek_left_n(candidate_window)
+        lru_victims = lru_candidates[:num_blocks]
+        needs_cached_eviction = any(block.block_hash is not None for block in lru_victims)
+        should_rank = (
+            needs_cached_eviction
+            and self.kvfabric_lifecycle is not None
+            and self.kvfabric_lifecycle.should_rank_lru_victims(lru_victims)
+        )
+        if not use_shared_aware or not should_rank:
+            ret = self.free_block_queue.popleft_n(num_blocks)
+        elif self.kvfabric_lifecycle.use_family_protect_eviction():
+            ret = self.kvfabric_lifecycle.select_family_protect_candidates(
+                lru_candidates,
+                num_blocks=num_blocks,
+            )
+            for block in ret:
+                self.free_block_queue.remove(block)
+        else:
+            ret = self.kvfabric_lifecycle.rank_eviction_candidates(
+                lru_candidates,
+                num_blocks=num_blocks,
+            )
+            for block in ret:
+                self.free_block_queue.remove(block)
 
         # In order to only iterate the list once, we duplicated code a bit
         if self.enable_caching:
@@ -360,12 +412,16 @@ class BlockPool:
                 block.ref_cnt += 1
                 if self.metrics_collector:
                     self.metrics_collector.on_block_allocated(block)
+                if self.kvfabric_lifecycle:
+                    self.kvfabric_lifecycle.on_block_allocated(block)
         else:
             for block in ret:
                 assert block.ref_cnt == 0
                 block.ref_cnt += 1
                 if self.metrics_collector:
                     self.metrics_collector.on_block_allocated(block)
+                if self.kvfabric_lifecycle:
+                    self.kvfabric_lifecycle.on_block_allocated(block)
         return ret
 
     def _maybe_evict_cached_block(self, block: KVCacheBlock) -> bool:
@@ -391,6 +447,8 @@ class BlockPool:
 
         if self.metrics_collector:
             self.metrics_collector.on_block_evicted(block)
+        if self.kvfabric_lifecycle:
+            self.kvfabric_lifecycle.on_block_evicted(block)
 
         block.reset_hash()
 
@@ -418,11 +476,14 @@ class BlockPool:
         for block in blocks:
             # ref_cnt=0 means this block is in the free list (i.e. eviction
             # candidate), so remove it.
-            if block.ref_cnt == 0 and not block.is_null:
+            from_free_queue = block.ref_cnt == 0 and not block.is_null
+            if from_free_queue:
                 self.free_block_queue.remove(block)
             block.ref_cnt += 1
             if self.metrics_collector:
                 self.metrics_collector.on_block_accessed(block)
+            if self.kvfabric_lifecycle:
+                self.kvfabric_lifecycle.on_block_touched(block, from_free_queue)
 
     def free_blocks(self, ordered_blocks: Iterable[KVCacheBlock]) -> None:
         """Free a list of blocks. The blocks should be ordered by their
@@ -438,6 +499,8 @@ class BlockPool:
             block.ref_cnt -= 1
             if self.metrics_collector:
                 self.metrics_collector.on_block_ref_count_changed(block)
+            if self.kvfabric_lifecycle:
+                self.kvfabric_lifecycle.on_ref_count_changed(block)
         self.free_block_queue.append_n(
             [block for block in blocks_list if block.ref_cnt == 0 and not block.is_null]
         )
@@ -488,6 +551,8 @@ class BlockPool:
 
         if self.metrics_collector:
             self.metrics_collector.reset()
+        if self.kvfabric_lifecycle:
+            self.kvfabric_lifecycle.reset()
 
         logger.info("Successfully reset prefix cache")
 

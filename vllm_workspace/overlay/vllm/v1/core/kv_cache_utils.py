@@ -277,6 +277,19 @@ class FreeKVCacheBlockQueue:
             curr_block.prev_free_block = self.fake_free_list_head
         return ret
 
+    def peek_left_n(self, n: int) -> list[KVCacheBlock]:
+        """Return the first n free blocks without removing them."""
+        if n == 0:
+            return []
+        assert self.num_free_blocks >= n
+        ret: list[KVCacheBlock] = []
+        curr_block = self.fake_free_list_head.next_free_block
+        for _ in range(n):
+            assert curr_block is not None
+            ret.append(curr_block)
+            curr_block = curr_block.next_free_block
+        return ret
+
     def remove(self, block: KVCacheBlock) -> None:
         """Remove a block in the free list and reduce num_free_blocks by 1.
 

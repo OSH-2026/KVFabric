@@ -1,5 +1,6 @@
 vllm/v1/core/block_pool.py
 vllm/v1/core/kv_cache_manager.py
+vllm/v1/core/kvfabric_lifecycle.py
 vllm/v1/core/kv_cache_metrics.py
 vllm/v1/core/kv_cache_utils.py
 vllm/v1/core/single_type_kv_cache_manager.py

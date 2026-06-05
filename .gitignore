@@ -45,6 +45,8 @@ artifacts/
 outputs/
 experiments/runs/*
 !experiments/runs/.gitkeep
+experiments/prebenchmark_validation/runs/*
+!experiments/prebenchmark_validation/runs/.gitkeep
 vllm_baseline/runtime/*
 !vllm_baseline/runtime/.gitkeep
 vllm_baseline/.env.local
