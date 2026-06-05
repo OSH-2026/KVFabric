@@ -1,0 +1,7 @@
+label,metric,n,avg,min,max,stdev
+rpc_gpu_local_cpu,load_time_ms,5,67688.822,62983.27,75243.59,4897.7663823900375
+rpc_gpu_local_cpu,prompt_tok_s,5,17.348,16.45,18.03,0.5967997989275806
+rpc_gpu_local_cpu,eval_tok_s,5,9.92,9.07,10.31,0.4998999899979995
+rpc_gpu_local_cpu,total_time_ms,5,8476.256,8145.45,9017.08,330.9271669567189
+rpc_gpu_local_cpu,max_rss_kb,5,1438665.6,1438288.0,1438996.0,295.7106694050791
+rpc_gpu_local_cpu,elapsed_s,5,99.342,94.24000000000001,106.67,4.8876139372908725

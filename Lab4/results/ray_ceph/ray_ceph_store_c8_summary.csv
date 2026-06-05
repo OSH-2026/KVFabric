@@ -1,0 +1,2 @@
+label,concurrency,objects,success,total_elapsed_s,avg_put_latency_s,p95_put_latency_s,total_payload_bytes
+ray_ceph_store,8,48,48,7.633,0.631,0.697,8770

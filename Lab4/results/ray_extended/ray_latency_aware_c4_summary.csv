@@ -1,0 +1,2 @@
+label,mode,endpoint_policy,concurrency,requests,success,total_elapsed_s,avg_latency_s,p50_latency_s,p95_latency_s,avg_output_chars,endpoint_counts,endpoint_avg_latency_s
+ray_latency_aware_c4,ray,latency_aware,4,48,48,19.857,1.130,1.070,1.397,295.9,"{""server_gpu"": 48}","{""server_gpu"": 1.13}"

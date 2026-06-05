@@ -1,0 +1,20 @@
+  cluster:
+    id:     cc4efec1-5582-47c3-a914-1163ea92b38d
+    health: HEALTH_WARN
+            mon is allowing insecure global_id reclaim
+            1 monitors have not enabled msgr2
+ 
+  services:
+    mon: 1 daemons, quorum a (age 119s)
+    mgr: a(active, since 113s)
+    osd: 3 osds: 3 up (since 102s), 3 in (since 110s)
+ 
+  data:
+    pools:   2 pools, 33 pgs
+    objects: 872 objects, 3.4 GiB
+    usage:   8.0 GiB used, 292 GiB / 300 GiB avail
+    pgs:     33 active+clean
+ 
+  io:
+    client:   2.2 GiB/s rd, 0 B/s wr, 563 op/s rd, 3 op/s wr
+ 

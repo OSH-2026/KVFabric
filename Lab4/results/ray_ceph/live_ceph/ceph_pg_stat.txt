@@ -1,0 +1,1 @@
+33 pgs: 23 unknown, 10 active+clean; 449 KiB data, 871 MiB used, 299 GiB / 300 GiB avail

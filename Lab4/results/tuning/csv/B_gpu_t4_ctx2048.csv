@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+B_gpu_t4_ctx2048,Lab4/results/tuning/B_gpu_t4_ctx2048/run_1.log,571.33,15.48,21,1356.5,172.99,63,364.17,218.35,84,1426440,1.86,0
+B_gpu_t4_ctx2048,Lab4/results/tuning/B_gpu_t4_ctx2048/run_2.log,574.16,15.66,21,1341.08,179.48,63,351.02,226.65,84,1426372,1.88,0
+B_gpu_t4_ctx2048,Lab4/results/tuning/B_gpu_t4_ctx2048/run_3.log,569.55,15.35,21,1367.9,172.62,63,364.97,216.37,84,1426596,1.85,0
+B_gpu_t4_ctx2048,Lab4/results/tuning/B_gpu_t4_ctx2048/run_4.log,577.06,15.67,21,1339.88,179.29,63,351.39,226.38,84,1426164,1.88,0
+B_gpu_t4_ctx2048,Lab4/results/tuning/B_gpu_t4_ctx2048/run_5.log,569.74,15.64,21,1342.88,180.79,63,348.47,225.0,84,1426560,1.87,0

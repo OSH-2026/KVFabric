@@ -1,0 +1,1 @@
+33 pgs: 11 creating+peering, 9 unknown, 13 active+clean; 449 KiB data, 1.2 GiB used, 299 GiB / 300 GiB avail

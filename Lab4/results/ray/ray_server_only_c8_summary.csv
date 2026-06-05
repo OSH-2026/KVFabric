@@ -1,0 +1,2 @@
+﻿label,mode,endpoint_policy,concurrency,requests,success,total_elapsed_s,avg_latency_s,p50_latency_s,p95_latency_s,avg_output_chars
+ray_server_only_c8,ray,server_only,8,48,48,19.512,2.086,2.120,2.588,297.5

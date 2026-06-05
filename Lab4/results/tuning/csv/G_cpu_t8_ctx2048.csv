@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+G_cpu_t8_ctx2048,Lab4/results/tuning/G_cpu_t8_ctx2048/run_1.log,1064.33,253.95,21,82.69,4272.15,63,14.75,4566.68,84,1489080,6.72,0
+G_cpu_t8_ctx2048,Lab4/results/tuning/G_cpu_t8_ctx2048/run_2.log,1091.07,248.12,21,84.64,4206.18,63,14.98,4496.04,84,1488868,6.68,0
+G_cpu_t8_ctx2048,Lab4/results/tuning/G_cpu_t8_ctx2048/run_3.log,1069.32,243.75,21,86.15,2583.15,63,24.39,2867.46,84,1489540,5.01,0
+G_cpu_t8_ctx2048,Lab4/results/tuning/G_cpu_t8_ctx2048/run_4.log,1066.75,244.84,21,85.77,2558.3,63,24.63,2844.25,84,1489148,5.01,0
+G_cpu_t8_ctx2048,Lab4/results/tuning/G_cpu_t8_ctx2048/run_5.log,1089.56,249.9,21,84.04,4113.61,63,15.32,4405.03,84,1489548,6.58,0

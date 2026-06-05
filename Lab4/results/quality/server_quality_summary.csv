@@ -1,0 +1,9 @@
+﻿id,category,exit_code,wall_time_s,generated_chars,load_time_ms,prompt_tok_s,eval_tok_s,total_time_ms,log_file
+q01,chinese_qa,0,2.529,2278,594.83,2685.56,368.79,614.97,results/quality/server_gpu/logs/q01.log
+q02,summary,0,2.379,2334,623.26,5078.74,366.84,621.6,results/quality/server_gpu/logs/q02.log
+q03,code_explain,0,2.414,2349,599.42,4400.0,364.78,725.09,results/quality/server_gpu/logs/q03.log
+q04,reasoning,0,2.363,2215,577.03,3230.4,374.35,706.91,results/quality/server_gpu/logs/q04.log
+q05,course_os,0,2.289,2284,603.33,2896.45,368.11,614.09,results/quality/server_gpu/logs/q05.log
+q06,long_context,0,2.506,2361,595.67,5241.13,369.27,816.91,results/quality/server_gpu/logs/q06.log
+q07,kvfabric,0,2.396,2355,602.82,2834.56,367.67,714.48,results/quality/server_gpu/logs/q07.log
+q08,parameter_effect,0,2.440,2418,598.04,2845.66,368.91,713.01,results/quality/server_gpu/logs/q08.log

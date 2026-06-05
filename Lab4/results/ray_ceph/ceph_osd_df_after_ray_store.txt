@@ -1,0 +1,6 @@
+ID  CLASS  WEIGHT   REWEIGHT  SIZE     RAW USE  DATA     OMAP  META     AVAIL    %USE  VAR   PGS  STATUS
+ 0    hdd  1.00000   1.00000  100 GiB  290 MiB  320 KiB   0 B  290 MiB  100 GiB  0.28  1.00   23      up
+ 1    hdd  1.00000   1.00000  100 GiB  291 MiB  756 KiB   0 B  290 MiB  100 GiB  0.28  1.00   25      up
+ 2    hdd  1.00000   1.00000  100 GiB  290 MiB  264 KiB   0 B  290 MiB  100 GiB  0.28  1.00   17      up
+                       TOTAL  300 GiB  872 MiB  1.3 MiB   0 B  870 MiB  299 GiB  0.28                   
+MIN/MAX VAR: 1.00/1.00  STDDEV: 0

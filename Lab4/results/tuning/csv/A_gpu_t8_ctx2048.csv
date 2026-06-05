@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+A_gpu_t8_ctx2048,Lab4/results/tuning/A_gpu_t8_ctx2048/run_1.log,575.88,15.67,21,1339.88,178.41,63,353.11,222.91,84,1426136,2.06,0
+A_gpu_t8_ctx2048,Lab4/results/tuning/A_gpu_t8_ctx2048/run_2.log,572.31,15.56,21,1349.79,178.93,63,352.09,223.35,84,1426400,1.87,0
+A_gpu_t8_ctx2048,Lab4/results/tuning/A_gpu_t8_ctx2048/run_3.log,574.77,15.8,21,1328.69,179.29,63,351.39,223.77,84,1426440,1.87,0
+A_gpu_t8_ctx2048,Lab4/results/tuning/A_gpu_t8_ctx2048/run_4.log,571.7,15.58,21,1348.14,178.39,63,353.15,222.8,84,1426092,1.87,0
+A_gpu_t8_ctx2048,Lab4/results/tuning/A_gpu_t8_ctx2048/run_5.log,570.49,15.49,21,1355.71,181.48,63,347.15,225.85,84,1426392,1.87,0

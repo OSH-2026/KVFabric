@@ -1,0 +1,8 @@
+{"id":"q01","category":"chinese_qa","max_tokens":192,"prompt":"请用通俗语言解释什么是 GGUF 量化模型，并说明它为什么能降低大语言模型推理时的内存占用。回答需要包含：量化的基本思想、对模型文件大小的影响、对输出质量可能产生的副作用。"}
+{"id":"q02","category":"summary","max_tokens":192,"prompt":"请将下面这段材料总结为 5 条要点：KV Cache 是大语言模型自回归生成中的关键缓存结构。模型在生成每个新 token 时，需要利用前面所有 token 的注意力信息。为了避免反复计算历史 token 的 key 和 value，推理系统会把每一层 attention 中已经计算过的 key/value 保存下来。这样可以显著降低 decode 阶段的重复计算，但也会带来较大的显存占用。服务系统中的请求并发、前缀共享、上下文长度和驱逐策略都会影响 KV Cache 的生命周期管理。"}
+{"id":"q03","category":"code_explain","max_tokens":224,"prompt":"解释下面 C 代码中 fork、execvp 和 waitpid 的执行顺序，并说明父进程和子进程分别会做什么：\n\npid_t pid = fork();\nif (pid == 0) {\n    char *argv[] = {\"ls\", \"-l\", NULL};\n    execvp(argv[0], argv);\n    perror(\"execvp\");\n    _exit(1);\n}\nint status = 0;\nwaitpid(pid, &status, 0);\nprintf(\"child finished\\n\");"}
+{"id":"q04","category":"reasoning","max_tokens":224,"prompt":"一个 llama.cpp 服务的单请求延迟突然变高，但 GPU 利用率长期很低。请从操作系统和分布式系统角度分析可能瓶颈，并按可能性排序。要求至少讨论 CPU、内存、磁盘 I/O、网络、线程调度和请求粒度。"}
+{"id":"q05","category":"course_os","max_tokens":192,"prompt":"从操作系统角度解释多线程 HTTP server 为什么通常需要线程池，而不是每收到一个请求就无限制创建一个新线程。请联系线程创建开销、上下文切换、内存占用、队列和背压机制。"}
+{"id":"q06","category":"long_context","max_tokens":256,"prompt":"阅读下面的系统说明，并提取系统瓶颈、关键资源和优化方向：一个小组在两台机器上部署 llama.cpp。主机有 GPU，从机只有 CPU。主机通过 RPC 调用从机参与推理。实验发现 RPC 模式比单机 GPU 慢很多。ping 延迟约 20ms，网络是无线局域网。从机 CPU 占用很高，主机 GPU 利用率时高时低。模型是 2B Q4 量化，输出长度 128 token。请给出结构化分析。"}
+{"id":"q07","category":"kvfabric","max_tokens":224,"prompt":"解释 KV Cache 复用、引用计数和驱逐策略之间的关系，并说明它们如何影响 LLM serving 的吞吐、延迟和显存占用。回答中请尽量联系操作系统中的缓存、页替换或资源生命周期管理概念。"}
+{"id":"q08","category":"parameter_effect","max_tokens":224,"prompt":"比较 llama.cpp 中 --threads、--ctx-size、--batch-size 和 --n-gpu-layers 对推理性能和输出质量的影响差异。请说明哪些参数主要影响速度或内存，哪些参数更可能影响生成质量，以及为什么。"}

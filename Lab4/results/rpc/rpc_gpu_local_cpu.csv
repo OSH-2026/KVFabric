@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+rpc_gpu_local_cpu,Lab4/results/rpc/repeat_rpc_gpu_local_cpu/run_1.log,63869.9,1982.19,35,17.66,6949.41,63,9.07,9017.08,98,1438936,95.67,0
+rpc_gpu_local_cpu,Lab4/results/rpc/repeat_rpc_gpu_local_cpu/run_2.log,67256.78,2041.43,35,17.14,6152.63,63,10.24,8287.21,98,1438556,99.25999999999999,0
+rpc_gpu_local_cpu,Lab4/results/rpc/repeat_rpc_gpu_local_cpu/run_3.log,69090.57,1941.07,35,18.03,6113.34,63,10.31,8145.45,98,1438552,100.87,0
+rpc_gpu_local_cpu,Lab4/results/rpc/repeat_rpc_gpu_local_cpu/run_4.log,62983.27,2127.33,35,16.45,6256.15,63,10.07,8474.98,98,1438288,94.24000000000001,0
+rpc_gpu_local_cpu,Lab4/results/rpc/repeat_rpc_gpu_local_cpu/run_5.log,75243.59,2005.03,35,17.46,6357.36,63,9.91,8456.56,98,1438996,106.67,0

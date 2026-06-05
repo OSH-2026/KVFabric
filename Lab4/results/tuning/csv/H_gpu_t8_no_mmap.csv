@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+H_gpu_t8_no_mmap,Lab4/results/tuning/H_gpu_t8_no_mmap/run_1.log,519.38,15.93,21,1318.27,182.61,63,344.99,227.26,84,547644,1.83,0
+H_gpu_t8_no_mmap,Lab4/results/tuning/H_gpu_t8_no_mmap/run_2.log,503.71,15.56,21,1349.44,175.05,63,359.89,220.3,84,547640,1.8,0
+H_gpu_t8_no_mmap,Lab4/results/tuning/H_gpu_t8_no_mmap/run_3.log,497.01,15.6,21,1345.81,174.23,63,361.59,218.79,84,546896,1.79,0
+H_gpu_t8_no_mmap,Lab4/results/tuning/H_gpu_t8_no_mmap/run_4.log,517.68,15.91,21,1319.68,174.54,63,360.96,221.56,84,547216,1.8,0
+H_gpu_t8_no_mmap,Lab4/results/tuning/H_gpu_t8_no_mmap/run_5.log,527.93,15.33,21,1370.13,177.92,63,354.09,223.69,84,547160,1.9,0

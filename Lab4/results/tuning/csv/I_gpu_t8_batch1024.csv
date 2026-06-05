@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+I_gpu_t8_batch1024,Lab4/results/tuning/I_gpu_t8_batch1024/run_1.log,602.37,15.65,21,1342.02,182.03,63,346.09,226.26,84,1426544,1.92,0
+I_gpu_t8_batch1024,Lab4/results/tuning/I_gpu_t8_batch1024/run_2.log,596.98,15.85,21,1324.59,180.76,63,348.52,225.3,84,1425512,1.91,0
+I_gpu_t8_batch1024,Lab4/results/tuning/I_gpu_t8_batch1024/run_3.log,569.16,15.41,21,1362.66,174.84,63,360.33,218.72,84,1426444,1.85,0
+I_gpu_t8_batch1024,Lab4/results/tuning/I_gpu_t8_batch1024/run_4.log,574.11,15.54,21,1351.61,180.14,63,349.73,224.54,84,1426448,1.88,0
+I_gpu_t8_batch1024,Lab4/results/tuning/I_gpu_t8_batch1024/run_5.log,567.51,15.3,21,1372.19,173.52,63,363.06,217.53,84,1426496,1.85,0

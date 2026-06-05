@@ -1,0 +1,1 @@
+Explain the relationship between fork, exec, and wait in an operating system in four concise sentences.

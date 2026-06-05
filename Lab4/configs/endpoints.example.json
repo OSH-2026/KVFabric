@@ -1,0 +1,21 @@
+{
+  "model": "lab4-gguf-model",
+  "endpoints": [
+    {
+      "id": "server_gpu",
+      "base_url": "http://127.0.0.1:18080",
+      "machine": "robowalker",
+      "weight": 7,
+      "initial_latency_s": 1.0,
+      "note": "server-side llama-server"
+    },
+    {
+      "id": "local_tunnel",
+      "base_url": "http://127.0.0.1:18082",
+      "machine": "local via ssh reverse tunnel",
+      "weight": 1,
+      "initial_latency_s": 8.0,
+      "note": "local llama-server exposed to server"
+    }
+  ]
+}

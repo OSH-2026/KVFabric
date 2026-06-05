@@ -1,0 +1,4 @@
+ID  CLASS  WEIGHT   TYPE NAME              STATUS  REWEIGHT  PRI-AFF
+-1         1.00000  root default                                    
+-2         1.00000      host 269ca328ccd2                           
+ 0    hdd  1.00000          osd.0              up   1.00000  1.00000

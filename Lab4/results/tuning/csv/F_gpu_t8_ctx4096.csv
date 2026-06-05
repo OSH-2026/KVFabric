@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+F_gpu_t8_ctx4096,Lab4/results/tuning/F_gpu_t8_ctx4096/run_1.log,570.1,15.52,21,1353.35,176.7,63,356.53,221.09,84,1426000,1.85,0
+F_gpu_t8_ctx4096,Lab4/results/tuning/F_gpu_t8_ctx4096/run_2.log,578.91,15.51,21,1354.23,179.81,63,350.38,223.99,84,1426012,1.87,0
+F_gpu_t8_ctx4096,Lab4/results/tuning/F_gpu_t8_ctx4096/run_3.log,575.04,15.38,21,1365.14,174.47,63,361.08,218.62,84,1426084,1.85,0
+F_gpu_t8_ctx4096,Lab4/results/tuning/F_gpu_t8_ctx4096/run_4.log,574.56,15.45,21,1358.96,180.59,63,348.85,224.78,84,1426056,1.87,0
+F_gpu_t8_ctx4096,Lab4/results/tuning/F_gpu_t8_ctx4096/run_5.log,575.46,15.5,21,1354.49,179.5,63,350.97,223.79,84,1425676,1.87,0

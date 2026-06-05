@@ -1,0 +1,2 @@
+label,mode,endpoint_policy,concurrency,requests,success,total_elapsed_s,avg_latency_s,p50_latency_s,p95_latency_s,avg_output_chars,endpoint_counts,endpoint_avg_latency_s
+ray_latency_aware_c8,ray,latency_aware,8,48,48,23.156,2.229,1.830,5.205,290.5,"{""local_tunnel"": 5, ""server_gpu"": 43}","{""local_tunnel"": 6.024, ""server_gpu"": 1.787}"

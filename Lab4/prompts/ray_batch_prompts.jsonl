@@ -1,0 +1,48 @@
+{"id":"p001","category":"os","max_tokens":128,"prompt":"用三句话解释进程和线程的区别，并说明它们在资源共享上的差异。"}
+{"id":"p002","category":"os","max_tokens":128,"prompt":"解释虚拟内存为什么能让进程看到连续地址空间。"}
+{"id":"p003","category":"os","max_tokens":128,"prompt":"说明 fork 之后父子进程的地址空间关系，以及写时复制的作用。"}
+{"id":"p004","category":"os","max_tokens":128,"prompt":"解释 exec 系列系统调用为什么会替换当前进程映像。"}
+{"id":"p005","category":"os","max_tokens":128,"prompt":"说明 waitpid 的作用，以及不回收子进程会产生什么问题。"}
+{"id":"p006","category":"os","max_tokens":128,"prompt":"从文件描述符角度解释 shell 管道如何把一个命令的输出连接到另一个命令的输入。"}
+{"id":"p007","category":"os","max_tokens":128,"prompt":"解释阻塞 I/O、非阻塞 I/O 和 I/O 复用之间的区别。"}
+{"id":"p008","category":"os","max_tokens":128,"prompt":"说明线程池如何减少高并发服务中的线程创建和销毁开销。"}
+{"id":"p009","category":"os","max_tokens":128,"prompt":"解释页缓存为什么会影响文件读取性能测试结果。"}
+{"id":"p010","category":"os","max_tokens":128,"prompt":"说明上下文切换过多为什么会降低 CPU 密集型程序性能。"}
+{"id":"p011","category":"os","max_tokens":128,"prompt":"解释 mmap 加载模型文件可能带来的优点和缺点。"}
+{"id":"p012","category":"os","max_tokens":128,"prompt":"说明 NUMA 或 CPU cache 对多线程推理程序可能产生的影响。"}
+{"id":"p013","category":"code","max_tokens":160,"prompt":"解释这段代码中 pipe、dup2 和 close 的作用：int fd[2]; pipe(fd); if (fork()==0) { dup2(fd[1], 1); close(fd[0]); close(fd[1]); execlp(\"ls\", \"ls\", NULL); }"}
+{"id":"p014","category":"code","max_tokens":160,"prompt":"解释这段代码为什么需要循环 send：while (sent < n) { ssize_t r = send(fd, buf + sent, n - sent, 0); if (r > 0) sent += r; }"}
+{"id":"p015","category":"code","max_tokens":160,"prompt":"解释下面伪代码中的条件变量等待模式为什么要放在 while 循环中：while(queue.empty()) cv.wait(lock);"}
+{"id":"p016","category":"code","max_tokens":160,"prompt":"解释为什么子进程 exec 失败后应该调用 _exit 而不是继续运行父进程逻辑。"}
+{"id":"p017","category":"code","max_tokens":160,"prompt":"解释 C++ 中 RAII 对文件描述符和 socket 资源管理有什么帮助。"}
+{"id":"p018","category":"code","max_tokens":160,"prompt":"解释这段命令的含义：/usr/bin/time -v ./llama-cli -m model.gguf -p prompt -n 128。"}
+{"id":"p019","category":"code","max_tokens":160,"prompt":"解释 Python requests.post 调用 OpenAI-compatible /v1/chat/completions 接口时需要哪些字段。"}
+{"id":"p020","category":"code","max_tokens":160,"prompt":"解释 Ray @ray.remote 装饰器对普通 Python 函数或类的执行方式有什么改变。"}
+{"id":"p021","category":"code","max_tokens":160,"prompt":"解释为什么并发请求测试中需要记录 start_ts、end_ts、latency 和 status。"}
+{"id":"p022","category":"code","max_tokens":160,"prompt":"解释下面 JSONL prompt 数据格式的优点：每一行都是一个独立 JSON 对象。"}
+{"id":"p023","category":"summary","max_tokens":160,"prompt":"请将下面内容总结为 4 点：llama.cpp 是一个轻量级 C/C++ 推理框架，支持 CPU 和 GPU 后端，常用于运行 GGUF 量化模型。它可以通过 llama-cli 做命令行推理，通过 llama-server 提供 HTTP 服务，也可以通过 RPC backend 让其他机器参与计算。"}
+{"id":"p024","category":"summary","max_tokens":160,"prompt":"请将下面内容总结为 4 点：Ray 的 Task 适合无状态并行任务，Actor 适合维护有状态 worker。本实验中 Ray 不负责单个 prompt 的加速，而负责把一批 prompt 调度到多个 llama.cpp 服务。"}
+{"id":"p025","category":"summary","max_tokens":160,"prompt":"请将下面内容总结为 4 点：RPC 分布式推理可能把计算分摊到多台机器，但网络延迟、带宽、同步等待和设备性能差异可能抵消收益。实验报告应以数据解释现象，而不是假设多机一定更快。"}
+{"id":"p026","category":"summary","max_tokens":160,"prompt":"请总结以下系统现象：同一模型在第一次运行时加载很慢，第二次运行明显变快；同时磁盘读取量减少。请联系操作系统页缓存解释。"}
+{"id":"p027","category":"summary","max_tokens":160,"prompt":"请将下面内容总结为 4 点：KV Cache 保存 attention 的 key/value 中间结果，减少重复计算。上下文越长，KV Cache 越大。并发请求越多，缓存管理越重要。"}
+{"id":"p028","category":"summary","max_tokens":160,"prompt":"请总结下面实验设计：固定模型和 prompt，分别改变 threads、batch-size、ctx-size 和 n-gpu-layers，每组重复多次，记录延迟、吞吐、内存和显存。"}
+{"id":"p029","category":"summary","max_tokens":160,"prompt":"请将下面内容总结为 4 点：高并发服务需要背压机制。当请求进入速度超过处理速度时，如果没有队列长度限制和拒绝策略，系统可能耗尽内存或线程资源。"}
+{"id":"p030","category":"summary","max_tokens":160,"prompt":"请总结下面内容：实验报告中的命令、环境、结果和错误日志都需要保留，因为助教需要能复现实验过程。"}
+{"id":"p031","category":"reasoning","max_tokens":192,"prompt":"如果 Ray round-robin 把请求平均分给 GPU 服务器和 CPU 本地节点，整体吞吐反而下降，可能原因是什么？"}
+{"id":"p032","category":"reasoning","max_tokens":192,"prompt":"为什么单个 prompt 的延迟不一定会因为 Ray 调度而降低，但一批 prompt 的总耗时可能降低？"}
+{"id":"p033","category":"reasoning","max_tokens":192,"prompt":"RPC 分布式推理使用无线网络时，哪些因素可能让它比单机推理慢？"}
+{"id":"p034","category":"reasoning","max_tokens":192,"prompt":"如果增加 --threads 后 tokens/s 没有提高甚至下降，可能有哪些系统原因？"}
+{"id":"p035","category":"reasoning","max_tokens":192,"prompt":"如果增大 --ctx-size 后内存占用上升，请解释和 KV Cache 的关系。"}
+{"id":"p036","category":"reasoning","max_tokens":192,"prompt":"为什么 Q4 量化模型可能比 Q8 更快，但输出质量可能略低？"}
+{"id":"p037","category":"reasoning","max_tokens":192,"prompt":"如果 llama-server 在并发度 8 时失败请求增多，应该从哪些角度排查？"}
+{"id":"p038","category":"reasoning","max_tokens":192,"prompt":"如果本地 llama-server 通过 SSH 反向隧道被服务器访问，额外开销可能体现在哪些指标上？"}
+{"id":"p039","category":"reasoning","max_tokens":192,"prompt":"为什么性能测试需要重复多次并报告平均值和波动，而不是只报告一次结果？"}
+{"id":"p040","category":"reasoning","max_tokens":192,"prompt":"如果模型加载时间很长但生成速度正常，应该如何区分冷启动问题和 decode 性能问题？"}
+{"id":"p041","category":"kvfabric","max_tokens":192,"prompt":"用简洁语言解释 KV Cache 生命周期管理为什么会影响 LLM serving 的显存效率。"}
+{"id":"p042","category":"kvfabric","max_tokens":192,"prompt":"解释前缀缓存复用如何减少重复 prefill 计算，并说明它适合哪些请求模式。"}
+{"id":"p043","category":"kvfabric","max_tokens":192,"prompt":"说明共享 KV Cache 条目为什么需要引用计数或类似机制。"}
+{"id":"p044","category":"kvfabric","max_tokens":192,"prompt":"比较 LRU、基于代价的驱逐和共享感知驱逐在 KV Cache 管理中的差异。"}
+{"id":"p045","category":"kvfabric","max_tokens":192,"prompt":"从系统设计角度说明为什么 KVFabric 需要先建立可复现的 vLLM 或 llama.cpp 基线。"}
+{"id":"p046","category":"kvfabric","max_tokens":192,"prompt":"解释批量推理测试中吞吐、平均延迟和 P95 延迟分别反映什么问题。"}
+{"id":"p047","category":"kvfabric","max_tokens":192,"prompt":"说明 GPU 显存、CPU 内存和网络带宽在 LLM serving 中分别可能成为哪些瓶颈。"}
+{"id":"p048","category":"kvfabric","max_tokens":192,"prompt":"请提出一个小型实验，用来比较单机推理、RPC 推理和 Ray 批量调度的系统差异。"}

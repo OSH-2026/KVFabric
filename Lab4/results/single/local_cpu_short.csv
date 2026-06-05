@@ -1,0 +1,6 @@
+label,file,load_time_ms,prompt_eval_ms,prompt_tokens,prompt_tok_s,eval_ms,eval_runs,eval_tok_s,total_time_ms,total_tokens,max_rss_kb,elapsed_s,exit_status
+local_cpu_short,Lab4/results/single/baseline_local_cpu_short/run_1.log,1082.38,116.64,20,171.47,1374.11,63,45.85,1513.99,83,1822740,3.01,0
+local_cpu_short,Lab4/results/single/baseline_local_cpu_short/run_2.log,1026.25,116.67,20,171.42,1548.43,63,40.69,1689.98,83,1822948,3.11,0
+local_cpu_short,Lab4/results/single/baseline_local_cpu_short/run_3.log,913.14,104.45,20,191.49,1399.9,63,45.0,1527.95,83,1822744,2.88,0
+local_cpu_short,Lab4/results/single/baseline_local_cpu_short/run_4.log,926.35,108.26,20,184.73,1437.3,63,43.83,1569.07,83,1822952,2.9,0
+local_cpu_short,Lab4/results/single/baseline_local_cpu_short/run_5.log,735.04,110.09,20,181.66,1395.16,63,45.16,1529.74,83,1822472,2.67,0

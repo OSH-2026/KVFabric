@@ -1,0 +1,2 @@
+﻿label,mode,endpoint_policy,concurrency,requests,success,total_elapsed_s,avg_latency_s,p50_latency_s,p95_latency_s,avg_output_chars
+ray_round_robin_c8,ray,round_robin,8,48,24,12.911,1.957,2.156,2.577,148.3

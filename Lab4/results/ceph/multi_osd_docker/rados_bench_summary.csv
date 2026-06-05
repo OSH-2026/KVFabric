@@ -1,0 +1,7 @@
+case,operation,threads,bandwidth_mb_s,average_iops,average_latency_s,max_latency_s,min_latency_s,total_time_s,file
+rados_write_t1,write,1,134.916,33,0.0296391,0.0743874,0.00784281,20.0124,Lab4\results\ceph\multi_osd_docker\rados_write_t1.txt
+rados_seq_t1,seq,1,688.864,172,0.00543596,0.0089491,0.00445441,3.9195,Lab4\results\ceph\multi_osd_docker\rados_seq_t1.txt
+rados_rand_t1,rand,1,701.921,175,0.00533477,1.1016,0.00243501,20.0023,Lab4\results\ceph\multi_osd_docker\rados_rand_t1.txt
+rados_write_t16,write,16,178.573,44,0.355078,1.90537,0.0342773,20.4063,Lab4\results\ceph\multi_osd_docker\rados_write_t16.txt
+rados_seq_t16,seq,16,2423.5,605,0.0255167,0.0644365,0.00593539,1.50361,Lab4\results\ceph\multi_osd_docker\rados_seq_t16.txt
+rados_rand_t16,rand,16,2433.31,608,0.0256571,0.0810014,0.00307787,20.0271,Lab4\results\ceph\multi_osd_docker\rados_rand_t16.txt

@@ -1,0 +1,1 @@
+Explain why llama.cpp RPC distributed inference may be slower than single-machine GPU inference. Discuss network latency, bandwidth, synchronization, work partitioning, and heterogeneous device performance.
