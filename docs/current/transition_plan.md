@@ -1,54 +1,102 @@
-# M4.5 过渡阶段计划
+# 当前阶段状态与收尾计划
 
-本文档描述当前项目阶段：它位于已经归档的 vLLM bring-up 记录之后，也位于仓库同级目录 `../work/` 中正式 benchmark 和论文方法复现之前。
+本文档记录 KVFabric 当前从 vLLM baseline 过渡到控制面 prototype 之后的真实状态。早期的 bring-up、预验证和源码阅读已经完成；当前重点是整理 lifecycle prototype、A/B 结果和最终报告。
 
-历史日志、历史报告、前期调研都视为只读归档材料。当前新增的实验入口、日志摘要、源码工作区和阶段计划放在当前阶段目录中维护。
+## 当前状态
 
-## 当前目标
+项目已经完成以下过渡：
 
-- 在正式 benchmark 前补充小到中等规模的可复现实验。
-- 统一使用 `qwen3_5_2b` 作为当前验证和测试模型。
-- 确认 prefix caching 能否显式开启，并能在共享前缀场景中观察到命中。
-- 标准化运行输出，方便后续与正式 benchmark 对接。
-- 准备 vLLM Python 控制面的源码 overlay，方便后续做生命周期统计和策略修改。
+```text
+vLLM baseline
+  -> prefix caching 预验证
+  -> 纯 Python 生命周期策略最小闭环
+  -> vLLM overlay 探针和封装
+  -> family-protect / shared-aware 策略原型
+  -> 长时间对话压测与模板/多轮 workload 验证
+```
 
-## 当前目录
+当前阶段不再只是“准备修改 vLLM”，而是已经有可应用到 vLLM 工作树的 overlay prototype。
 
-- `experiments/prebenchmark_validation/`：当前阶段批量测试、在线测试、prefix reuse smoke、中等体量测试和日志摘要。
-- `vllm_workspace/`：vLLM v0.19.0 选定源码文件的 overlay 和 patch 工作流。
-- `docs/current/`：当前阶段计划与说明。
+## 当前目录职责
 
-## Prefix Caching 说明
+- `vllm_baseline/`
+  保留 vLLM 环境、服务启动、停止、metrics 读取和模型 profile。
 
-Prefix caching 会在请求之间复用已经计算好的 KV block。当前请求如果和之前请求共享完全相同的 full-block 前缀，vLLM 可以直接复用这些 block，从而减少重复 prefill。
+- `vllm_workspace/`
+  管理 vLLM Python 控制面的 overlay，包括 lifecycle tracker、metrics probe、family-protect 策略和 patch 工作流。
 
-它主要用于观察和优化：
+- `experiments/prebenchmark_validation/`
+  承接真实 vLLM serving 下的小到中等规模请求、lifecycle JSONL、Prometheus metrics 和 A/B 对比。
 
-- 重复 system prompt；
-- 模板化 prompt；
-- RAG 文档公共前缀；
-- 多轮对话共享历史；
-- 高价值前缀 block 的保留和驱逐。
+- `experiments/benchmarks/lifecycle_policy/`
+  保留纯 Python 合成闭环，用来解释策略思想和指标定义。
 
-当前脚本通过 profile 中的 `ENABLE_PREFIX_CACHING=1` 显式传递 `--enable-prefix-caching`。实测 `qwen3_5_2b` 可以进入 `enable_prefix_caching=True` 初始化路径，但 vLLM 会提示其 Mamba prefix caching 仍是实验性支持。因此当前可以用它做主模型测试，同时在解释结果时记录该实验性边界。
+- `experiments/langtime_running_test/`
+  承接长时间对话、多轮分叉、压力测试和数据集驱动场景。
 
-## 当前建议顺序
+- `docs/current/`
+  维护当前实现状态、迭代日志、3090 复跑交接和最终收尾计划。
 
-1. 使用 `qwen3_5_2b` 跑 `run_offline_batch.sh`，确认离线批处理和结果落盘正常。
-2. 启动 `qwen3_5_2b` 服务，跑 `run_online_batch.sh`，确认在线请求路径正常。
-3. 跑 `run_prefix_reuse_smoke.sh`，确认共享前缀 smoke 能执行。
-4. 跑 `run_medium_prefix_reuse.sh`，进行中等体量的共享前缀请求测试。
-5. 跑 `summarize_vllm_log.sh`，从 server log 中提取 prefix hit rate、吞吐和 KV cache usage。
-6. 后续若要修改 vLLM，先在 `vllm_workspace/overlay/` 中做改动，再导出 patch 或应用到完整 `vllm-v0.19.0` 工作树。
+## Prefix Caching 当前理解
 
-## 本机时间估算
+vLLM prefix caching 主要复用严格 full-block 公共前缀。共享前缀不足一个 full block 时，prefix hit 可能仍为 0；共享系统前缀足够长后，可以观察到明显命中。
 
-在当前 RTX 4070 Laptop GPU 8 GiB + WSL2 环境下：
+KVFabric 当前没有改变 vLLM 的物理复用语义，而是在 prefix cache 已有能力之上做生命周期管理：
 
-- `qwen3_5_2b` 离线 smoke：约 2 到 4 分钟，首次编译或缓存变化时更久。
-- `qwen3_5_2b` 离线 batch：约 3 到 8 分钟。
-- `qwen3_5_2b` 服务启动：约 3 到 8 分钟，首次 warmup 可能接近或超过 10 分钟。
-- `qwen3_5_2b` 在线 smoke：服务启动后通常 1 到 3 分钟内完成。
-- `qwen3_5_2b` 中等 prefix reuse 测试：热缓存状态下本机实测约 1 分钟内完成，更适合做功能性验证。
-- `qwen3_5_2b` soak prefix reuse 测试：预计接近 20 分钟量级，用于稳定性和日志通路观察。
-- `../work/` 中的正式 benchmark 矩阵：预计几十分钟到数小时。
+- 记录哪些 block 被命中；
+- 识别哪些 block 是共享主干；
+- 在显存压力下保护长期复用 family；
+- 记录误驱逐和重建行为；
+- 用 A/B 说明策略收益和开销。
+
+## 当前建议收尾顺序
+
+1. 确认 overlay 能通过静态编译和 shell 脚本语法检查。
+2. 复跑 `ordinary_unique_cold`，确认普通无共享场景低开销退化。
+3. 复跑 `template_family_revisit`，确认模板 family 单周期回访收益。
+4. 复跑 `template_family_revisit_cycles`，确认多周期回访收益。
+5. 生成每次 run 的 lifecycle metrics、Prometheus summary 和 `ab_comparison.md`。
+6. 如果时间允许，补一组三方对照：prefix off / prefix on + LRU / prefix on + family-protect。
+7. 整理最终报告，按“普通场景无害、复用场景受益、当前仍是 Python prototype”解释。
+
+## 推荐保留的代表性命令
+
+```bash
+KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
+KVFABRIC_PROTECT_MIN_HIT_COUNT=3 \
+bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
+  qwen3_5_2b \
+  experiments/prebenchmark_validation/configs/ordinary_unique_cold.json
+```
+
+```bash
+KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
+KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
+bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
+  qwen3_5_2b \
+  experiments/prebenchmark_validation/configs/template_family_revisit.json
+```
+
+```bash
+KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
+KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
+bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
+  qwen3_5_2b \
+  experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
+```
+
+## 当前结论边界
+
+可以说明：
+
+- lifecycle side table 和事件日志已经接入真实 vLLM 控制面；
+- `family_protect` 可以在模板化和相似多轮场景中保护共享主干；
+- 当前实验显示 rebuilt-from-eviction 下降、prefix-hit tokens 增加，并有小幅请求级收益；
+- 普通无共享场景中策略基本不触发。
+
+不应过度说明：
+
+- 不应说所有 workload 都大幅提速；
+- 不应说已经实现 chunk 级任意共享；
+- 不应说已经实现真实 CoW；
+- 不应说当前已经改变底层执行路径。

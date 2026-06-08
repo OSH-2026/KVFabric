@@ -1,32 +1,41 @@
 # Experiments
 
-`experiments/` 用来统一管理 KVFabric 的各类实验资产，但不再把所有阶段的内容直接平铺在根目录。
+`experiments/` 统一管理 KVFabric 的实验资产。当前实验结构已经覆盖 baseline 预验证、真实 vLLM A/B、纯 Python 生命周期策略闭环、长时间对话压测，以及论文复现/质量评测入口。
 
-当前采用按“实验类型 / 阶段”分层的结构，方便后续继续扩展正式 benchmark 和论文复现：
+## 目录结构
 
 ```text
 experiments/
-├─ prebenchmark_validation/   baseline 跑通后的预基准验证套件
-├─ benchmarks/                正式 benchmark、对照矩阵与批量结果
-└─ paper_reproductions/       论文方法复现与对应实验材料
+├─ prebenchmark_validation/        # 真实 vLLM serving、lifecycle JSONL、A/B 验收
+├─ benchmarks/
+│  └─ lifecycle_policy/            # 纯 Python 生命周期策略最小闭环
+├─ langtime_running_test/          # 长时间对话、多轮分叉和压力测试
+└─ paper_reproductions/            # 性能/质量评测复现与扩展
 ```
 
 ## 当前入口
 
 - `prebenchmark_validation/`
-  当前最成熟的实验套件，覆盖离线批量、在线 smoke、共享前缀 smoke、中等体量 prefix reuse 和日志摘要。
+  当前最重要的真实 vLLM 验证套件。覆盖 offline/online 请求、prefix reuse、cache pressure、KVFabric lifecycle JSONL、Prometheus metrics 和 LRU vs family-protect A/B。
 
-- `benchmarks/`
-  预留给后续正式 benchmark。建议按“基线 / 改造版 / 对照配置”继续分层。
+- `benchmarks/lifecycle_policy/`
+  纯 Python 合成闭环。用于解释 lifecycle side table、LRU vs shared-aware、eviction regret 和 TTFT/吞吐代理，不直接宣称真实 GPU 性能收益。
+
+- `langtime_running_test/`
+  长时间对话压测程序。覆盖 continuous、random topic、persona rotation、dataset driven、pressure test、multi-turn fork 等模式。
 
 - `paper_reproductions/`
-  预留给论文方法复现。建议按论文名或机制名建子目录，并保留配置、脚本、原始输出和分析结论。
+  保留 vLLM 标准性能评测、KVCache 质量评测和后续横向比较入口。
 
-## 建议约定
+## 推荐使用顺序
 
-- 新增实验时，优先放到对应子目录，不再直接往 `experiments/` 根目录堆脚本。
-- 每个子目录至少包含：
-  - 一份 `README.md`
-  - `configs/`、`scripts/`、`runs/` 或同等职责的目录
-  - 可复现命令和输出目录约定
-- 代表性结论可以整理进 `docs/`，但原始实验入口和过程文件保留在 `experiments/` 下。
+1. 用 `prebenchmark_validation/` 跑真实 vLLM 小规模 A/B。
+2. 用 `benchmarks/lifecycle_policy/` 解释策略思想和指标。
+3. 用 `langtime_running_test/` 构造长对话、多轮和分叉型 workload。
+4. 用 `paper_reproductions/` 承接正式性能/质量评测扩展。
+
+## 结果保存约定
+
+- 大量原始 `runs/` 默认不提交。
+- 代表性结果可整理成 `summary.md`、`ab_comparison.md` 或 docs/current 中的阶段报告。
+- 每个正式结论应保留 config、env、metrics 和对比脚本入口，保证可复现。

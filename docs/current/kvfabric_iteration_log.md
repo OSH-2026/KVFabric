@@ -12,9 +12,46 @@ V10: 普通场景无害 + 模板/多轮收益验证
 当前入口 / 覆盖情况 / 对外表述 / 下一步
 ```
 
+## 阶段锚点
+
+### 2026-05-31：探针与封装初步完成
+
+这一天对应项目从纯 Python 合成闭环进入真实 vLLM 控制面的节点。阶段产出包括：
+
+- 初步完成 `kvfabric_lifecycle.py`；
+- 在 `BlockPool`、`KVCacheManager` 等路径加入 lifecycle 探针；
+- 建立 block/request 级 JSONL 事件流；
+- 完成 lifecycle side table 的基础封装；
+- 初步具备 prefix lookup、block sealed、touch、evict、rebuilt-from-eviction 的观测能力。
+
+该节点可概括为：
+
+```text
+设计和合成验证 -> 真实 vLLM 控制面探针与封装
+```
+
+对应日志见 [logs/2026-05-31.md](../../logs/2026-05-31.md)。
+
+### 2026-06-07：长时间对话压测与策略验证完成
+
+这一天对应项目从“能观测”进入“初步策略可运行并通过代表性测试”的节点。阶段产出包括：
+
+- 完成长时间对话压测程序设计与实现；
+- 接入并验证 `shared_aware`、`family_protect` 和 admission control；
+- 完成普通无共享、模板 family、cache pressure 等 workload 的初步 A/B；
+- 将 lifecycle JSONL、Prometheus metrics 和 A/B comparison 接到同一套解释链路。
+
+该节点可概括为：
+
+```text
+探针和封装 -> 长对话压测 + 策略原型初步验证
+```
+
+对应日志见 [logs/2026-06-07.md](../../logs/2026-06-07.md)。
+
 ## 0. 背景和目标
 
-老师的核心意见是：KVFabric 不应只被表述为“改 vLLM 的 KV cache 策略”，而应被抽象成面向模型原生 OS 的 inference memory manager。短期交付不做独立 C++ runtime、不改 CUDA kernel，而是在 vLLM Python 控制面完成最小闭环：
+老师的核心意见是：KVFabric 不应只被表述为“改 vLLM 的 KV cache 策略”，而应被抽象成面向模型原生 OS 的 inference memory manager。当前交付重点是在 vLLM Python 控制面完成最小闭环，保持底层执行路径稳定：
 
 ```text
 workload -> lifecycle side table -> policy -> metrics -> A/B comparison

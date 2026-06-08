@@ -1,144 +1,125 @@
 # KVFabric
 
-> KV Cache scheduling for LLM serving, with a vLLM Python-control-plane prototype first and a portable C++ runtime as the long-term target
+> A vLLM Python-control-plane prototype for KVCache lifecycle management, sharing-aware eviction, and long-dialogue stress testing.
 
-[Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [vLLM Baseline](docs/baseline/README.md) | [Baseline Workspace](vllm_baseline/README.md) | [Research Notes](docs/research/README.md) | [Roadmap](docs/roadmap.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
+[Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [Current Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Prebenchmark Validation](experiments/prebenchmark_validation/README.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
 
-KVFabric is a systems project focused on KV Cache scheduling and lifecycle management for LLM serving. The repository currently uses `vLLM` as the baseline, with an immediate goal of making the deployment flow, validation path, key code paths, and evaluation entry points clear and reproducible. If short-term source changes are needed to validate unified lifecycle management, sharing-aware eviction, or post-sharing branching, the current strategy is to modify the `vLLM` Python control plane first rather than starting from C++/CUDA kernels.
+KVFabric is a systems project for KVCache lifecycle management in LLM serving. The current implementation is no longer only a baseline workspace: it now contains a runnable vLLM Python-control-plane prototype with lifecycle instrumentation, event logging, metrics probes, sharing-aware policies, A/B scripts, and long-dialogue workload generation.
 
-## Team Members
+The core idea is to treat KV blocks as managed lifecycle objects rather than passive cache pages. On top of vLLM prefix caching, KVFabric tracks block state, sharing signals, prefix depth, reuse history, eviction quality, and rebuild-after-eviction behavior. These signals are then used to distinguish reusable shared-prefix blocks from low-value private tails under KV pressure.
+
+## Team
 
 - [Zhou Jiarun](https://github.com/QY-dream)
 - [Zhao Tianxiang](https://github.com/ZTX1115)
 - [Wang Yun](https://github.com/mjswyy)
 
----
+## Current Status
 
-| Project Stage | Date | Progress | Task Breakdown | Outcome | Appendix |
-|:---------------------------:|:---------:|:-------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------:| ----------------------------------- |
-| Personal Topic Research | 2026-03-23 | Online group meeting to exchange individual topic ideas | Reviewed feasible candidate directions and discussed implementation practicality | Agreed that each member would continue with individual topic research and converge in a follow-up group discussion to form an initial direction | [log](logs/2026-03-23.md) |
-| Topic Selection | 2026-03-28 | Offline meeting to discuss candidate topics and identify a project direction | Zhou Jiarun: a simple eBPF-based KV Cache profiler for AIOS/vLLM and bottleneck analysis; Zhao Tianxiang: a runnable validation, application-hosting OS targeting a self-developed loong arch CPU, [research note](docs/research/individual_research/ZhaoTianxiang/ztx_research1.md); Wang Yun: rewrite a simple OS in Rust | Decided to use the loong arch validation OS topic | [log](logs/2026-03-28.md) |
-| Topic Selection | 2026-03-28 | Online meeting | Reported topic to the instructor and asked for feedback | Topic was rejected and needed to be revised | |
-| Topic Selection | 2026-03-29 | Individual research and online group discussion | Zhou Jiarun: [research note](docs/research/individual_research/ZhouJiarun/zjr_research.md), topic: unified KV Cache lifecycle management + chunk-level reuse + CoW branching; Zhao Tianxiang: [research note](docs/research/individual_research/ZhaoTianxiang/ztx_research2.md), topic: coordinated KV Cache allocation, reuse, and eviction for LLM serving; Wang Yun: [research note](docs/research/individual_research/WangYun/wy_research.md), topic: lightweight AI user-space scheduling engine design for mobile devices | Final topic selected: "unified KV Cache lifecycle management + chunk-level reuse + CoW branching" | [log](logs/2026-03-29.md) |
-| Topic Selection | 2026-03-29 | Online meeting | Reported revised topic to the instructor and asked for feedback | Topic approved | |
-| Learning | 2026-04-07 | Studied LLM inference and KV Cache analysis; selected implementation platform | Zhou Jiarun: [KVFabric group research report](docs/research/group_research/research_report.md); Zhao Tianxiang: [vLLM and llama.cpp suitability study](docs/research/individual_research/ZhaoTianxiang/ztx_research3.md); Wang Yun: [vLLM vs llama.cpp comparison](docs/research/group_research/vllm-vs-llamacpp.md) | Completed initial study and decided to implement on vLLM | [log](logs/2026-04-07.md) |
-| Project Setup | 2026-04-13 | Brought up the vLLM baseline environment and validated the inference path | Zhou Jiarun: environment setup, inference pipeline bring-up, and initial performance collection; Zhao Tianxiang: drafted the [feasibility report](docs/reports/feasibility_report.md); Wang Yun: logs and documentation | Successfully brought up the vLLM environment, validated the end-to-end inference path, and collected initial performance data | [log](logs/2026-04-14-vllm-bringup.md) |
-| Group Discussion | 2026-04-19 | Offline meeting on follow-up direction and planning | Discussed the next-stage vLLM modification scope and design approach, and clarified immediate tasks | Complete first-pass vLLM source reading and KV Cache call-chain analysis before next Wednesday, then hold a follow-up meeting to finalize detailed task allocation | [log](logs/2026-04-19.md) |
-| Group Discussion | 2026-04-23 | Offline meeting to define the next-stage plan: closely read recent top-tier papers, extract quantitative evaluation methods, and reproduce project-relevant vLLM and KV Cache performance tests | Zhou Jiarun: [KV Cache compression and quality evaluation](logs/2026-04-23_work.md#L71); Zhao Tianxiang: [KV Cache reuse and prefix-cache evaluation](logs/2026-04-23_work.md#L33); Wang Yun: [standard vLLM baseline service performance evaluation](logs/2026-04-23_work.md#L1) | Wang Yun: [evaluation tools](docs/reports/first_test_report/wangyun/vllm_test_tool_analysis.md), [test results](docs/reports/first_test_report/wangyun/benchmark_results/baseline_benchmark_report.md), [test flow path](experiments/paper_reproductions/vllm_performance_benchmark/README.md). Zhou Jiarun: ...; Zhao Tianxiang: ... | [log](logs/2026-04-23.md) |
-| Group Discussion | 2026-04-28 | Offline meeting; KVCache metric evaluation methods implemented, preparing for the midterm report | Zhou Jiarun prepares the midterm PPT; Zhao Tianxiang and Wang Yun review other groups' projects and prepare questions | Zhou Jiarun: [PPT](docs/media/KVFabric_midterm_report.pptx) | [log](logs/2026-04-28.md) |
-| Midterm Report | 2026-05-06 | In-class midterm report on current progress and Q&A | Zhou Jiarun and Zhao Tianxiang present the PPT and answer questions; Wang Yun records questions and suggestions | Instructor provided [follow-up guidance and suggestions](logs/参考.md) | [log](logs/2026-05-06.md) |
-| Group Discussion | 2026-05-09 | Offline meeting to discuss next steps | Started building the minimal closed loop, led by Zhao Tianxiang | [Pure Python, deterministic minimal loop](experiments/benchmarks/lifecycle_policy/README.md) | [log](logs/2026-05-09.md) |
-| Group Discussion | 2026-05-24 | Offline meeting; started modifying vLLM source | Zhao Tianxiang added probes to monitor KV block status. Zhou Jiarun implemented data encapsulation. Wang Yun prepared datasets for long-run tests. | | |
+Completed work includes:
 
----
+- vLLM baseline validation for offline inference, OpenAI-compatible serving, and metrics collection.
+- Lifecycle probes and side-table encapsulation for allocation, sealed blocks, prefix hits, ref-count changes, evictions, and rebuild-after-eviction events.
+- vLLM overlay support for `shared_aware`, `family_protect`, admission control, JSONL lifecycle logs, and Prometheus metrics.
+- A/B validation scripts in `experiments/prebenchmark_validation/`.
+- Long-dialogue stress testing in `experiments/langtime_running_test/`.
+- Initial validation showing low overhead in ordinary no-sharing workloads and better eviction quality in template-like / multi-turn reuse workloads.
 
-## Status
+Current conclusion:
 
-- Stage: `baseline bring-up / architecture freeze`
-- Baseline engine: upstream `vLLM`
-- Verified preset: `Qwen/Qwen3.5-2B`
-- Optional preset: `Qwen/Qwen3-8B`
-- Runnable entry point: [vllm_baseline/README.md](vllm_baseline/README.md)
-- Bring-up record: [logs/2026-04-14-vllm-bringup.md](logs/2026-04-14-vllm-bringup.md)
+- In ordinary no-sharing workloads, KVFabric mostly falls back to a low-overhead path.
+- In template prompts, similar multi-turn conversations, and repeated prefix-family workloads, KVFabric can reduce shared-anchor eviction and rebuilt-from-eviction events.
+- The current prototype is best described as an explainable KVCache resource-management prototype, not a universal throughput accelerator.
 
-The current focus is straightforward:
+## Core Design
 
-- run official `vLLM` for both offline inference and online serving
-- map the `scheduler / prefix cache / paged attention / hybrid cache` paths
-- identify the short-term `vLLM` prototype scope in Python scheduler, KV cache manager, block pool, and metadata paths
-- use a stable and reproducible baseline workflow to support the later C++ module boundary design
+### Lifecycle Side Table
 
-## Project Direction
+KVFabric maintains a side table for KV block metadata:
 
-- Short-term implementation boundary: if we patch `vLLM`, start with Python control-plane files such as `vllm/v1/core/sched/`, `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/single_type_kv_cache_manager.py`
-- Not the first target: C++/CUDA attention kernels, low-level KV physical layout, or custom ops, unless a later feature must change block memory layout, slot-mapping semantics, or kernel write/copy paths
-- Long-term implementation language: `C++17/20`
-- Long-term system role: an independent KV Cache scheduler / runtime
-- Long-term goal: an independently evolving systems design around portability, scheduler design, and lifecycle management
+- block id and block hash;
+- prefix depth and recompute-cost proxy;
+- ref count, hit count, share degree, branch-factor proxy;
+- lifecycle state;
+- retain score;
+- rebuilt-from-eviction information.
 
-## Planned Runtime Layout
+The side table is observational and policy-oriented. It does not change vLLM worker-side block table semantics or attention execution behavior.
 
-```text
-              +----------------------------------+
-              | Frontend / Engine Adapters       |
-              | (vLLM first, others later)       |
-              +----------------+-----------------+
-                               |
-                               v
-              +----------------------------------+
-              | KVFabric Scheduler Core (C++)    |
-              | allocate / reuse / fork / evict  |
-              +----------------+-----------------+
-                               |
-                               v
-              +----------------------------------+
-              | Metadata / Block Table           |
-              | ref count / state / cost / heat  |
-              +----------------+-----------------+
-                               |
-                               v
-              +----------------------------------+
-              | Backend Abstraction Layer        |
-              | CUDA / ROCm / CPU / future       |
-              +----------------------------------+
+### Shared Prefix Protection
+
+vLLM prefix caching reuses strict full-block common prefixes. KVFabric builds on that by distinguishing:
+
+- shared-prefix anchors that are likely to be reused;
+- private tail blocks that are unlikely to be reused;
+- ambiguous cold/hot candidates under KV pressure.
+
+The current `family_protect` policy keeps vLLM's free-queue order but defers protected shared-family blocks when possible.
+
+### Policies
+
+Current policy modes:
+
+- `lru`: lifecycle logging only, preserving vLLM behavior.
+- `shared_aware`: retain-score ranking over eviction candidates.
+- `family_protect`: lightweight protected-block deferral for reusable prefix families.
+
+Common environment variables:
+
+```bash
+KVFABRIC_LIFECYCLE=1
+KVFABRIC_LIFECYCLE_LOG_PATH=/path/to/kvfabric_lifecycle.jsonl
+KVFABRIC_EVICTION_POLICY=lru|shared_aware|family_protect
+KVFABRIC_PROTECT_MIN_HIT_COUNT=1
+KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24
 ```
 
 ## Repository Layout
 
 ```text
 KVFabric/
-├─ .github/               GitHub templates
+├─ vllm_baseline/                         # vLLM baseline service and metrics scripts
+├─ vllm_workspace/                        # vLLM Python-control-plane overlay
+├─ experiments/
+│  ├─ prebenchmark_validation/            # online validation, lifecycle logs, A/B reports
+│  ├─ benchmarks/lifecycle_policy/         # deterministic Python lifecycle-policy loop
+│  ├─ langtime_running_test/               # long-dialogue and multi-turn stress tests
+│  └─ paper_reproductions/                 # performance and quality benchmark workflows
 ├─ docs/
-│  ├─ architecture/       architecture notes
-│  ├─ baseline/           project-level baseline docs
-│  ├─ media/              figures and images
-│  ├─ reports/            report placeholders
-│  └─ research/           early research notes
-├─ logs/                  bring-up and milestone logs
-└─ vllm_baseline/         runnable vLLM baseline workspace
+│  ├─ current/                             # current plans, iteration log, handoff notes
+│  ├─ architecture/                        # current architecture overview
+│  ├─ reports/                             # feasibility and benchmark reports
+│  └─ research/                            # research notes
+└─ logs/                                   # group discussion and implementation logs
 ```
 
-## Quick Start
+## Validation
 
-If your immediate goal is to get the baseline running, start in `vllm_baseline/`:
+Representative A/B workloads:
 
-```bash
-cd KVFabric
-cd vllm_baseline
+- `ordinary_unique_cold.json`: ordinary no-sharing sanity check.
+- `template_family_revisit.json`: single-cycle template-family revisit.
+- `template_family_revisit_cycles.json`: multi-cycle template-family revisit.
+- `cache_pressure_ambiguous_hot_revisit.json`: ambiguous hot/cold pressure test.
 
-bash scripts/setup_venv.sh
-bash scripts/download_model.sh qwen3_5_2b
-bash scripts/run_offline_smoke.sh qwen3_5_2b
-bash scripts/serve_local.sh qwen3_5_2b
-bash scripts/verify_server.sh qwen3_5_2b
-bash scripts/stop_server.sh qwen3_5_2b
-```
+Important outputs:
 
-The default validated path uses `Qwen/Qwen3.5-2B`. `Qwen/Qwen3-8B` remains available as an optional preset for follow-up comparisons on machines with larger GPU memory.
-
-## What Is In This Repo
-
-- `vllm_baseline/`: environment setup, model download, offline smoke tests, local serving, API verification
-- `docs/architecture/`: runtime boundaries and design notes
-- `docs/baseline/`: baseline goals, constraints, and exit criteria
-- `docs/evaluation-plan.md`: evaluation plan for the baseline phase
-- `logs/`: validated bring-up records and milestone notes
-
-## What Is Not Here Yet
-
-- custom KVFabric runtime source code
-- an implemented `vLLM` patch set
-- C++/CUDA kernel changes
-- a standalone chat UI
+- lifecycle JSONL events;
+- `kvfabric_lifecycle_metrics.json`;
+- Prometheus metrics summary;
+- online request metrics;
+- `ab_comparison.md`.
 
 ## Documentation
 
-- [Architecture Overview](docs/architecture/overview.md)
-- [vLLM Baseline](docs/baseline/README.md)
-- [vLLM Baseline Workspace](vllm_baseline/README.md)
-- [Evaluation Plan](docs/evaluation-plan.md)
-- [Roadmap](docs/roadmap.md)
-- [Research Notes](docs/research/README.md)
+- [Current Iteration Log](docs/current/kvfabric_iteration_log.md)
+- [Source Modification and Team Plan](docs/current/source_modification_and_team_plan.md)
+- [3090 Handoff](docs/current/3090_handoff.md)
+- [vLLM Overlay Workspace](vllm_workspace/README.md)
+- [Prebenchmark Validation](experiments/prebenchmark_validation/README.md)
+- [Lifecycle Policy Loop](experiments/benchmarks/lifecycle_policy/README.md)
+- [Long Dialogue Stress Test](experiments/langtime_running_test/README.md)
+- [Feasibility Report](docs/reports/feasibility_report.md)
 
 ## License
 

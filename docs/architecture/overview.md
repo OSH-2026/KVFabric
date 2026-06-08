@@ -1,157 +1,167 @@
 # Architecture Overview
 
+本文档描述 KVFabric 当前已经落地的架构口径：基于 vLLM Python 控制面的 KVCache 生命周期管理原型。
+
+现阶段的核心是：在保持 vLLM 执行路径和底层 block 语义稳定的前提下，把 KV block 的创建、共享、释放、驱逐和重建变成可观测、可评分、可 A/B 对比的系统对象。
+
 ## 项目定位
 
-KVFabric 的长期目标不是停留在“现有框架内的一层 Python 原型”，而是逐步走向：
+KVFabric 关注的是 LLM serving 中 KVCache 的资源管理问题。vLLM 已经提供了 PagedAttention、block pool、prefix caching 和 free queue 等基础机制；KVFabric 在这些机制之上增加生命周期封装和共享感知策略，用来回答：
 
-> 做一个以 C++ 为核心实现语言、面向真实推理系统、强调可移植性的 KV Cache scheduler / runtime。
+- 哪些 KV block 是长期可复用的共享主干；
+- 哪些 KV block 只是低复用私有尾部；
+- 显存压力下应该优先保留谁、驱逐谁；
+- 如果驱逐后很快重建，如何记录这次策略后悔；
+- 策略是否真的改善 prefix-hit tokens、rebuilt-from-eviction、TTFT 或 requests/s。
 
-但就当前课程周期和 `vLLM` 源码切入点而言，如果要先实现“统一生命周期管理 / 共享感知驱逐 / 共享后分叉”的最小可行原型，应先在 `vLLM` 的 Python 控制面完成验证，再判断是否需要下沉到 C++/CUDA。
+因此，KVFabric 当前不是替换 vLLM，也不是重写推理执行路径，而是在 vLLM 控制面中实现一层轻量的 lifecycle manager。
 
-这里的“可移植”主要包含两层含义：
-
-- 不把核心调度逻辑永久绑定在某一个 Python serving 框架内部；
-- 为不同计算后端和宿主系统保留抽象边界，而不是把策略写死在单一路径里。
-
-## 当前阶段原则
-
-当前阶段的首要原则是：
-
-> 在没有跑通、测明白、读清官方 vLLM 之前，不进入自研 C++ runtime 实现阶段。
-
-因此，当前仓库只保留：
-
-- 调研材料
-- 架构说明
-- vLLM 部署与测试计划
-- 可复用的 `vllm_baseline/` 基线工作区
-- 路线图与阶段日志
-
-当前阶段不保留任何“看起来像成品”的自研调度器代码。
-
-## 阶段性 vLLM 改造边界
-
-基于当前已验证的 `vLLM 0.19.0` 和 `v1` 代码结构，短期若修改 `vLLM` 源码，主要应落在 Python 层：
-
-- `vllm/v1/core/sched/scheduler.py`：请求调度、prefix hit 后的 token 计算状态、preemption 与分配调用入口。
-- `vllm/v1/core/kv_cache_manager.py`：`get_computed_blocks`、`can_fit_full_sequence`、`allocate_slots`、`free`、`evict_blocks` 等 cache manager 对 scheduler 的主接口。
-- `vllm/v1/core/block_pool.py`：`BlockPool`、free block queue、block hash 映射、缓存块驱逐入口。
-- `vllm/v1/core/kv_cache_utils.py`：`KVCacheBlock`、block hash、free queue 等基础元数据结构。
-- `vllm/v1/core/single_type_kv_cache_manager.py` 与 `vllm/v1/core/kv_cache_coordinator.py`：不同 KV cache group 下的分配、命中、释放和 skipped block 处理。
-- `vllm/v1/metrics/` 相关路径：后续记录 prefix hit、block lifetime、eviction、recompute 等观测指标。
-
-第一阶段应尽量避免直接修改：
-
-- `vllm/_custom_ops.py` 背后的 C++/CUDA 扩展；
-- `vllm/v1/attention/ops/` 中的 attention kernel 热路径；
-- `vllm/v1/worker/block_table.py` 或 GPU model runner 中会改变底层 block table / slot mapping 语义的代码。
-
-判断标准是：如果只是新增生命周期元数据、命中/驱逐统计、候选块打分、调度策略或 prefix-cache 复用决策，优先在 Python 层完成；只有当功能必须改变 KV cache 的物理布局、kernel 访问方式、跨 block 拷贝语义或真正的 in-kernel CoW 写入路径时，才进入 C++/CUDA 修改范围。
-
-## 长期系统目标
-
-未来的 KVFabric 希望具备以下能力：
-
-1. 统一的 block 生命周期管理
-2. 更强的共享、分叉与驱逐表达能力
-3. 可解释的重算代价建模
-4. 面向不同后端的抽象接口
-5. 更清晰的性能观测与 benchmark 支撑
-
-## 目标架构
+## 当前架构
 
 ```text
-             +-----------------------------------+
-             | Frontend / Engine Adapters        |
-             | vLLM first, others later          |
-             +-----------------+-----------------+
-                               |
-                               v
-             +-----------------------------------+
-             | KVFabric Scheduler Core (C++)     |
-             | allocate / reuse / fork / evict   |
-             +-----------------+-----------------+
-                               |
-                               v
-             +-----------------------------------+
-             | Metadata & Block Table            |
-             | ref_count / state / cost / heat   |
-             +-----------------+-----------------+
-                               |
-                               v
-             +-----------------------------------+
-             | Backend Abstraction               |
-             | CUDA / ROCm / CPU / future        |
-             +-----------------------------------+
+        Workloads / Benchmarks
+  ordinary, template family, long dialogue,
+  cache pressure, prefix reuse, A/B suites
+                  |
+                  v
+        vLLM OpenAI-Compatible Serving
+                  |
+                  v
+        vLLM Python Control Plane
+  Scheduler / KVCacheManager / BlockPool
+                  |
+                  v
+        KVFabric Lifecycle Layer
+  side table / events / retain score /
+  family protect / admission / metrics
+                  |
+                  v
+        vLLM Worker + Attention Runtime
+       unchanged physical block semantics
 ```
 
-## 目标模块
+## 核心模块
 
-### 1. Scheduler Core
+### 1. Lifecycle Side Table
 
-这是未来系统的核心，负责：
+当前新增模块为：
 
-- block 分配
-- 共享命中
-- CoW 分叉
-- 驱逐排序
-- 生命周期状态流转
+```text
+vllm_workspace/overlay/vllm/v1/core/kvfabric_lifecycle.py
+```
 
-这一层长期计划由 `C++17/20` 实现，是后续最重要的主体代码。短期在 `vLLM` 内验证策略时，可先把同一套抽象以 Python side table、manager 扩展或调度策略的形式做成最小原型。
+它维护 `block_id -> LifecycleBlockMeta`，记录：
 
-### 2. Metadata & Block Table
+- `block_hash`
+- `prefix_depth`
+- `ref_count`
+- `hit_count`
+- `share_degree`
+- `branch_factor`
+- `recompute_cost_tokens`
+- `state`
+- `retain_score`
 
-未来需要统一维护至少以下信息：
+这张表是旁路元数据，不替代 vLLM 原本的 `KVCacheBlock`。关键状态仍以 vLLM 的 block id、hash、ref count 和 free queue 为准。
 
-- `RefCount`
-- `ShareState`
-- `AccessHistory`
-- `RecomputeCost`
-- `Prefix/Chunk Identity`
+### 2. Event Logger
 
-它不应只是某个框架内部的临时附属结构，而应成为 scheduler 的一等对象。
+KVFabric 通过 JSONL 记录事件流。默认关闭，打开后只记录 hash、block id、token 数、状态和指标，不记录 prompt 明文或 KV tensor。
 
-### 3. Backend Abstraction
+主要事件：
 
-如果项目要真正可移植，就不能默认调度逻辑与单一 CUDA 路径永久耦合。后续需要设计清晰边界，使以下内容可分层处理：
+- `prefix_lookup`
+- `block_allocated`
+- `block_sealed`
+- `block_touched`
+- `ref_count_changed`
+- `cache_admission_limited`
+- `eviction_candidates_ranked`
+- `block_evicted`
 
-- 调度策略
-- block 元数据管理
-- 物理存储后端
-- backend-specific memory operations
+这些事件用于后处理 summary、A/B 对比和报告解释。
 
-## 与 vLLM 的关系
+### 3. Metrics Probe
 
-当前短期内，`vLLM` 是基线与对照对象，不是最终形态。
+overlay 扩展了 vLLM metrics/stats 路径，使实验可以从 `/metrics` 读取：
 
-项目对 vLLM 的使用顺序应当是：
+- prefix cache request hit rate；
+- prefix token hit rate；
+- KV block lookup hit rate；
+- evicted blocks；
+- eviction regret proxy；
+- metadata update overhead；
+- TTFT、TPOT、E2E latency 等请求级指标。
 
-1. 先部署官方版本
-2. 跑通最小可用推理与服务
-3. 读清相关代码路径
-4. 明确其 scheduler / cache manager 的边界与不足
-5. 先在 Python 控制面完成可验证原型
-6. 再决定哪些能力应在未来的 KVFabric 中被保留、重构、下沉到 C++ 或替换
+JSONL 事件用于解释策略行为，Prometheus 指标用于量化服务表现。
 
-换句话说，vLLM 是当前阶段必须认真学习和验证的基础系统；短期可以作为 Python 层原型载体，但项目的长期目标不是停留为“另一个 vLLM patch set”。
+### 4. Shared-Aware Policy
 
-## 当前非目标
+`shared_aware` 策略根据 retain score 对候选 block 排序。retain score 综合考虑：
 
-以下内容在当前阶段都不是第一优先级：
+- 历史命中；
+- 共享程度；
+- prefix depth；
+- recompute cost；
+- branch factor。
 
-- 提前写自研 runtime 代码
-- 提前确定最终 API 细节
-- 在 Python 控制面原型前直接改 C++/CUDA attention kernel
-- 在尚未验证基线前讨论过细的微优化
+驱逐时选择保留价值最低的候选 block。
 
-## 当前阶段的产出要求
+### 5. Family-Protect Policy
 
-在进入自研实现前，当前阶段至少应完成：
+`family_protect` 是当前更稳定的策略。它不在普通场景中强行排序，而是保持 vLLM free queue 的原始 LRU 顺序，只在候选窗口中遇到 protected block 时延后驱逐。
 
-- 一个仓库内可复用、可分享的 vLLM baseline workspace
-- vLLM 本地部署记录
-- 最小 offline / serving 测试记录
-- 与 KV Cache 相关的关键调用链梳理
-- benchmark 方案与指标清单
-- 短期 `vLLM` Python 改造范围说明
-- 面向长期 C++ 实现的模块边界说明
+protected block 的判定依据包括：
+
+- `hit_count >= KVFABRIC_PROTECT_MIN_HIT_COUNT`
+- `share_degree >= KVFABRIC_PROTECT_MIN_SHARE_DEGREE`
+- `branch_factor >= KVFABRIC_PROTECT_MIN_BRANCH_FACTOR`
+
+这个策略更适合当前 Python-layer prototype，因为它能保护共享主干，同时降低热路径排序开销。
+
+### 6. Admission Control
+
+KVFabric 还加入了 request-aware / length-aware admission control。它的作用不是直接提高 prefix hit，而是在低 free ratio 时减少冷长尾请求对 prefix cache 的污染。
+
+典型参数：
+
+```text
+KVFABRIC_ADMISSION_MIN_PROMPT_TOKENS=800
+KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24
+```
+
+当前 admission control 仍属于经验性策略，报告中应作为可配置优化项解释，而不是项目唯一核心贡献。
+
+## vLLM 改造边界
+
+当前 overlay 主要触及：
+
+- `vllm/v1/core/block_pool.py`
+- `vllm/v1/core/kv_cache_manager.py`
+- `vllm/v1/core/kv_cache_utils.py`
+- `vllm/v1/core/kv_cache_metrics.py`
+- `vllm/v1/metrics/stats.py`
+- `vllm/v1/metrics/loggers.py`
+- `vllm/v1/core/sched/*`
+
+保持不变的边界：
+
+- 不改变 worker 已下发的 block table 语义；
+- 不做物理 KV block 去重；
+- 不实现真实写时复制；
+- 不实现任意 chunk 级非严格前缀共享；
+- 不修改 attention kernel 的读写路径。
+
+这个边界保证当前原型可以通过环境变量关闭或回退，便于做 A/B 和复跑。
+
+## 当前实验解释
+
+KVFabric 的结果应按 workload 分类解释：
+
+- 普通无共享请求：策略通常不触发 family protection，性能差异应接近测量噪声。
+- 模板化 prompt：共享前缀具有长期复用价值，KVFabric 能保护共享主干。
+- 相似多轮对话：历史上下文形成重复 family，策略可减少 LRU 误驱逐。
+- cache pressure：能观察 eviction quality，但端到端吞吐收益取决于 LRU 是否真的误杀热点 block。
+- 长时间对话压测：用于构造更接近真实服务的长上下文和多轮分叉场景。
+
+最终报告应强调“KVCache 资源管理质量和可解释性”，避免把当前 Python prototype 描述为通用高吞吐加速器。
