@@ -64,7 +64,7 @@ run_policy() {
   trap - RETURN
 }
 
-read -r -a policies <<<"${KVFABRIC_AB_POLICIES:-lru family_protect}"
+read -r -a policies <<<"${KVFABRIC_AB_POLICIES:-lru shared_aware family_protect}"
 for policy in "${policies[@]}"; do
   run_policy "$policy"
 done
