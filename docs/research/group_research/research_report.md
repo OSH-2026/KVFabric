@@ -373,9 +373,9 @@ CoW 增量复用依赖生命周期元数据：
 - 模型下载脚本：`scripts/download_model.sh`
 - offline smoke test：`examples/offline_smoke.py`
 - online serving 启停与验证：`serve_local.sh`、`verify_server.sh`、`stop_server.sh`
-- 模型预设：`Qwen/Qwen3.5-2B` 和 `Qwen/Qwen3-8B`
+- 模型预设：`Qwen/Qwen3.5-2B` 和 `qwen3_5_27b`；后者实际使用 `Qwen/Qwen3.5-27B-FP8`
 
-已验证环境包括 `Ubuntu 24.04.1 LTS on WSL2`、`Python 3.12.3`、`NVIDIA RTX 4070 Laptop GPU 8 GiB`、`PyTorch 2.10.0+cu129` 和 `vLLM 0.19.0`。默认小模型已经完成 offline 和 online smoke test。
+已验证环境包括 `Ubuntu 24.04.1 LTS on WSL2`、`Python 3.12.3`、`NVIDIA RTX 4070 Laptop GPU 8 GiB`、`PyTorch 2.11.0+cu129` 和 `vLLM 0.22.1`。默认小模型已经完成 offline、online、prefix caching、metrics 读取和 KVFabric overlay 策略 smoke test。
 
 ### 8.2 短期 vLLM Python 控制面改造范围
 

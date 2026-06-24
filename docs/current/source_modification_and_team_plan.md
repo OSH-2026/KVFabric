@@ -181,15 +181,3 @@ KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24
 最终报告中建议采用以下口径：
 
 > KVFabric 已经在 vLLM Python 控制面实现生命周期观测、共享主干保护和可复现 A/B 工具链。在普通无共享请求中，策略可低开销退化；在模板化 prompt、相似多轮和长期共享前缀回访场景中，KVFabric 能减少共享主干误驱逐，降低 rebuilt-from-eviction，并提高 prefix-hit tokens。当前 prototype 的收益主要来自 KVCache 资源管理质量改善，而不是对所有 workload 的通用吞吐加速。
-
-## 不建议继续扩大的边界
-
-当前收尾阶段不建议继续实现：
-
-- 真实写时复制；
-- 任意 chunk 级非严格前缀共享；
-- attention kernel 修改；
-- worker block table 语义修改；
-- 大规模调度策略重写。
-
-这些内容适合放在后续工作或未来扩展中。

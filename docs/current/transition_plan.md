@@ -65,7 +65,7 @@ KVFabric 当前没有改变 vLLM 的物理复用语义，而是在 prefix cache 
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=3 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/ordinary_unique_cold.json
 ```
 
@@ -73,7 +73,7 @@ bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/template_family_revisit.json
 ```
 
@@ -81,7 +81,7 @@ bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
 ```
 
