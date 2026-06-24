@@ -1,0 +1,46 @@
+{
+  "name": "qwen3_5_27b_hint_pressure_10h",
+  "description": "Hint-aware 27B pressure benchmark tuned for vLLM 0.22.1 on 2x3090: longer 2-4 block prompts, durable tenant families, unique cold RAG churn, transient pseudo-shared families, and deterministic arrivals.",
+  "concurrency": 10,
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 32
+  },
+  "loadgen": {
+    "request_selection": "shuffle",
+    "random_seed": 20260622
+  },
+  "scenario": {
+    "type": "mixed_realistic_pressure",
+    "seed": 20260622,
+    "tenant_count": 6,
+    "hot_family_count": 32,
+    "rounds": 3200,
+    "hot_requests_per_round_min": 4,
+    "hot_requests_per_round_max": 8,
+    "cold_requests_per_round_min": 10,
+    "cold_requests_per_round_max": 16,
+    "ambiguous_families_per_round_min": 1,
+    "ambiguous_families_per_round_max": 3,
+    "ambiguous_variants_min": 2,
+    "ambiguous_variants_max": 4,
+    "revisit_every_rounds_min": 12,
+    "revisit_every_rounds_max": 20,
+    "revisit_per_family": 3,
+    "burst_every_rounds": 120,
+    "burst_cold_multiplier": 2,
+    "global_unit": "Stable assistant policy with tool rules, response schema, safety constraints, tenant routing hints, audit tags, and long lived operational context. ",
+    "tenant_unit": "Tenant catalog metadata, permission boundaries, integration names, data retention rules, field aliases, and formatting preferences remain stable across many requests. ",
+    "family_unit": "Workflow family instructions describe reusable fields, shared business definitions, prior turn state, escalation rules, and repeated decision criteria for one task family. ",
+    "cold_unit": "Unique evidence paragraph with one-off ticket notes, retrieval snippets, timestamps, numeric fields, customer details, attachments, and context that should not be reused later. ",
+    "ambiguous_anchor_unit": "Short campaign template with repeated opening instructions, temporary labels, near-duplicate field names, and partial overlap across a few requests. ",
+    "ambiguous_tail_unit": "Transient variant evidence with unique suffix data, different user objective, different entity names, different timestamps, and no expected long-term revisit. ",
+    "global_repeat": 30,
+    "tenant_repeat": 14,
+    "family_repeat": 20,
+    "cold_repeat": 86,
+    "burst_cold_repeat": 104,
+    "ambiguous_anchor_repeat": 36,
+    "ambiguous_tail_repeat": 42
+  }
+}

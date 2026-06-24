@@ -1,0 +1,62 @@
+{
+  "ambiguous_short_family": {
+    "completed": 7,
+    "errors": 0,
+    "requests_per_second": 0.11377380025381512,
+    "prompt_tokens": 14622,
+    "completion_tokens": 224,
+    "total_tokens": 14846,
+    "prompt_tokens_per_second": 237.65721533018353,
+    "completion_tokens_per_second": 3.6407616081220837,
+    "total_tokens_per_second": 241.2979769383056,
+    "latency_avg_seconds": 14.404478812569453,
+    "latency_p50_seconds": 13.927634580002632,
+    "latency_p95_seconds": 15.448713293000765,
+    "latency_p99_seconds": 15.448713293000765
+  },
+  "cold_rag": {
+    "completed": 16,
+    "errors": 0,
+    "requests_per_second": 0.26005440058014884,
+    "prompt_tokens": 43504,
+    "completion_tokens": 512,
+    "total_tokens": 44016,
+    "prompt_tokens_per_second": 707.0879151774247,
+    "completion_tokens_per_second": 8.321740818564763,
+    "total_tokens_per_second": 715.4096559959895,
+    "latency_avg_seconds": 15.7215528896254,
+    "latency_p50_seconds": 15.448895038003684,
+    "latency_p95_seconds": 17.69919107700116,
+    "latency_p99_seconds": 17.70084014999884
+  },
+  "cold_rag_burst": {
+    "completed": 1,
+    "errors": 0,
+    "requests_per_second": 0.016253400036259302,
+    "prompt_tokens": 3278,
+    "completion_tokens": 32,
+    "total_tokens": 3310,
+    "prompt_tokens_per_second": 53.278645318858,
+    "completion_tokens_per_second": 0.5201088011602977,
+    "total_tokens_per_second": 53.798754120018295,
+    "latency_avg_seconds": 14.154603788003442,
+    "latency_p50_seconds": 14.154603788003442,
+    "latency_p95_seconds": 14.154603788003442,
+    "latency_p99_seconds": 14.154603788003442
+  },
+  "hot_family": {
+    "completed": 16,
+    "errors": 0,
+    "requests_per_second": 0.26005440058014884,
+    "prompt_tokens": 27952,
+    "completion_tokens": 512,
+    "total_tokens": 28464,
+    "prompt_tokens_per_second": 454.31503781352,
+    "completion_tokens_per_second": 8.321740818564763,
+    "total_tokens_per_second": 462.63677863208477,
+    "latency_avg_seconds": 15.344774093875003,
+    "latency_p50_seconds": 14.155223544999899,
+    "latency_p95_seconds": 18.842170823998458,
+    "latency_p99_seconds": 18.84409129699634
+  }
+}
