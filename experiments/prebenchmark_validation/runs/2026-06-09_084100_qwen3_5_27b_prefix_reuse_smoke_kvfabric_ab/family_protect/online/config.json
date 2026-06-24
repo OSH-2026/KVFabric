@@ -1,0 +1,47 @@
+{
+  "name": "prefix_reuse_smoke",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 24
+  },
+  "concurrency": 1,
+  "requests": [
+    {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a concise assistant. Shared prefix block test. Shared prefix block test. Shared prefix block test. Shared prefix block test."
+        },
+        {
+          "role": "user",
+          "content": "Say alpha."
+        }
+      ]
+    },
+    {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a concise assistant. Shared prefix block test. Shared prefix block test. Shared prefix block test. Shared prefix block test."
+        },
+        {
+          "role": "user",
+          "content": "Say beta."
+        }
+      ]
+    },
+    {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a concise assistant. Shared prefix block test. Shared prefix block test. Shared prefix block test. Shared prefix block test."
+        },
+        {
+          "role": "user",
+          "content": "Say gamma."
+        }
+      ]
+    }
+  ]
+}
+

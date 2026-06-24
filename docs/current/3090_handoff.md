@@ -1,5 +1,7 @@
 # KVFabric 3090 复跑交接说明
 
+> 3090 主实验预设统一使用 `qwen3_5_27b`。该预设名表示 27B 级目标，实际模型 ID 是 `Qwen/Qwen3.5-27B-FP8`；选择 FP8 是为了在 2x24 GiB RTX 3090 上为 KV cache 留出足够空间。历史 4070 / `qwen3_5_2b` 结果只作为趋势参考，不作为 3090 主实验命令。
+
 本文档给使用 3090ti 复跑和继续优化 KVFabric 使用。重点是：先复现当前 4070 Laptop / qwen3.5-2B 上已经验证的结论，再逐步加大模型、压力和模板化长对话场景。
 
 ## 当前结论
@@ -35,7 +37,7 @@ bash vllm_workspace/scripts/apply_to_worktree.sh
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=3 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/ordinary_unique_cold.json
 ```
 
@@ -47,7 +49,7 @@ bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/template_family_revisit.json
 ```
 
@@ -67,7 +69,7 @@ KVFABRIC_PROTECT_MIN_HIT_COUNT=1
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
 ```
 
@@ -85,7 +87,7 @@ python experiments/prebenchmark_validation/examples/compare_kvfabric_ab.py \
 其中 `<run-dir>` 是脚本最后输出的路径，例如：
 
 ```text
-experiments/prebenchmark_validation/runs/2026-xx-xx_xxxxxx_qwen3_5_2b_template_family_revisit_cycles_kvfabric_ab
+experiments/prebenchmark_validation/runs/2026-xx-xx_xxxxxx_qwen3_5_27b_template_family_revisit_cycles_kvfabric_ab
 ```
 
 ## 4070 参考结果

@@ -1,0 +1,22 @@
+{
+  "name": "template_family_revisit_cycles_qwen3_5_2b",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 8
+  },
+  "concurrency": 1,
+  "scenario": {
+    "type": "template_family_revisit",
+    "family_count": 8,
+    "warmup_per_family": 2,
+    "cold_pressure_requests": 80,
+    "revisit_per_family": 3,
+    "revisit_cycles": 3,
+    "template_unit": "共享业务模板 block。该句模拟系统提示、RAG 检索模板、工具说明和固定输出规范，会被许多相似请求重复使用。",
+    "family_unit": "模板族私有历史 block。该句模拟同一会话或同一业务模板下的多轮共享上下文，后续请求会回访。",
+    "cold_unit": "普通冷请求 filler。该内容不属于任何长期模板族，只用于在热点模板回访前冲刷 KV cache。",
+    "template_repeat": 10,
+    "family_repeat": 14,
+    "cold_repeat": 22
+  }
+}

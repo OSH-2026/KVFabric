@@ -1,0 +1,22 @@
+{
+  "name": "cache_pressure_hot_revisit_27b_pressure",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 8
+  },
+  "concurrency": 1,
+  "scenario": {
+    "type": "cache_pressure",
+    "rounds": 8,
+    "hot_requests_per_round": 1,
+    "cold_requests_per_round": 18,
+    "hot_shared_system": "你是一个用于 KVFabric 27B 压力实验的简洁助手。下面是热点共享前缀，目标是在长冷请求冲刷后仍保留可复用主干。",
+    "hot_shared_unit": "热点共享 anchor block。该句用于形成跨越 Qwen3.5 hybrid KV page 的可复用 full block。热点请求共享这段系统前缀，冷请求不共享。",
+    "hot_shared_repeat": 48,
+    "hot_user_templates": [
+      "第 {round} 轮热点回访请求 {index}：用一句话解释为什么热点共享前缀应该跨冷请求保留。"
+    ],
+    "cold_unit": "冷长尾 filler。该内容不共享，用于占用 KV block 并冲刷 prefix cache。每个冷请求都有唯一 round/index 前缀，且长度足够跨越 full KV block。",
+    "cold_repeat": 48
+  }
+}
