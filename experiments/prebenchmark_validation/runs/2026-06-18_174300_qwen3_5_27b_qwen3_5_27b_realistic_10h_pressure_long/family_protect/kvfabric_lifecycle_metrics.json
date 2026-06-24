@@ -1,0 +1,70 @@
+{
+  "avg_evicted_retain_score": 0.0,
+  "avg_selected_retain_score": 0.0,
+  "cache_admission_avg_eviction_risk_ratio": 0.7001006078529141,
+  "cache_admission_limited_blocks": 520,
+  "cache_admission_limited_events": 520,
+  "cache_admission_max_eviction_risk_ratio": 0.7225433526011561,
+  "cache_admission_original_blocks": 1040,
+  "cache_admission_pressure_states": {
+    "ORANGE": 520
+  },
+  "cache_admission_request_classes": {
+    "cold_long": 520
+  },
+  "cache_admission_risk_pressure_states": {
+    "ORANGE": 520
+  },
+  "cache_admission_saved_blocks": 520,
+  "cache_admission_saved_ratio": 0.5,
+  "events": {
+    "block_allocated": 5170,
+    "block_evicted": 2236,
+    "block_sealed": 2378,
+    "block_touched": 400,
+    "cache_admission_limited": 520,
+    "eviction_candidates_ranked": 4934,
+    "prefix_lookup": 963,
+    "ref_count_changed": 5565,
+    "request_deferred": 263,
+    "request_finished": 696,
+    "request_scheduled": 696,
+    "tracker_initialized": 1
+  },
+  "evicted_blocks": 2236,
+  "eviction_policies": [
+    "family_protect"
+  ],
+  "eviction_ranking_events": 4934,
+  "family_regret_event_count": 324,
+  "max_family_branch_count": 0,
+  "max_family_hit_count": 11,
+  "max_family_regret_count": 1,
+  "prefix_hit_rate": 0.06245213598703383,
+  "prefix_hit_tokens": 79184,
+  "prefix_lookups": 963,
+  "prefix_query_tokens": 1267915,
+  "protected_eviction_ratio": 0.0,
+  "ranking_hashed_candidate_count": 280873,
+  "ranking_protected_candidate_count": 278637,
+  "ranking_protected_candidate_ratio": 0.9920391066425039,
+  "ranking_selected_hashed_count": 2236,
+  "ranking_selected_protected_count": 0,
+  "ranking_selected_protected_ratio": 0.0,
+  "rebuilt_from_eviction_blocks": 68,
+  "regretful_eviction_proxy_rate": 0.03041144901610018,
+  "request_deferred_events": 263,
+  "request_finished_events": 696,
+  "request_scheduled_events": 696,
+  "request_scheduled_external_cached_tokens": 0,
+  "request_scheduled_local_cached_tokens": 78400,
+  "request_scheduled_tokens": 499132,
+  "scheduler_defer_avg_eviction_risk_ratio": 0.6174774985400925,
+  "scheduler_defer_max_eviction_risk_ratio": 0.7421052631578947,
+  "sealed_blocks": 2378,
+  "shared_anchor_eviction_ratio": 0.0,
+  "tail_eviction_ratio": 1.0,
+  "total_events": 23822,
+  "touched_blocks": 400,
+  "unique_prefix_families": 2310
+}

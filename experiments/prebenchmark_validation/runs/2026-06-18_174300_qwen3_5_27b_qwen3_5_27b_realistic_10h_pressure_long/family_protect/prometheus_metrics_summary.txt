@@ -1,0 +1,82 @@
+== vLLM 指标摘要 ==
+端点: http://127.0.0.1:8000/metrics
+
+[调度器]
+num_requests_running_avg        0
+num_requests_waiting_avg        0
+kv_cache_usage_perc_avg         0
+memory_headroom_proxy           1
+kv_block_free_avg               234
+kv_block_total_avg              234
+kv_block_active_avg             0
+kv_block_peak_active            90
+kv_block_cached_entries_avg     142
+kv_block_active_ratio           0
+kv_block_cached_entry_ratio     0.606838
+
+[前缀缓存]
+prefix_cache_requests           963
+prefix_cache_request_hits       101
+request_hit_rate                0.104881
+prefix_cache_queries            1267915
+prefix_cache_hits               79184
+prefix_token_hit_rate           0.0624521
+prompt_tokens_total             908531
+prompt_tokens_cached            78400
+prompt_tokens_recomputed        0
+generation_tokens_total         22272
+request_success_total           696
+saved_prefill_tokens_proxy      78400
+recompute_ratio_proxy           0
+
+[KV block 复用与分配]
+kv_block_lookup_queries         1064
+kv_block_lookup_hits            202
+kv_block_lookup_hit_rate        0.18985
+kv_block_allocations            5170
+kv_block_cached                 2378
+kv_block_evictions_total        2236
+kv_block_reuse_per_allocation   0.0390716
+
+[延迟直方图]
+ttft_seconds                   samples=696        avg=7.57398
+time_per_output_token          samples=696        avg=0.0930481
+e2e_latency_seconds            samples=696        avg=10.456
+inter_token_latency            samples=21576      avg=0.0930483
+prefill_time_seconds           samples=696        avg=6.81659
+decode_time_seconds            samples=696        avg=2.8845
+prefill_kv_computed            samples=696        avg=1192.72
+
+[KV block 生命周期直方图]
+block_lifetime                 samples=246        avg=37.5387
+block_idle_before_evict        samples=246        avg=37.5387
+block_reuse_gap                samples=0          avg=0
+block_access_count             samples=246        avg=0
+block_peak_ref_count           samples=246        avg=1
+block_cache_depth              samples=246        avg=1
+block_recompute_cost           samples=246        avg=784
+block_branch_factor            samples=0          avg=0
+block_rebuild_gap              samples=0          avg=0
+block_lookup_time              samples=155        avg=1.723e-05
+metadata_update_time           samples=251        avg=3.78755e-05
+waiting_time                   samples=0          avg=0
+waiting_requests               samples=0          avg=0
+kv_block_evictions              2236
+kv_block_eviction_samples       246
+kv_block_eviction_regrets       0
+kv_block_eviction_regret_rate   0
+
+[报告指标覆盖情况]
+请求命中率                    上方可获得 request_hit_rate
+前缀 token 命中率             上方可获得
+block 复用率                  上方有代理值 kv_block_lookup_hit_rate / kv_block_reuse_per_allocation
+节省的 prefill tokens         上方有代理值 prompt_tokens_cached
+TTFT / p95 TTFT               上方有平均值；p95 需要 Prometheus histogram_quantile 或离线解析 bucket
+TPOT                          上方有代理值 request_time_per_output_token_seconds
+E2E latency                   上方有平均值；分位数需要解析 histogram bucket
+吞吐                          可用 Prometheus rate() 处理 prompt_tokens/generation_tokens/request_success
+驱逐后悔率                    上方可获得，需启用 KV_CACHE_METRICS
+重算比例                      上方有代理值 prompt_tokens_recomputed / prompt_tokens
+有效 block 利用率             部分覆盖：active/free/cached/peak 水位可得，token 填充率尚不可得
+显存余量                      上方有代理值 1 - kv_cache_usage_perc
+lookup / metadata 开销        上方可获得，需启用 KV_CACHE_METRICS
