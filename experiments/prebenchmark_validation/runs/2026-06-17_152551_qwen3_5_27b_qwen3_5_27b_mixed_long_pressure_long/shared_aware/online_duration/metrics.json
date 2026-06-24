@@ -1,0 +1,22 @@
+{
+  "elapsed_seconds": 300.6789466680002,
+  "completed": 362,
+  "errors": 0,
+  "requests_per_second": 1.2039419587288513,
+  "prompt_tokens": 442691,
+  "completion_tokens": 11584,
+  "total_tokens": 454275,
+  "prompt_tokens_per_second": 1472.3046122973312,
+  "completion_tokens_per_second": 38.52614267932324,
+  "total_tokens_per_second": 1510.8307549766546,
+  "latency_avg_seconds": 6.633273266886723,
+  "latency_p50_seconds": 6.760179476999838,
+  "latency_p95_seconds": 8.157510790999822,
+  "requests": 362,
+  "issued_requests": 362,
+  "payload_pool_size": 17280,
+  "concurrency": 8,
+  "total_seconds": 300.6789403150001,
+  "warmup_seconds": 60.0,
+  "latency_p99_seconds": 10.933906697000111
+}

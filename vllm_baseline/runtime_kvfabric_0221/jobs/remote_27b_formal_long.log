@@ -1,0 +1,258 @@
+=== Long KVFabric policy: lru ===
+Output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_153658_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long/lru
+No PID file found for qwen3_5_27b
+Starting vLLM server for qwen3_5_27b
+Log file: /home/zhoujiarun/KVFabric/vllm_baseline/runtime/qwen3_5_27b.log
+Server is ready at http://127.0.0.1:8000
+{
+  "elapsed_seconds": 3603.004519895,
+  "completed": 4387,
+  "errors": 0,
+  "requests_per_second": 1.217594919955262,
+  "prompt_tokens": 5374552,
+  "completion_tokens": 140384,
+  "total_tokens": 5514936,
+  "prompt_tokens_per_second": 1491.6861664543865,
+  "completion_tokens_per_second": 38.963037438568385,
+  "total_tokens_per_second": 1530.6492038929548,
+  "latency_avg_seconds": 6.565931363662864,
+  "latency_p50_seconds": 6.684865970999908,
+  "latency_p95_seconds": 8.078351252000175,
+  "requests": 4387,
+  "issued_requests": 4387,
+  "payload_pool_size": 17280,
+  "concurrency": 8,
+  "total_seconds": 3603.0045152989996,
+  "warmup_seconds": 120.0,
+  "latency_p99_seconds": 8.162633064000147
+}
+Stopping server PID 17043
+Stopped qwen3_5_27b
+{
+  "avg_evicted_retain_score": 31.37474345250772,
+  "avg_selected_retain_score": 0.0,
+  "cache_admission_limited_blocks": 0,
+  "cache_admission_limited_events": 0,
+  "cache_admission_original_blocks": 0,
+  "cache_admission_pressure_states": {},
+  "cache_admission_request_classes": {},
+  "cache_admission_saved_blocks": 0,
+  "cache_admission_saved_ratio": 0.0,
+  "events": {
+    "block_allocated": 31668,
+    "block_evicted": 14013,
+    "block_sealed": 14120,
+    "block_touched": 3428,
+    "prefix_lookup": 4416,
+    "ref_count_changed": 35091,
+    "request_finished": 4387,
+    "request_scheduled": 4387,
+    "tracker_initialized": 1
+  },
+  "evicted_blocks": 14013,
+  "eviction_policies": [
+    "lru"
+  ],
+  "eviction_ranking_events": 0,
+  "family_regret_event_count": 5788,
+  "max_family_branch_count": 0,
+  "max_family_hit_count": 75,
+  "max_family_regret_count": 29,
+  "prefix_hit_rate": 0.1283799293620592,
+  "prefix_hit_tokens": 694624,
+  "prefix_lookups": 4416,
+  "prefix_query_tokens": 5410690,
+  "protected_eviction_ratio": 0.0910583030043531,
+  "ranking_hashed_candidate_count": 0,
+  "ranking_protected_candidate_count": 0,
+  "ranking_protected_candidate_ratio": 0.0,
+  "ranking_selected_hashed_count": 0,
+  "ranking_selected_protected_count": 0,
+  "ranking_selected_protected_ratio": 0.0,
+  "rebuilt_from_eviction_blocks": 1229,
+  "regretful_eviction_proxy_rate": 0.08770427460215514,
+  "request_finished_events": 4387,
+  "request_scheduled_events": 4387,
+  "request_scheduled_external_cached_tokens": 0,
+  "request_scheduled_local_cached_tokens": 671888,
+  "request_scheduled_tokens": 3162143,
+  "sealed_blocks": 14120,
+  "shared_anchor_eviction_ratio": 0.08906015842432027,
+  "tail_eviction_ratio": 1.0,
+  "total_events": 111511,
+  "touched_blocks": 3428,
+  "unique_prefix_families": 12872
+}
+=== Long KVFabric policy: shared_aware ===
+Output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_153658_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long/shared_aware
+No PID file found for qwen3_5_27b
+Starting vLLM server for qwen3_5_27b
+Log file: /home/zhoujiarun/KVFabric/vllm_baseline/runtime/qwen3_5_27b.log
+Server is ready at http://127.0.0.1:8000
+{
+  "elapsed_seconds": 3604.1832361040006,
+  "completed": 4616,
+  "errors": 0,
+  "requests_per_second": 1.2807339964739803,
+  "prompt_tokens": 5656100,
+  "completion_tokens": 147712,
+  "total_tokens": 5803812,
+  "prompt_tokens_per_second": 1569.3153287384055,
+  "completion_tokens_per_second": 40.98348788716737,
+  "total_tokens_per_second": 1610.298816625573,
+  "latency_avg_seconds": 6.246056889566949,
+  "latency_p50_seconds": 6.570100941999954,
+  "latency_p95_seconds": 8.110983102000318,
+  "requests": 4616,
+  "issued_requests": 4616,
+  "payload_pool_size": 17280,
+  "concurrency": 8,
+  "total_seconds": 3604.1832322170003,
+  "warmup_seconds": 120.0,
+  "latency_p99_seconds": 8.149206271999901
+}
+Stopping server PID 20576
+Stopped qwen3_5_27b
+{
+  "avg_evicted_retain_score": 0.0,
+  "avg_selected_retain_score": 0.0,
+  "cache_admission_limited_blocks": 0,
+  "cache_admission_limited_events": 0,
+  "cache_admission_original_blocks": 0,
+  "cache_admission_pressure_states": {},
+  "cache_admission_request_classes": {},
+  "cache_admission_saved_blocks": 0,
+  "cache_admission_saved_ratio": 0.0,
+  "events": {
+    "block_allocated": 31972,
+    "block_evicted": 13304,
+    "block_sealed": 13508,
+    "block_touched": 4956,
+    "eviction_candidates_ranked": 31736,
+    "prefix_lookup": 4616,
+    "ref_count_changed": 36923,
+    "request_finished": 4616,
+    "request_scheduled": 4616,
+    "tracker_initialized": 1
+  },
+  "evicted_blocks": 13304,
+  "eviction_policies": [
+    "shared_aware"
+  ],
+  "eviction_ranking_events": 31736,
+  "family_regret_event_count": 416,
+  "max_family_branch_count": 0,
+  "max_family_hit_count": 104,
+  "max_family_regret_count": 1,
+  "prefix_hit_rate": 0.1717395378440975,
+  "prefix_hit_tokens": 971376,
+  "prefix_lookups": 4616,
+  "prefix_query_tokens": 5656100,
+  "protected_eviction_ratio": 0.0,
+  "ranking_hashed_candidate_count": 6264340,
+  "ranking_protected_candidate_count": 1436500,
+  "ranking_protected_candidate_ratio": 0.22931386227439762,
+  "ranking_selected_hashed_count": 13304,
+  "ranking_selected_protected_count": 0,
+  "ranking_selected_protected_ratio": 0.0,
+  "rebuilt_from_eviction_blocks": 4,
+  "regretful_eviction_proxy_rate": 0.0003006614552014432,
+  "request_finished_events": 4616,
+  "request_scheduled_events": 4616,
+  "request_scheduled_external_cached_tokens": 0,
+  "request_scheduled_local_cached_tokens": 971376,
+  "request_scheduled_tokens": 3218220,
+  "sealed_blocks": 13508,
+  "shared_anchor_eviction_ratio": 0.0,
+  "tail_eviction_ratio": 1.0,
+  "total_events": 146248,
+  "touched_blocks": 4956,
+  "unique_prefix_families": 13504
+}
+=== Long KVFabric policy: family_protect ===
+Output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_153658_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long/family_protect
+No PID file found for qwen3_5_27b
+Starting vLLM server for qwen3_5_27b
+Log file: /home/zhoujiarun/KVFabric/vllm_baseline/runtime/qwen3_5_27b.log
+Server is ready at http://127.0.0.1:8000
+{
+  "elapsed_seconds": 3603.8655433389995,
+  "completed": 4616,
+  "errors": 0,
+  "requests_per_second": 1.2808468974464715,
+  "prompt_tokens": 5656100,
+  "completion_tokens": 147712,
+  "total_tokens": 5803812,
+  "prompt_tokens_per_second": 1569.4536691176318,
+  "completion_tokens_per_second": 40.98710071828709,
+  "total_tokens_per_second": 1610.4407698359187,
+  "latency_avg_seconds": 6.245152199163133,
+  "latency_p50_seconds": 6.498180280999804,
+  "latency_p95_seconds": 8.1218474289999,
+  "requests": 4616,
+  "issued_requests": 4616,
+  "payload_pool_size": 17280,
+  "concurrency": 8,
+  "total_seconds": 3603.865540109,
+  "warmup_seconds": 120.0,
+  "latency_p99_seconds": 8.143562840999948
+}
+Stopping server PID 23728
+Stopped qwen3_5_27b
+{
+  "avg_evicted_retain_score": 0.0,
+  "avg_selected_retain_score": 0.0,
+  "cache_admission_limited_blocks": 0,
+  "cache_admission_limited_events": 0,
+  "cache_admission_original_blocks": 0,
+  "cache_admission_pressure_states": {},
+  "cache_admission_request_classes": {},
+  "cache_admission_saved_blocks": 0,
+  "cache_admission_saved_ratio": 0.0,
+  "events": {
+    "block_allocated": 31972,
+    "block_evicted": 13432,
+    "block_sealed": 13508,
+    "block_touched": 4956,
+    "eviction_candidates_ranked": 31000,
+    "prefix_lookup": 4616,
+    "ref_count_changed": 36923,
+    "request_finished": 4616,
+    "request_scheduled": 4616,
+    "tracker_initialized": 1
+  },
+  "evicted_blocks": 13432,
+  "eviction_policies": [
+    "family_protect"
+  ],
+  "eviction_ranking_events": 31000,
+  "family_regret_event_count": 416,
+  "max_family_branch_count": 0,
+  "max_family_hit_count": 104,
+  "max_family_regret_count": 1,
+  "prefix_hit_rate": 0.1717395378440975,
+  "prefix_hit_tokens": 971376,
+  "prefix_lookups": 4616,
+  "prefix_query_tokens": 5656100,
+  "protected_eviction_ratio": 0.0,
+  "ranking_hashed_candidate_count": 921839,
+  "ranking_protected_candidate_count": 908407,
+  "ranking_protected_candidate_ratio": 0.9854291259102729,
+  "ranking_selected_hashed_count": 13432,
+  "ranking_selected_protected_count": 0,
+  "ranking_selected_protected_ratio": 0.0,
+  "rebuilt_from_eviction_blocks": 4,
+  "regretful_eviction_proxy_rate": 0.0002977963073257892,
+  "request_finished_events": 4616,
+  "request_scheduled_events": 4616,
+  "request_scheduled_external_cached_tokens": 0,
+  "request_scheduled_local_cached_tokens": 971376,
+  "request_scheduled_tokens": 3218220,
+  "sealed_blocks": 13508,
+  "shared_anchor_eviction_ratio": 0.0,
+  "tail_eviction_ratio": 1.0,
+  "total_events": 145640,
+  "touched_blocks": 4956,
+  "unique_prefix_families": 13504
+}
+Remote 27B long benchmark output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_153658_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long

@@ -1,0 +1,87 @@
+=== Long KVFabric policy: shared_aware ===
+Output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_151116_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long/shared_aware
+No PID file found for qwen3_5_27b
+Starting vLLM server for qwen3_5_27b
+Log file: /home/zhoujiarun/KVFabric/vllm_baseline/runtime/qwen3_5_27b.log
+Server is ready at http://127.0.0.1:8000
+{
+  "elapsed_seconds": 301.80037908200006,
+  "completed": 274,
+  "errors": 0,
+  "requests_per_second": 0.9078848768627735,
+  "prompt_tokens": 335086,
+  "completion_tokens": 8768,
+  "total_tokens": 343854,
+  "prompt_tokens_per_second": 1110.2901892278808,
+  "completion_tokens_per_second": 29.052316059608753,
+  "total_tokens_per_second": 1139.3425052874895,
+  "latency_avg_seconds": 4.39438612569709,
+  "latency_p50_seconds": 4.408136622000029,
+  "latency_p95_seconds": 5.268043284999976,
+  "requests": 274,
+  "issued_requests": 274,
+  "payload_pool_size": 17280,
+  "concurrency": 4,
+  "total_seconds": 301.80037127800006,
+  "warmup_seconds": 60.0,
+  "latency_p99_seconds": 5.374772543000063
+}
+Stopping server PID 8220
+Stopped qwen3_5_27b
+{
+  "avg_evicted_retain_score": 0.0,
+  "avg_selected_retain_score": 0.0,
+  "cache_admission_limited_blocks": 0,
+  "cache_admission_limited_events": 0,
+  "cache_admission_original_blocks": 0,
+  "cache_admission_pressure_states": {},
+  "cache_admission_request_classes": {},
+  "cache_admission_saved_blocks": 0,
+  "cache_admission_saved_ratio": 0.0,
+  "events": {
+    "block_allocated": 1988,
+    "block_evicted": 679,
+    "block_sealed": 892,
+    "block_touched": 204,
+    "eviction_candidates_ranked": 1767,
+    "prefix_lookup": 274,
+    "ref_count_changed": 2187,
+    "request_finished": 274,
+    "request_scheduled": 274,
+    "tracker_initialized": 1
+  },
+  "evicted_blocks": 679,
+  "eviction_policies": [
+    "shared_aware"
+  ],
+  "eviction_ranking_events": 1767,
+  "family_regret_event_count": 16,
+  "max_family_branch_count": 0,
+  "max_family_hit_count": 7,
+  "max_family_regret_count": 1,
+  "prefix_hit_rate": 0.11932459129895012,
+  "prefix_hit_tokens": 39984,
+  "prefix_lookups": 274,
+  "prefix_query_tokens": 335086,
+  "protected_eviction_ratio": 0.0,
+  "ranking_hashed_candidate_count": 359384,
+  "ranking_protected_candidate_count": 63004,
+  "ranking_protected_candidate_ratio": 0.17531108786145183,
+  "ranking_selected_hashed_count": 679,
+  "ranking_selected_protected_count": 0,
+  "ranking_selected_protected_ratio": 0.0,
+  "rebuilt_from_eviction_blocks": 4,
+  "regretful_eviction_proxy_rate": 0.005891016200294551,
+  "request_finished_events": 274,
+  "request_scheduled_events": 274,
+  "request_scheduled_external_cached_tokens": 0,
+  "request_scheduled_local_cached_tokens": 39984,
+  "request_scheduled_tokens": 198244,
+  "sealed_blocks": 892,
+  "shared_anchor_eviction_ratio": 0.0,
+  "tail_eviction_ratio": 1.0,
+  "total_events": 8540,
+  "touched_blocks": 204,
+  "unique_prefix_families": 888
+}
+experiments/prebenchmark_validation/scripts/run_remote_27b_long_benchmark.sh: 行 119: 寻找匹配的 `"' 时遇到了未预期的 EOF

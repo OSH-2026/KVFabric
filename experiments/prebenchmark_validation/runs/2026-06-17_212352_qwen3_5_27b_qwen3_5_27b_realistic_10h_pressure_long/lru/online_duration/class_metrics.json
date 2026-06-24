@@ -1,0 +1,62 @@
+{
+  "ambiguous_short_family": {
+    "completed": 3872,
+    "errors": 0,
+    "requests_per_second": 0.3223673163999219,
+    "prompt_tokens": 4764806,
+    "completion_tokens": 123904,
+    "total_tokens": 4888710,
+    "prompt_tokens_per_second": 396.6987921968611,
+    "completion_tokens_per_second": 10.3157541247975,
+    "total_tokens_per_second": 407.0145463216586,
+    "latency_avg_seconds": 11.065226095517325,
+    "latency_p50_seconds": 11.173782441001094,
+    "latency_p95_seconds": 11.804038367998146,
+    "latency_p99_seconds": 12.016846800997882
+  },
+  "cold_rag": {
+    "completed": 6210,
+    "errors": 0,
+    "requests_per_second": 0.517019895362478,
+    "prompt_tokens": 8973086,
+    "completion_tokens": 198720,
+    "total_tokens": 9171806,
+    "prompt_tokens_per_second": 747.0634436068465,
+    "completion_tokens_per_second": 16.544636651599298,
+    "total_tokens_per_second": 763.6080802584457,
+    "latency_avg_seconds": 11.195133518105804,
+    "latency_p50_seconds": 11.306334344997595,
+    "latency_p95_seconds": 11.937740569999733,
+    "latency_p99_seconds": 12.17198027500126
+  },
+  "cold_rag_burst": {
+    "completed": 79,
+    "errors": 0,
+    "requests_per_second": 0.006577225722002538,
+    "prompt_tokens": 132505,
+    "completion_tokens": 2528,
+    "total_tokens": 135033,
+    "prompt_tokens_per_second": 11.031839168277802,
+    "completion_tokens_per_second": 0.21047122310408123,
+    "total_tokens_per_second": 11.242310391381883,
+    "latency_avg_seconds": 11.232443447304002,
+    "latency_p50_seconds": 11.346688312998594,
+    "latency_p95_seconds": 12.014326848002383,
+    "latency_p99_seconds": 12.146775009998237
+  },
+  "hot_family": {
+    "completed": 2860,
+    "errors": 0,
+    "requests_per_second": 0.2381122223408514,
+    "prompt_tokens": 3108858,
+    "completion_tokens": 91520,
+    "total_tokens": 3200378,
+    "prompt_tokens_per_second": 258.8311494133338,
+    "completion_tokens_per_second": 7.619591114907244,
+    "total_tokens_per_second": 266.450740528241,
+    "latency_avg_seconds": 10.75466347420871,
+    "latency_p50_seconds": 10.877791727994918,
+    "latency_p95_seconds": 11.656202300000587,
+    "latency_p99_seconds": 11.881830530001025
+  }
+}

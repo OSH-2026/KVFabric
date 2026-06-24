@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /home/zhoujiarun/KVFabric
+export VLLM_VENV_DIR=.venv_kvfabric_0221
+export VLLM_SERVER_START_TIMEOUT=900
+export KVFABRIC_AB_POLICIES=shared_aware
+export LONG_BENCH_DURATION_SECONDS=600
+export LONG_BENCH_WARMUP_SECONDS=120
+export LONG_BENCH_CONCURRENCY=12
+export LONG_BENCH_MAX_NUM_SEQS=12
+export LONG_BENCH_MAX_NUM_BATCHED_TOKENS=8192
+export LONG_BENCH_METRICS_INTERVAL=30
+export LONG_BENCH_RAW_SAMPLE_RATE=0.01
+export LONG_BENCH_RAW_SAMPLE_LIMIT=300
+export LONG_BENCH_TIMEOUT_SECONDS=360
+export KV_CACHE_METRICS_SAMPLE=0.05
+export KVFABRIC_LOG_BUFFER_SIZE=4096
+bash experiments/prebenchmark_validation/scripts/run_remote_27b_long_benchmark.sh \
+  qwen3_5_27b experiments/prebenchmark_validation/configs/qwen3_5_27b_realistic_10h_pressure.json

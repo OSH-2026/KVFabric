@@ -1,0 +1,87 @@
+=== Long KVFabric policy: shared_aware ===
+Output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_152551_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long/shared_aware
+No PID file found for qwen3_5_27b
+Starting vLLM server for qwen3_5_27b
+Log file: /home/zhoujiarun/KVFabric/vllm_baseline/runtime/qwen3_5_27b.log
+Server is ready at http://127.0.0.1:8000
+{
+  "elapsed_seconds": 300.6789466680002,
+  "completed": 362,
+  "errors": 0,
+  "requests_per_second": 1.2039419587288513,
+  "prompt_tokens": 442691,
+  "completion_tokens": 11584,
+  "total_tokens": 454275,
+  "prompt_tokens_per_second": 1472.3046122973312,
+  "completion_tokens_per_second": 38.52614267932324,
+  "total_tokens_per_second": 1510.8307549766546,
+  "latency_avg_seconds": 6.633273266886723,
+  "latency_p50_seconds": 6.760179476999838,
+  "latency_p95_seconds": 8.157510790999822,
+  "requests": 362,
+  "issued_requests": 362,
+  "payload_pool_size": 17280,
+  "concurrency": 8,
+  "total_seconds": 300.6789403150001,
+  "warmup_seconds": 60.0,
+  "latency_p99_seconds": 10.933906697000111
+}
+Stopping server PID 13651
+Stopped qwen3_5_27b
+{
+  "avg_evicted_retain_score": 0.0,
+  "avg_selected_retain_score": 0.0,
+  "cache_admission_limited_blocks": 0,
+  "cache_admission_limited_events": 0,
+  "cache_admission_original_blocks": 0,
+  "cache_admission_pressure_states": {},
+  "cache_admission_request_classes": {},
+  "cache_admission_saved_blocks": 0,
+  "cache_admission_saved_ratio": 0.0,
+  "events": {
+    "block_allocated": 2620,
+    "block_evicted": 987,
+    "block_sealed": 1172,
+    "block_touched": 276,
+    "eviction_candidates_ranked": 2403,
+    "prefix_lookup": 362,
+    "ref_count_changed": 2891,
+    "request_finished": 362,
+    "request_scheduled": 362,
+    "tracker_initialized": 1
+  },
+  "evicted_blocks": 987,
+  "eviction_policies": [
+    "shared_aware"
+  ],
+  "eviction_ranking_events": 2403,
+  "family_regret_event_count": 24,
+  "max_family_branch_count": 0,
+  "max_family_hit_count": 7,
+  "max_family_regret_count": 1,
+  "prefix_hit_rate": 0.12219810206216074,
+  "prefix_hit_tokens": 54096,
+  "prefix_lookups": 362,
+  "prefix_query_tokens": 442691,
+  "protected_eviction_ratio": 0.0,
+  "ranking_hashed_candidate_count": 422898,
+  "ranking_protected_candidate_count": 89920,
+  "ranking_protected_candidate_ratio": 0.21262810417642078,
+  "ranking_selected_hashed_count": 987,
+  "ranking_selected_protected_count": 0,
+  "ranking_selected_protected_ratio": 0.0,
+  "rebuilt_from_eviction_blocks": 4,
+  "regretful_eviction_proxy_rate": 0.004052684903748734,
+  "request_finished_events": 362,
+  "request_scheduled_events": 362,
+  "request_scheduled_external_cached_tokens": 0,
+  "request_scheduled_local_cached_tokens": 54096,
+  "request_scheduled_tokens": 261397,
+  "sealed_blocks": 1172,
+  "shared_anchor_eviction_ratio": 0.0,
+  "tail_eviction_ratio": 1.0,
+  "total_events": 11436,
+  "touched_blocks": 276,
+  "unique_prefix_families": 1168
+}
+Remote 27B long benchmark output: /home/zhoujiarun/KVFabric/experiments/prebenchmark_validation/runs/2026-06-17_152551_qwen3_5_27b_qwen3_5_27b_mixed_long_pressure_long

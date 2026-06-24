@@ -1,0 +1,30 @@
+{
+  "name": "qwen3_5_27b_mixed_long_pressure",
+  "description": "Long-running 27B online pressure benchmark with durable hot prefix families, cold long-tail cache churn, and short-lived pseudo-shared families.",
+  "concurrency": 8,
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 32
+  },
+  "scenario": {
+    "type": "mixed_long_pressure",
+    "hot_family_count": 12,
+    "rounds": 900,
+    "hot_requests_per_round": 4,
+    "cold_requests_per_round": 8,
+    "ambiguous_families_per_round": 2,
+    "ambiguous_variants": 3,
+    "revisit_every_rounds": 20,
+    "revisit_per_family": 2,
+    "hot_shared_unit": "热点共享前缀包含稳定的系统规则、工具约束、文档片段和多轮上下文；这些内容在同一业务族内长期重复，应保留 KV 主干。",
+    "hot_shared_repeat": 28,
+    "family_unit": "该业务族拥有专属术语、字段说明、结构化输出偏好和历史状态；不同用户问题只在后缀处分叉。",
+    "family_repeat": 10,
+    "cold_unit": "冷长尾请求携带唯一背景、一次性数据、随机字段和不会再次访问的上下文；缓存它会挤占更有价值的热点前缀。",
+    "cold_repeat": 44,
+    "ambiguous_anchor_unit": "伪共享请求拥有短期重复的开头，看起来像模板族，但生命周期很短，不应该被永久保护。",
+    "ambiguous_anchor_repeat": 20,
+    "ambiguous_tail_unit": "每个伪共享变体都有不同尾部和不同任务目标，跨长周期几乎不会复用。",
+    "ambiguous_tail_repeat": 24
+  }
+}
