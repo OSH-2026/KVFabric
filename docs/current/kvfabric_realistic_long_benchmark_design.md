@@ -62,7 +62,7 @@
 当前正式长压使用：
 
 ```text
-experiments/prebenchmark_validation/configs/qwen3_5_27b_hint_pressure_10h.json
+experiments/long_pressure_benchmark/configs/qwen3_5_27b_hint_pressure_10h.json
 ```
 
 它的实际结构是：
@@ -421,10 +421,9 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 新增：
 
 ```text
-experiments/prebenchmark_validation/examples/generate_realistic_trace.py
-experiments/prebenchmark_validation/examples/workload_profiles.py
-experiments/prebenchmark_validation/examples/conversation_transcripts.py
-experiments/prebenchmark_validation/examples/trace_summary.py
+experiments/long_pressure_benchmark/examples/generate_realistic_trace.py
+experiments/long_pressure_benchmark/examples/online_trace_loadgen.py
+experiments/long_pressure_benchmark/examples/online_duration_loadgen.py
 ```
 
 输出：
@@ -442,7 +441,7 @@ experiments/prebenchmark_validation/examples/trace_summary.py
 新增：
 
 ```text
-experiments/prebenchmark_validation/examples/online_trace_loadgen.py
+experiments/long_pressure_benchmark/examples/online_trace_loadgen.py
 ```
 
 要求：
@@ -459,9 +458,9 @@ experiments/prebenchmark_validation/examples/online_trace_loadgen.py
 新增：
 
 ```text
-experiments/prebenchmark_validation/scripts/run_remote_27b_enterprise_mixed_trace_10h.sh
-experiments/prebenchmark_validation/scripts/run_remote_27b_general_gateway_trace_10h.sh
-experiments/prebenchmark_validation/scripts/run_remote_27b_conversation_sticky_4h.sh
+experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh
+experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh
+experiments/long_pressure_benchmark/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh
 ```
 
 每个 launcher 在 A/B 前先生成或校验 trace，并把 trace hash 写入 run metadata。
@@ -471,7 +470,7 @@ experiments/prebenchmark_validation/scripts/run_remote_27b_conversation_sticky_4
 扩展：
 
 ```text
-experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py
+experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py
 ```
 
 新增报告：
@@ -488,7 +487,7 @@ experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_resul
 不要继续只调当前 `hint_pressure_10h`。下一次更有价值的是：
 
 ```text
-qwen3_5_27b_enterprise_mixed_trace_10h
+qwen3_5_27b_enterprise_mixed_trace_12h
 profile: Enterprise RAG/Agent
 duration: 12000s per policy
 load mode: stress_90

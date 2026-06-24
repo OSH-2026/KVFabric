@@ -9,7 +9,7 @@ REMOTE_HOST="${REMOTE_HOST:-robowalker}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
 REMOTE_VENV="${REMOTE_VENV:-.venv_kvfabric_0221}"
 REMOTE_PRESET="${REMOTE_PRESET:-qwen3_5_27b}"
-REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/prebenchmark_validation/configs/qwen3_5_27b_realistic_10h_pressure.json}"
+REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_27b_realistic_10h_pressure.json}"
 REMOTE_JOB_NAME="${REMOTE_JOB_NAME:-remote_27b_realistic_10h}"
 
 KVFABRIC_AB_POLICIES="${KVFABRIC_AB_POLICIES:-lru shared_aware family_protect}"
@@ -104,9 +104,9 @@ export KVFABRIC_HINT_DURABLE_DISCOVERY_TOKENS="\${KVFABRIC_HINT_DURABLE_DISCOVER
 export KVFABRIC_HINT_DURABLE_MIN_HIT_TOKENS="\${KVFABRIC_HINT_DURABLE_MIN_HIT_TOKENS:-256}"
 export KVFABRIC_HINT_DEFER_LOW_REUSE_RISK_DELTA="\${KVFABRIC_HINT_DEFER_LOW_REUSE_RISK_DELTA:-0.10}"
 
-bash experiments/prebenchmark_validation/scripts/run_remote_27b_long_benchmark.sh \
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_long_benchmark.sh \
   "\${REMOTE_PRESET:-qwen3_5_27b}" \
-  "\${REMOTE_CONFIG:-experiments/prebenchmark_validation/configs/qwen3_5_27b_realistic_10h_pressure.json}"
+  "\${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_27b_realistic_10h_pressure.json}"
 RUN
 
 chmod +x "vllm_baseline/runtime_kvfabric_0221/jobs/${REMOTE_JOB_NAME}.sh"

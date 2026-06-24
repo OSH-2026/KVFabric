@@ -19,11 +19,11 @@ suite_name=$(suite_name_from_config "$config_path")
 
 load_common_env
 ensure_dirs
-ensure_prebenchmark_dirs
+ensure_long_benchmark_dirs
 require_venv
 load_profile "$preset"
 
-run_root="$PREBENCH_ROOT/runs/$(date +'%Y-%m-%d_%H%M%S')_${MODEL_PRESET}_${suite_name}_long"
+run_root="$LONG_BENCH_ROOT/runs/$(date +'%Y-%m-%d_%H%M%S')_${MODEL_PRESET}_${suite_name}_long"
 mkdir -p "$run_root"
 
 run_policy() {
@@ -96,7 +96,7 @@ run_policy() {
   VLLM_SERVE_MAX_NUM_BATCHED_TOKENS="${LONG_BENCH_MAX_NUM_BATCHED_TOKENS:-${MAX_NUM_BATCHED_TOKENS:-8192}}" \
     bash "$PROJECT_ROOT/vllm_baseline/scripts/serve_local.sh" "$MODEL_PRESET"
 
-  "$(python_bin)" "$PREBENCH_ROOT/examples/online_duration_loadgen.py" \
+  "$(python_bin)" "$LONG_BENCH_ROOT/examples/online_duration_loadgen.py" \
     --config "$config_path" \
     --output-dir "$policy_dir/online_duration" \
     --host "$VLLM_HOST" \
@@ -120,7 +120,7 @@ run_policy() {
   bash "$PROJECT_ROOT/vllm_baseline/scripts/stop_server.sh" "$MODEL_PRESET" || true
 
   if [[ -f "$lifecycle_log" ]]; then
-    "$(python_bin)" "$PREBENCH_ROOT/examples/summarize_kvfabric_lifecycle.py" \
+    "$(python_bin)" "$LONG_BENCH_ROOT/examples/summarize_kvfabric_lifecycle.py" \
       --input "$lifecycle_log" \
       --output "$lifecycle_metrics"
   else

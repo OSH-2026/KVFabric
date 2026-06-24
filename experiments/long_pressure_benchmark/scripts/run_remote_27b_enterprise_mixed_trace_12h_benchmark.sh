@@ -11,7 +11,7 @@ REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
 REMOTE_VENV="${REMOTE_VENV:-.venv_kvfabric_0221}"
 REMOTE_PRESET="${REMOTE_PRESET:-qwen3_5_27b}"
-REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/prebenchmark_validation/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json}"
+REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json}"
 REMOTE_JOB_NAME="${REMOTE_JOB_NAME:-remote_27b_enterprise_mixed_trace_12h}"
 
 KVFABRIC_AB_POLICIES="${KVFABRIC_AB_POLICIES:-lru shared_aware family_protect}"
@@ -57,9 +57,9 @@ export KV_CACHE_METRICS_SAMPLE="\${KV_CACHE_METRICS_SAMPLE:-0.05}"
 export KVFABRIC_LOG_BUFFER_SIZE="\${KVFABRIC_LOG_BUFFER_SIZE:-8192}"
 export KVFABRIC_RANK_LOG_CANDIDATES="\${KVFABRIC_RANK_LOG_CANDIDATES:-0}"
 
-bash experiments/prebenchmark_validation/scripts/run_remote_27b_trace_long_benchmark.sh \
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh \
   "\${REMOTE_PRESET:-qwen3_5_27b}" \
-  "\${REMOTE_CONFIG:-experiments/prebenchmark_validation/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json}"
+  "\${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json}"
 RUN
 
 chmod +x "vllm_baseline/runtime_kvfabric_0221/jobs/${REMOTE_JOB_NAME}.sh"

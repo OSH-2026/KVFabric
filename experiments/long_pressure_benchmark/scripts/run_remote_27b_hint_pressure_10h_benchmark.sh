@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 export REMOTE_JOB_NAME="${REMOTE_JOB_NAME:-remote_27b_hint_pressure_10h}"
-export REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/prebenchmark_validation/configs/qwen3_5_27b_hint_pressure_10h.json}"
+export REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_27b_hint_pressure_10h.json}"
 
 # Three policies x 12,000 seconds each gives an approximately 10 hour run.
 export LONG_BENCH_DURATION_SECONDS="${LONG_BENCH_DURATION_SECONDS:-12000}"

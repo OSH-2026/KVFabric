@@ -10,7 +10,7 @@ This note is the recovery point for the long `qwen3_5_27b` benchmark on
 - Remote venv: `.venv_kvfabric_0221`
 - Profile: `qwen3_5_27b`
 - Model: `Qwen/Qwen3.5-27B-FP8`
-- Config: `experiments/prebenchmark_validation/configs/qwen3_5_27b_realistic_10h_pressure.json`
+- Config: `experiments/long_pressure_benchmark/configs/qwen3_5_27b_realistic_10h_pressure.json`
 - Policies: `lru shared_aware family_protect`
 - Duration: `12000` seconds per policy, about 10 hours total with restarts
 - Concurrency: `12`
@@ -24,7 +24,7 @@ changed:
 
 ```bash
 REMOTE_MODE=sync \
-bash experiments/prebenchmark_validation/scripts/deploy_remote_27b_long_benchmark.sh
+bash experiments/long_pressure_benchmark/scripts/deploy_remote_27b_long_benchmark.sh
 ```
 
 ## Start A New 10h Remote Job
@@ -33,7 +33,7 @@ The launcher writes a remote job script, log, and pid file under
 `vllm_baseline/runtime_kvfabric_0221/jobs/`.
 
 ```bash
-bash experiments/prebenchmark_validation/scripts/run_remote_27b_realistic_10h_benchmark.sh
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_realistic_10h_benchmark.sh
 ```
 
 Useful overrides:
@@ -43,13 +43,13 @@ LONG_BENCH_DURATION_SECONDS=12000 \
 LONG_BENCH_CONCURRENCY=12 \
 LONG_BENCH_MAX_NUM_SEQS=12 \
 LONG_BENCH_MAX_NUM_BATCHED_TOKENS=8192 \
-bash experiments/prebenchmark_validation/scripts/run_remote_27b_realistic_10h_benchmark.sh
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_realistic_10h_benchmark.sh
 ```
 
 ## Check Progress
 
 ```bash
-bash experiments/prebenchmark_validation/scripts/status_remote_27b_benchmark.sh
+bash experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh
 ```
 
 The status script prints the latest matched run root, remote job log tail,
@@ -58,8 +58,8 @@ GPU state, active processes, per-policy metrics, class metrics, and run size.
 For a specific run:
 
 ```bash
-REMOTE_RUN_ROOT=experiments/prebenchmark_validation/runs/<run-dir> \
-bash experiments/prebenchmark_validation/scripts/status_remote_27b_benchmark.sh
+REMOTE_RUN_ROOT=experiments/long_pressure_benchmark/runs/<run-dir> \
+bash experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh
 ```
 
 ## Sync Results And Build Summary
@@ -67,32 +67,32 @@ bash experiments/prebenchmark_validation/scripts/status_remote_27b_benchmark.sh
 Summary-only sync, recommended during an active run:
 
 ```bash
-bash experiments/prebenchmark_validation/scripts/sync_remote_27b_benchmark_results.sh
+bash experiments/long_pressure_benchmark/scripts/sync_remote_27b_benchmark_results.sh
 ```
 
 Full sync including large lifecycle JSONL files, recommended after completion:
 
 ```bash
 INCLUDE_RAW_JSONL=1 \
-bash experiments/prebenchmark_validation/scripts/sync_remote_27b_benchmark_results.sh
+bash experiments/long_pressure_benchmark/scripts/sync_remote_27b_benchmark_results.sh
 ```
 
 The sync script writes:
 
 ```text
-experiments/prebenchmark_validation/runs/<run-dir>/remote_27b_benchmark_summary.md
+experiments/long_pressure_benchmark/runs/<run-dir>/remote_27b_benchmark_summary.md
 ```
 
 To regenerate a summary from an already synced run:
 
 ```bash
-python experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py \
-  --run-root experiments/prebenchmark_validation/runs/<run-dir>
+python experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py \
+  --run-root experiments/long_pressure_benchmark/runs/<run-dir>
 ```
 
-## Current 2026-06-17 Long Run
+## Historical 2026-06-17 Long Run
 
-The active formal run started from this job:
+The original 2026-06-17 formal run was started from this job:
 
 ```text
 vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_realistic_10h.sh
@@ -100,12 +100,18 @@ vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_realistic_10h.log
 vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_realistic_10h.pid
 ```
 
-The expected run root is:
+That historical run root remains under `prebenchmark_validation` because old
+results are not moved during the benchmark-layout cleanup:
 
 ```text
 experiments/prebenchmark_validation/runs/2026-06-17_212352_qwen3_5_27b_qwen3_5_27b_realistic_10h_pressure_long
 ```
 
-If this conversation is interrupted, first run the status script. If all
-policies are complete, run the full sync command and inspect the generated
-summary.
+New long benchmark runs are written under:
+
+```text
+experiments/long_pressure_benchmark/runs/
+```
+
+If a long run is interrupted, first run the status script. If all policies are
+complete, run the full sync command and inspect the generated summary.

@@ -20,13 +20,13 @@ suite_name=$(suite_name_from_config "$config_path")
 
 load_common_env
 ensure_dirs
-ensure_prebenchmark_dirs
+ensure_long_benchmark_dirs
 require_venv
 load_profile "$preset"
 
 cleanup_trace_loadgens() {
   if [[ "${TRACE_BENCH_KILL_STALE_LOADGENS:-1}" == "1" ]]; then
-    pkill -f "$PREBENCH_ROOT/examples/online_trace_loadgen.py" 2>/dev/null || true
+    pkill -f "$LONG_BENCH_ROOT/examples/online_trace_loadgen.py" 2>/dev/null || true
   fi
 }
 
@@ -38,11 +38,11 @@ cleanup_benchmark_processes() {
 trap cleanup_benchmark_processes EXIT
 cleanup_trace_loadgens
 
-run_root="$PREBENCH_ROOT/runs/$(date +'%Y-%m-%d_%H%M%S')_${MODEL_PRESET}_${suite_name}_trace_long"
+run_root="$LONG_BENCH_ROOT/runs/$(date +'%Y-%m-%d_%H%M%S')_${MODEL_PRESET}_${suite_name}_trace_long"
 trace_dir="$run_root/trace"
 mkdir -p "$trace_dir"
 
-"$(python_bin)" "$PREBENCH_ROOT/examples/generate_realistic_trace.py" \
+"$(python_bin)" "$LONG_BENCH_ROOT/examples/generate_realistic_trace.py" \
   --config "$config_path" \
   --output-dir "$trace_dir"
 
@@ -117,7 +117,7 @@ run_policy() {
   VLLM_SERVE_MAX_NUM_BATCHED_TOKENS="${TRACE_BENCH_MAX_NUM_BATCHED_TOKENS:-${MAX_NUM_BATCHED_TOKENS:-8192}}" \
     bash "$PROJECT_ROOT/vllm_baseline/scripts/serve_local.sh" "$MODEL_PRESET"
 
-  "$(python_bin)" "$PREBENCH_ROOT/examples/online_trace_loadgen.py" \
+  "$(python_bin)" "$LONG_BENCH_ROOT/examples/online_trace_loadgen.py" \
     --trace-dir "$trace_dir" \
     --output-dir "$policy_dir/online_trace" \
     --host "$VLLM_HOST" \
@@ -141,7 +141,7 @@ run_policy() {
   bash "$PROJECT_ROOT/vllm_baseline/scripts/stop_server.sh" "$MODEL_PRESET" || true
 
   if [[ -f "$lifecycle_log" ]]; then
-    "$(python_bin)" "$PREBENCH_ROOT/examples/summarize_kvfabric_lifecycle.py" \
+    "$(python_bin)" "$LONG_BENCH_ROOT/examples/summarize_kvfabric_lifecycle.py" \
       --input "$lifecycle_log" \
       --output "$lifecycle_metrics"
   else
@@ -158,7 +158,7 @@ for policy in "${policies[@]}"; do
   run_policy "$policy"
 done
 
-"$PROJECT_ROOT/experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py" \
+"$PROJECT_ROOT/experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py" \
   --run-root "$run_root" \
   --output "$run_root/remote_27b_benchmark_summary.md" || true
 

@@ -23,7 +23,7 @@ set -euo pipefail
 cd "$REMOTE_PROJECT"
 
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then
-  REMOTE_RUN_ROOT=$(find experiments/prebenchmark_validation/runs \
+  REMOTE_RUN_ROOT=$(find experiments/long_pressure_benchmark/runs \
     -maxdepth 1 -type d -name "$REMOTE_RUN_PATTERN" | sort | tail -n 1 || true)
 fi
 

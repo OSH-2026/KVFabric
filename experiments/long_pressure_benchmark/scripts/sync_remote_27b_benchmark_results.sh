@@ -16,11 +16,11 @@ INCLUDE_RAW_JSONL="${INCLUDE_RAW_JSONL:-0}"
 SUMMARY_OUTPUT_NAME="${SUMMARY_OUTPUT_NAME:-remote_27b_benchmark_summary.md}"
 
 load_common_env
-ensure_prebenchmark_dirs
+ensure_long_benchmark_dirs
 
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then
   REMOTE_RUN_ROOT=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
-    "cd '$REMOTE_PROJECT' && find experiments/prebenchmark_validation/runs -maxdepth 1 -type d -name '$REMOTE_RUN_PATTERN' | sort | tail -n 1")
+    "cd '$REMOTE_PROJECT' && find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d -name '$REMOTE_RUN_PATTERN' | sort | tail -n 1")
 fi
 
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then
@@ -86,7 +86,7 @@ else
 fi
 
 summary_path="$local_run_root/$SUMMARY_OUTPUT_NAME"
-"$PROJECT_ROOT/experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py" \
+"$PROJECT_ROOT/experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py" \
   --run-root "$local_run_root" \
   --output "$summary_path"
 
