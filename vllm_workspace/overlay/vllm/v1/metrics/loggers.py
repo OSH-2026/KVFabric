@@ -32,6 +32,10 @@ from vllm.v1.spec_decode.metrics import SpecDecodingLogging, SpecDecodingProm
 
 logger = init_logger(__name__)
 
+# User-facing reason labels for waiting request breakdown
+WAITING_REASON_CAPACITY = "capacity"
+WAITING_REASON_DEFERRED = "deferred"
+
 PerEngineStatLoggerFactory = Callable[[VllmConfig, int], "StatLoggerBase"]
 AggregateStatLoggerFactory = type["AggregateStatLoggerBase"]
 StatLoggerFactory = AggregateStatLoggerFactory | PerEngineStatLoggerFactory
@@ -222,12 +226,20 @@ class LoggingStatLogger(StatLoggerBase):
             "Running: %d reqs",
             "Waiting: %d reqs",
         ]
+        total_waiting = (
+            self.last_scheduler_stats.num_waiting_reqs
+            + self.last_scheduler_stats.num_skipped_waiting_reqs
+        )
         log_args: list[int | float | str] = [
             self.last_prompt_throughput,
             self.last_generation_throughput,
             self.last_scheduler_stats.num_running_reqs,
-            self.last_scheduler_stats.num_waiting_reqs,
+            total_waiting,
         ]
+
+        if self.last_scheduler_stats.num_skipped_waiting_reqs > 0:
+            log_parts.append("Deferred: %d reqs")
+            log_args.append(self.last_scheduler_stats.num_skipped_waiting_reqs)
 
         if self.num_preemptions > 0:
             log_parts.append("Preemptions: %d")
@@ -327,6 +339,9 @@ class AggregatedLoggingStatLogger(LoggingStatLogger, AggregateStatLoggerBase):
             )
             self.last_scheduler_stats.num_running_reqs += (
                 last_scheduler_stats.num_running_reqs
+            )
+            self.last_scheduler_stats.num_skipped_waiting_reqs += (
+                last_scheduler_stats.num_skipped_waiting_reqs
             )
             self.last_scheduler_stats.kv_cache_usage += (
                 last_scheduler_stats.kv_cache_usage
@@ -453,6 +468,28 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
             gauge_scheduler_waiting, per_engine_labelvalues
         )
 
+        gauge_waiting_by_reason = self._gauge_cls(
+            name="vllm:num_requests_waiting_by_reason",
+            documentation=(
+                "Number of waiting requests by reason. "
+                "Reason labels: 'capacity' = waiting for scheduling capacity; "
+                "'deferred' = deferred by transient constraints "
+                "(LoRA budget, KV transfer, blocked status). "
+                "Sum of all reasons equals vllm:num_requests_waiting."
+            ),
+            multiprocess_mode="mostrecent",
+            labelnames=labelnames + ["reason"],
+        )
+        self.gauge_waiting_by_reason: dict[str, dict[int, Gauge]] = {}
+        for waiting_reason in [WAITING_REASON_CAPACITY, WAITING_REASON_DEFERRED]:
+            per_engine_labelvalues_with_reason = {
+                idx: labelvalues + [waiting_reason]
+                for idx, labelvalues in per_engine_labelvalues.items()
+            }
+            self.gauge_waiting_by_reason[waiting_reason] = create_metric_per_engine(
+                gauge_waiting_by_reason, per_engine_labelvalues_with_reason
+            )
+
         gauge_engine_sleep_state = self._gauge_cls(
             name="vllm:engine_sleep_state",
             documentation=(
@@ -489,59 +526,6 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
             gauge_kv_cache_usage, per_engine_labelvalues
         )
 
-        gauge_kv_block_free = self._gauge_cls(
-            name="vllm:kv_block_free",
-            documentation="Number of free KV blocks in the block pool.",
-            multiprocess_mode="mostrecent",
-            labelnames=labelnames,
-        )
-        self.gauge_kv_block_free = create_metric_per_engine(
-            gauge_kv_block_free, per_engine_labelvalues
-        )
-
-        gauge_kv_block_total = self._gauge_cls(
-            name="vllm:kv_block_total",
-            documentation="Total number of usable KV blocks in the block pool.",
-            multiprocess_mode="mostrecent",
-            labelnames=labelnames,
-        )
-        self.gauge_kv_block_total = create_metric_per_engine(
-            gauge_kv_block_total, per_engine_labelvalues
-        )
-
-        gauge_kv_block_active = self._gauge_cls(
-            name="vllm:kv_block_active",
-            documentation="Number of KV blocks currently not on the free list.",
-            multiprocess_mode="mostrecent",
-            labelnames=labelnames,
-        )
-        self.gauge_kv_block_active = create_metric_per_engine(
-            gauge_kv_block_active, per_engine_labelvalues
-        )
-
-        gauge_kv_block_peak_active = self._gauge_cls(
-            name="vllm:kv_block_peak_active",
-            documentation=(
-                "Peak number of active KV blocks observed since the metrics "
-                "collector was created or reset."
-            ),
-            multiprocess_mode="mostrecent",
-            labelnames=labelnames,
-        )
-        self.gauge_kv_block_peak_active = create_metric_per_engine(
-            gauge_kv_block_peak_active, per_engine_labelvalues
-        )
-
-        gauge_kv_block_cached_entries = self._gauge_cls(
-            name="vllm:kv_block_cached_entries",
-            documentation="Number of unique KV block hashes in the prefix cache.",
-            multiprocess_mode="mostrecent",
-            labelnames=labelnames,
-        )
-        self.gauge_kv_block_cached_entries = create_metric_per_engine(
-            gauge_kv_block_cached_entries, per_engine_labelvalues
-        )
-
         if envs.VLLM_COMPUTE_NANS_IN_LOGITS:
             counter_corrupted_requests = self._counter_cls(
                 name="vllm:corrupted_requests",
@@ -554,15 +538,6 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
             self.counter_corrupted_requests = create_metric_per_engine(
                 counter_corrupted_requests, per_engine_labelvalues
             )
-
-        counter_prefix_cache_requests = self._counter_cls(
-            name="vllm:prefix_cache_requests",
-            documentation="Number of new requests that queried the prefix cache.",
-            labelnames=labelnames,
-        )
-        self.counter_prefix_cache_requests = create_metric_per_engine(
-            counter_prefix_cache_requests, per_engine_labelvalues
-        )
 
         counter_prefix_cache_queries = self._counter_cls(
             name="vllm:prefix_cache_queries",
@@ -584,12 +559,18 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
             counter_prefix_cache_hits, per_engine_labelvalues
         )
 
+        counter_prefix_cache_requests = self._counter_cls(
+            name="vllm:prefix_cache_requests",
+            documentation="Prefix cache lookups, in terms of request count.",
+            labelnames=labelnames,
+        )
+        self.counter_prefix_cache_requests = create_metric_per_engine(
+            counter_prefix_cache_requests, per_engine_labelvalues
+        )
+
         counter_prefix_cache_request_hits = self._counter_cls(
             name="vllm:prefix_cache_request_hits",
-            documentation=(
-                "Prefix cache hits, in terms of requests with at least one "
-                "cached token."
-            ),
+            documentation="Prefix cache request-level hits.",
             labelnames=labelnames,
         )
         self.counter_prefix_cache_request_hits = create_metric_per_engine(
@@ -694,61 +675,6 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
         )
         self.counter_prompt_tokens_cached = create_metric_per_engine(
             counter_prompt_tokens_cached, per_engine_labelvalues
-        )
-
-        # Recomputed tokens (last token recomputed when entire prompt is cached)
-        counter_prompt_tokens_recomputed = self._counter_cls(
-            name="vllm:prompt_tokens_recomputed",
-            documentation="Number of cached tokens recomputed for forward pass.",
-            labelnames=labelnames,
-        )
-        self.counter_prompt_tokens_recomputed = create_metric_per_engine(
-            counter_prompt_tokens_recomputed, per_engine_labelvalues
-        )
-
-        counter_kv_block_lookup_queries = self._counter_cls(
-            name="vllm:kv_block_lookup_queries",
-            documentation="Number of KV block prefix-cache lookup attempts.",
-            labelnames=labelnames,
-        )
-        self.counter_kv_block_lookup_queries = create_metric_per_engine(
-            counter_kv_block_lookup_queries, per_engine_labelvalues
-        )
-
-        counter_kv_block_lookup_hits = self._counter_cls(
-            name="vllm:kv_block_lookup_hits",
-            documentation="Number of KV block prefix-cache lookup hits.",
-            labelnames=labelnames,
-        )
-        self.counter_kv_block_lookup_hits = create_metric_per_engine(
-            counter_kv_block_lookup_hits, per_engine_labelvalues
-        )
-
-        counter_kv_block_allocations = self._counter_cls(
-            name="vllm:kv_block_allocations",
-            documentation="Number of KV blocks allocated from the block pool.",
-            labelnames=labelnames,
-        )
-        self.counter_kv_block_allocations = create_metric_per_engine(
-            counter_kv_block_allocations, per_engine_labelvalues
-        )
-
-        counter_kv_block_cached = self._counter_cls(
-            name="vllm:kv_block_cached",
-            documentation="Number of KV blocks inserted into the prefix cache.",
-            labelnames=labelnames,
-        )
-        self.counter_kv_block_cached = create_metric_per_engine(
-            counter_kv_block_cached, per_engine_labelvalues
-        )
-
-        counter_kv_block_evictions = self._counter_cls(
-            name="vllm:kv_block_evictions",
-            documentation="Number of KV blocks evicted from the prefix cache.",
-            labelnames=labelnames,
-        )
-        self.counter_kv_block_evictions = create_metric_per_engine(
-            counter_kv_block_evictions, per_engine_labelvalues
         )
 
         counter_generation_tokens = self._counter_cls(
@@ -1026,6 +952,101 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
         # KV Cache residency metrics
         #
         if self.kv_cache_metrics_enabled:
+            counter_kv_block_lookup_queries = self._counter_cls(
+                name="vllm:kv_block_lookup_queries",
+                documentation="KV block lookup queries.",
+                labelnames=labelnames,
+            )
+            self.counter_kv_block_lookup_queries = create_metric_per_engine(
+                counter_kv_block_lookup_queries, per_engine_labelvalues
+            )
+
+            counter_kv_block_lookup_hits = self._counter_cls(
+                name="vllm:kv_block_lookup_hits",
+                documentation="KV block lookup hits.",
+                labelnames=labelnames,
+            )
+            self.counter_kv_block_lookup_hits = create_metric_per_engine(
+                counter_kv_block_lookup_hits, per_engine_labelvalues
+            )
+
+            counter_kv_block_allocations = self._counter_cls(
+                name="vllm:kv_block_allocations",
+                documentation="KV blocks allocated.",
+                labelnames=labelnames,
+            )
+            self.counter_kv_block_allocations = create_metric_per_engine(
+                counter_kv_block_allocations, per_engine_labelvalues
+            )
+
+            counter_kv_block_cached = self._counter_cls(
+                name="vllm:kv_block_cached",
+                documentation="KV blocks inserted into prefix cache.",
+                labelnames=labelnames,
+            )
+            self.counter_kv_block_cached = create_metric_per_engine(
+                counter_kv_block_cached, per_engine_labelvalues
+            )
+
+            counter_kv_block_evictions = self._counter_cls(
+                name="vllm:kv_block_evictions",
+                documentation="KV blocks evicted from prefix cache.",
+                labelnames=labelnames,
+            )
+            self.counter_kv_block_evictions = create_metric_per_engine(
+                counter_kv_block_evictions, per_engine_labelvalues
+            )
+
+            gauge_kv_block_free = self._gauge_cls(
+                name="vllm:kv_block_free",
+                documentation="Free KV blocks.",
+                multiprocess_mode="mostrecent",
+                labelnames=labelnames,
+            )
+            self.gauge_kv_block_free = create_metric_per_engine(
+                gauge_kv_block_free, per_engine_labelvalues
+            )
+
+            gauge_kv_block_total = self._gauge_cls(
+                name="vllm:kv_block_total",
+                documentation="Total usable KV blocks.",
+                multiprocess_mode="mostrecent",
+                labelnames=labelnames,
+            )
+            self.gauge_kv_block_total = create_metric_per_engine(
+                gauge_kv_block_total, per_engine_labelvalues
+            )
+
+            gauge_kv_block_active = self._gauge_cls(
+                name="vllm:kv_block_active",
+                documentation="Active KV blocks.",
+                multiprocess_mode="mostrecent",
+                labelnames=labelnames,
+            )
+            self.gauge_kv_block_active = create_metric_per_engine(
+                gauge_kv_block_active, per_engine_labelvalues
+            )
+
+            gauge_kv_block_peak_active = self._gauge_cls(
+                name="vllm:kv_block_peak_active",
+                documentation="Peak active KV blocks observed in this interval.",
+                multiprocess_mode="mostrecent",
+                labelnames=labelnames,
+            )
+            self.gauge_kv_block_peak_active = create_metric_per_engine(
+                gauge_kv_block_peak_active, per_engine_labelvalues
+            )
+
+            gauge_kv_block_cached_entries = self._gauge_cls(
+                name="vllm:kv_block_cached_entries",
+                documentation="Entries in the prefix cache block hash table.",
+                multiprocess_mode="mostrecent",
+                labelnames=labelnames,
+            )
+            self.gauge_kv_block_cached_entries = create_metric_per_engine(
+                gauge_kv_block_cached_entries, per_engine_labelvalues
+            )
+
             kv_cache_residency_buckets = [
                 0.001,
                 0.002,
@@ -1093,11 +1114,8 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
 
             histogram_kv_block_access_count = self._histogram_cls(
                 name="vllm:kv_block_access_count_before_evict",
-                documentation=(
-                    "Histogram of sampled KV cache block access counts before "
-                    "eviction."
-                ),
-                buckets=build_1_2_5_buckets(max_model_len),
+                documentation="Access count of sampled KV blocks before eviction.",
+                buckets=build_1_2_5_buckets(1000),
                 labelnames=labelnames,
             )
             self.histogram_kv_block_access_count = create_metric_per_engine(
@@ -1106,11 +1124,8 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
 
             histogram_kv_block_peak_ref_count = self._histogram_cls(
                 name="vllm:kv_block_peak_ref_count",
-                documentation=(
-                    "Histogram of sampled KV cache block peak reference counts "
-                    "observed before eviction."
-                ),
-                buckets=build_1_2_5_buckets(max_model_len),
+                documentation="Peak ref count of sampled KV blocks before eviction.",
+                buckets=build_1_2_5_buckets(1000),
                 labelnames=labelnames,
             )
             self.histogram_kv_block_peak_ref_count = create_metric_per_engine(
@@ -1119,10 +1134,7 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
 
             histogram_kv_block_cache_depth = self._histogram_cls(
                 name="vllm:kv_block_cache_depth_blocks",
-                documentation=(
-                    "Histogram of sampled KV cache block cache depth within a "
-                    "request prefix, measured in block units."
-                ),
+                documentation="Prefix depth of sampled cached KV blocks.",
                 buckets=build_1_2_5_buckets(max_model_len),
                 labelnames=labelnames,
             )
@@ -1132,10 +1144,7 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
 
             histogram_kv_block_recompute_cost = self._histogram_cls(
                 name="vllm:kv_block_recompute_cost_tokens",
-                documentation=(
-                    "Histogram of sampled KV cache block recompute cost if "
-                    "the block must be rebuilt after eviction, measured in tokens."
-                ),
+                documentation="Estimated recompute cost for sampled evicted KV blocks.",
                 buckets=build_1_2_5_buckets(max_model_len),
                 labelnames=labelnames,
             )
@@ -1143,70 +1152,10 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
                 histogram_kv_block_recompute_cost, per_engine_labelvalues
             )
 
-            histogram_kv_block_branch_factor = self._histogram_cls(
-                name="vllm:kv_block_branch_factor",
-                documentation=(
-                    "Histogram of sampled KV cache block reuse count before "
-                    "eviction, used as a logical branch/fan-out proxy."
-                ),
-                buckets=build_1_2_5_buckets(max_model_len),
-                labelnames=labelnames,
-            )
-            self.histogram_kv_block_branch_factor = create_metric_per_engine(
-                histogram_kv_block_branch_factor, per_engine_labelvalues
-            )
-
-            counter_kv_block_eviction_regrets = self._counter_cls(
-                name="vllm:kv_block_eviction_regrets",
-                documentation=(
-                    "Number of sampled KV cache evictions whose block hash was "
-                    "rebuilt later."
-                ),
-                labelnames=labelnames,
-            )
-            self.counter_kv_block_eviction_regrets = create_metric_per_engine(
-                counter_kv_block_eviction_regrets, per_engine_labelvalues
-            )
-
-            histogram_kv_block_rebuild_gap = self._histogram_cls(
-                name="vllm:kv_block_rebuild_gap_seconds",
-                documentation=(
-                    "Histogram of elapsed time between a sampled KV block "
-                    "eviction and a later rebuild of the same block hash."
-                ),
-                buckets=kv_cache_residency_buckets,
-                labelnames=labelnames,
-            )
-            self.histogram_kv_block_rebuild_gap = create_metric_per_engine(
-                histogram_kv_block_rebuild_gap, per_engine_labelvalues
-            )
-
-            overhead_buckets = [
-                0.000001,
-                0.000002,
-                0.000005,
-                0.00001,
-                0.00002,
-                0.00005,
-                0.0001,
-                0.0002,
-                0.0005,
-                0.001,
-                0.002,
-                0.005,
-                0.01,
-                0.02,
-                0.05,
-                0.1,
-            ]
-
             histogram_kv_block_lookup_time = self._histogram_cls(
                 name="vllm:kv_block_lookup_time_seconds",
-                documentation=(
-                    "Histogram of total KV prefix-cache lookup time per "
-                    "scheduler stats interval."
-                ),
-                buckets=overhead_buckets,
+                documentation="KV block lookup time per scheduler interval.",
+                buckets=kv_cache_residency_buckets,
                 labelnames=labelnames,
             )
             self.histogram_kv_block_lookup_time = create_metric_per_engine(
@@ -1215,43 +1164,24 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
 
             histogram_kv_metadata_update_time = self._histogram_cls(
                 name="vllm:kv_metadata_update_time_seconds",
-                documentation=(
-                    "Histogram of total KV lifecycle metadata update time per "
-                    "scheduler stats interval."
-                ),
-                buckets=overhead_buckets,
+                documentation="KV lifecycle metadata update time per interval.",
+                buckets=kv_cache_residency_buckets,
                 labelnames=labelnames,
             )
             self.histogram_kv_metadata_update_time = create_metric_per_engine(
                 histogram_kv_metadata_update_time, per_engine_labelvalues
             )
-
-            histogram_kv_waiting_time = self._histogram_cls(
-                name="vllm:kv_waiting_time_seconds",
-                documentation=(
-                    "Histogram of total scheduler waiting time for WAITING "
-                    "requests per stats interval."
-                ),
-                buckets=request_latency_buckets,
-                labelnames=labelnames,
-            )
-            self.histogram_kv_waiting_time = create_metric_per_engine(
-                histogram_kv_waiting_time, per_engine_labelvalues
-            )
-
-            histogram_kv_waiting_requests = self._histogram_cls(
-                name="vllm:kv_waiting_requests",
-                documentation=(
-                    "Histogram of WAITING request count per scheduler stats "
-                    "interval."
-                ),
-                buckets=build_1_2_5_buckets(max_model_len),
-                labelnames=labelnames,
-            )
-            self.histogram_kv_waiting_requests = create_metric_per_engine(
-                histogram_kv_waiting_requests, per_engine_labelvalues
-            )
         else:
+            self.counter_kv_block_lookup_queries = {}
+            self.counter_kv_block_lookup_hits = {}
+            self.counter_kv_block_allocations = {}
+            self.counter_kv_block_cached = {}
+            self.counter_kv_block_evictions = {}
+            self.gauge_kv_block_free = {}
+            self.gauge_kv_block_total = {}
+            self.gauge_kv_block_active = {}
+            self.gauge_kv_block_peak_active = {}
+            self.gauge_kv_block_cached_entries = {}
             self.histogram_kv_block_lifetime = {}
             self.histogram_kv_block_idle_before_evict = {}
             self.histogram_kv_block_reuse_gap = {}
@@ -1259,13 +1189,8 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
             self.histogram_kv_block_peak_ref_count = {}
             self.histogram_kv_block_cache_depth = {}
             self.histogram_kv_block_recompute_cost = {}
-            self.histogram_kv_block_branch_factor = {}
-            self.counter_kv_block_eviction_regrets = {}
-            self.histogram_kv_block_rebuild_gap = {}
             self.histogram_kv_block_lookup_time = {}
             self.histogram_kv_metadata_update_time = {}
-            self.histogram_kv_waiting_time = {}
-            self.histogram_kv_waiting_requests = {}
 
         #
         # LoRA metrics
@@ -1331,46 +1256,27 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
             self.gauge_scheduler_running[engine_idx].set(
                 scheduler_stats.num_running_reqs
             )
-            self.gauge_scheduler_waiting[engine_idx].set(
+            total_waiting = (
                 scheduler_stats.num_waiting_reqs
+                + scheduler_stats.num_skipped_waiting_reqs
+            )
+            self.gauge_scheduler_waiting[engine_idx].set(total_waiting)
+            self.gauge_waiting_by_reason[WAITING_REASON_CAPACITY][engine_idx].set(
+                scheduler_stats.num_waiting_reqs
+            )
+            self.gauge_waiting_by_reason[WAITING_REASON_DEFERRED][engine_idx].set(
+                scheduler_stats.num_skipped_waiting_reqs
             )
             self.gauge_kv_cache_usage[engine_idx].set(scheduler_stats.kv_cache_usage)
 
-            lifecycle_stats = scheduler_stats.kv_cache_lifecycle_stats
-            self.gauge_kv_block_free[engine_idx].set(lifecycle_stats.free_blocks)
-            self.gauge_kv_block_total[engine_idx].set(lifecycle_stats.total_blocks)
-            self.gauge_kv_block_active[engine_idx].set(lifecycle_stats.active_blocks)
-            self.gauge_kv_block_peak_active[engine_idx].set(
-                lifecycle_stats.peak_active_blocks
-            )
-            self.gauge_kv_block_cached_entries[engine_idx].set(
-                lifecycle_stats.cached_entries
-            )
-
-            self.counter_kv_block_lookup_queries[engine_idx].inc(
-                lifecycle_stats.block_lookup_queries
-            )
-            self.counter_kv_block_lookup_hits[engine_idx].inc(
-                lifecycle_stats.block_lookup_hits
-            )
-            self.counter_kv_block_allocations[engine_idx].inc(
-                lifecycle_stats.allocated_blocks
-            )
-            self.counter_kv_block_cached[engine_idx].inc(
-                lifecycle_stats.cached_blocks
-            )
-            self.counter_kv_block_evictions[engine_idx].inc(
-                lifecycle_stats.evicted_blocks
-            )
-
-            self.counter_prefix_cache_requests[engine_idx].inc(
-                scheduler_stats.prefix_cache_stats.requests
-            )
             self.counter_prefix_cache_queries[engine_idx].inc(
                 scheduler_stats.prefix_cache_stats.queries
             )
             self.counter_prefix_cache_hits[engine_idx].inc(
                 scheduler_stats.prefix_cache_stats.hits
+            )
+            self.counter_prefix_cache_requests[engine_idx].inc(
+                scheduler_stats.prefix_cache_stats.requests
             )
             self.counter_prefix_cache_request_hits[engine_idx].inc(
                 scheduler_stats.prefix_cache_stats.request_hits
@@ -1410,22 +1316,45 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
                 recompute_cost_hist = self.histogram_kv_block_recompute_cost[
                     engine_idx
                 ]
-                branch_factor_hist = self.histogram_kv_block_branch_factor[engine_idx]
 
                 for event in scheduler_stats.kv_cache_eviction_events:
                     lifetime_hist.observe(event.lifetime_seconds)
                     idle_hist.observe(event.idle_seconds)
-                    access_count_hist.observe(event.access_count)
-                    peak_ref_hist.observe(event.peak_ref_count)
-                    branch_factor_hist.observe(event.branch_factor)
-                    if event.prefix_depth > 0:
-                        cache_depth_hist.observe(event.prefix_depth)
-                    if event.recompute_cost_tokens > 0:
-                        recompute_cost_hist.observe(event.recompute_cost_tokens)
                     for gap in event.reuse_gaps_seconds:
                         reuse_hist.observe(gap)
+                    access_count_hist.observe(event.access_count)
+                    peak_ref_hist.observe(event.peak_ref_count)
+                    cache_depth_hist.observe(event.prefix_depth)
+                    recompute_cost_hist.observe(event.recompute_cost_tokens)
 
             if self.kv_cache_metrics_enabled:
+                lifecycle_stats = scheduler_stats.kv_cache_lifecycle_stats
+                self.gauge_kv_block_free[engine_idx].set(lifecycle_stats.free_blocks)
+                self.gauge_kv_block_total[engine_idx].set(lifecycle_stats.total_blocks)
+                self.gauge_kv_block_active[engine_idx].set(
+                    lifecycle_stats.active_blocks
+                )
+                self.gauge_kv_block_peak_active[engine_idx].set(
+                    lifecycle_stats.peak_active_blocks
+                )
+                self.gauge_kv_block_cached_entries[engine_idx].set(
+                    lifecycle_stats.cached_entries
+                )
+                self.counter_kv_block_lookup_queries[engine_idx].inc(
+                    lifecycle_stats.block_lookup_queries
+                )
+                self.counter_kv_block_lookup_hits[engine_idx].inc(
+                    lifecycle_stats.block_lookup_hits
+                )
+                self.counter_kv_block_allocations[engine_idx].inc(
+                    lifecycle_stats.allocated_blocks
+                )
+                self.counter_kv_block_cached[engine_idx].inc(
+                    lifecycle_stats.cached_blocks
+                )
+                self.counter_kv_block_evictions[engine_idx].inc(
+                    lifecycle_stats.evicted_blocks
+                )
                 if lifecycle_stats.block_lookup_time_seconds > 0:
                     self.histogram_kv_block_lookup_time[engine_idx].observe(
                         lifecycle_stats.block_lookup_time_seconds
@@ -1434,23 +1363,6 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
                     self.histogram_kv_metadata_update_time[engine_idx].observe(
                         lifecycle_stats.metadata_update_time_seconds
                     )
-                if lifecycle_stats.waiting_time_seconds > 0:
-                    self.histogram_kv_waiting_time[engine_idx].observe(
-                        lifecycle_stats.waiting_time_seconds
-                    )
-                self.histogram_kv_waiting_requests[engine_idx].observe(
-                    lifecycle_stats.waiting_requests
-                )
-
-            if (
-                self.kv_cache_metrics_enabled
-                and scheduler_stats.kv_cache_eviction_regret_events
-            ):
-                regret_counter = self.counter_kv_block_eviction_regrets[engine_idx]
-                rebuild_gap_hist = self.histogram_kv_block_rebuild_gap[engine_idx]
-                for event in scheduler_stats.kv_cache_eviction_regret_events:
-                    regret_counter.inc()
-                    rebuild_gap_hist.observe(event.rebuild_gap_seconds)
 
             if self.gauge_lora_info is not None:
                 running_lora_adapters = ",".join(
@@ -1487,7 +1399,6 @@ class PrometheusStatLogger(AggregateStatLoggerBase):
                 pts.get_by_source(source)
             )
         self.counter_prompt_tokens_cached[engine_idx].inc(pts.cached_tokens)
-        self.counter_prompt_tokens_recomputed[engine_idx].inc(pts.recomputed_tokens)
         self.counter_generation_tokens[engine_idx].inc(
             iteration_stats.num_generation_tokens
         )

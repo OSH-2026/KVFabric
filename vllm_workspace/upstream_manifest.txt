@@ -1,5 +1,7 @@
 vllm/v1/core/block_pool.py
 vllm/v1/core/kv_cache_manager.py
+vllm/v1/core/kvfabric_family.py
+vllm/v1/core/kvfabric_hints.py
 vllm/v1/core/kvfabric_lifecycle.py
 vllm/v1/core/kv_cache_metrics.py
 vllm/v1/core/kv_cache_utils.py
@@ -9,3 +11,5 @@ vllm/v1/core/sched/scheduler.py
 vllm/v1/core/sched/output.py
 vllm/v1/metrics/loggers.py
 vllm/v1/metrics/stats.py
+vllm/tracing/utils.py
+vllm/entrypoints/openai/engine/serving.py

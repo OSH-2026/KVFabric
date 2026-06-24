@@ -24,6 +24,7 @@ from vllm.v1.core.kv_cache_utils import (
     KVCacheBlock,
     generate_block_hash_extra_keys,
     get_block_hash,
+    get_group_id,
     make_block_hash_with_group_id,
     maybe_convert_block_hash,
 )
@@ -230,6 +231,7 @@ class BlockPool:
         num_full_blocks: int,
         block_size: int,
         kv_cache_group_id: int,
+        block_mask: list[bool] | None = None,
     ) -> None:
         """Cache a list of full blocks for prefix caching.
         This function takes a list of blocks that will have their block hash
@@ -247,22 +249,39 @@ class BlockPool:
                 be cached after this function.
             block_size: Number of tokens in each block.
             kv_cache_group_id: The id of the KV cache group.
+            block_mask: Optional mask aligned with
+                ``blocks[num_cached_blocks:num_full_blocks]``. When provided,
+                blocks where the mask is False are skipped (treated like null
+                blocks). Used by groups whose ``find_longest_cache_hit`` only
+                consults a subset of blocks (e.g. SWA tail-window), so blocks
+                that can never serve a hit stay out of the prefix-cache hash
+                map.
         """
         if num_cached_blocks >= num_full_blocks:
             return
         if self.kvfabric_lifecycle is not None:
             total_blocks = max(self.num_gpu_blocks - 1, 0)
+            pressure = self.cache_pressure_snapshot(
+                self.kvfabric_lifecycle.admission_head_window
+            )
             num_full_blocks = self.kvfabric_lifecycle.limit_cache_blocks(
                 request_id=request.request_id,
                 num_cached_blocks=num_cached_blocks,
                 num_full_blocks=num_full_blocks,
                 free_blocks=self.get_num_free_blocks(),
                 total_blocks=total_blocks,
+                block_size=block_size,
+                head_window_blocks=pressure["head_window_blocks"],
+                head_hashed_blocks=pressure["head_hashed_blocks"],
+                head_protected_blocks=pressure["head_protected_blocks"],
+                eviction_risk_ratio=pressure["eviction_risk_ratio"],
+                protected_risk_ratio=pressure["protected_risk_ratio"],
             )
             if num_cached_blocks >= num_full_blocks:
                 return
         new_full_blocks = blocks[num_cached_blocks:num_full_blocks]
         assert len(request.block_hashes) >= num_full_blocks
+        assert block_mask is None or len(block_mask) == len(new_full_blocks)
         if block_size == self.hash_block_size:
             # Common case.
             block_hashes: BlockHashList = request.block_hashes
@@ -281,10 +300,10 @@ class BlockPool:
             [] if self.enable_kv_cache_events else None
         )
         for i, blk in enumerate(new_full_blocks):
-            # Some blocks may be null blocks when enabling sparse attention like
-            # sliding window attention, or Mamba models with prefix-caching in
-            # align mode. We skip null blocks here.
-            if blk.is_null:
+            # Some blocks may be null or masked out when enabling sparse attention
+            # like sliding window attention, or Mamba models with prefix-caching
+            # in align mode. We skip null blocks here.
+            if blk.is_null or (block_mask is not None and not block_mask[i]):
                 continue
             assert blk.block_hash is None
             block_hash = new_block_hashes[i]
@@ -302,10 +321,24 @@ class BlockPool:
                     block_size=block_size,
                 )
             if self.kvfabric_lifecycle:
+                absolute_block_index = num_cached_blocks + i
+                parent_hash_with_group_id = None
+                if absolute_block_index > 0:
+                    parent_hash_with_group_id = make_block_hash_with_group_id(
+                        block_hashes[absolute_block_index - 1],
+                        kv_cache_group_id,
+                    )
+                root_hash_with_group_id = make_block_hash_with_group_id(
+                    block_hashes[0],
+                    kv_cache_group_id,
+                )
                 self.kvfabric_lifecycle.on_block_sealed(
                     blk,
                     prefix_depth=num_cached_blocks + i + 1,
                     block_size=block_size,
+                    parent_hash=parent_hash_with_group_id,
+                    root_hash=root_hash_with_group_id,
+                    request_id=request.request_id,
                 )
             if new_hashes is not None:
                 new_hashes.append(maybe_convert_block_hash(block_hash))
@@ -325,11 +358,13 @@ class BlockPool:
             # Generate extra keys for each block individually.
             # Each block may have different extra_keys (e.g., different MM
             # features, or cache_salt only for the first block).
-            # Skip null blocks to match the length of new_hashes.
+            # Skip null/masked-out blocks to match the length of new_hashes.
             extra_keys_list: list[tuple[Any, ...] | None] = []
             curr_mm_idx = 0
             for i in range(num_cached_blocks, num_full_blocks):
                 if blocks[i].is_null:
+                    continue
+                if block_mask is not None and not block_mask[i - num_cached_blocks]:
                     continue
                 block_start = i * block_size
                 block_end = block_start + block_size
@@ -352,6 +387,7 @@ class BlockPool:
                     if request.lora_request
                     else None,
                     extra_keys=extra_keys_list if extra_keys_list else None,
+                    group_idx=kv_cache_group_id,
                 )
             )
 
@@ -381,12 +417,10 @@ class BlockPool:
             )
         lru_candidates = self.free_block_queue.peek_left_n(candidate_window)
         lru_victims = lru_candidates[:num_blocks]
-        needs_cached_eviction = any(block.block_hash is not None for block in lru_victims)
-        should_rank = (
-            needs_cached_eviction
-            and self.kvfabric_lifecycle is not None
-            and self.kvfabric_lifecycle.should_rank_lru_victims(lru_victims)
+        needs_cached_eviction = any(
+            block.block_hash is not None for block in lru_victims
         )
+        should_rank = needs_cached_eviction and use_shared_aware
         if not use_shared_aware or not should_rank:
             ret = self.free_block_queue.popleft_n(num_blocks)
         elif self.kvfabric_lifecycle.use_family_protect_eviction():
@@ -424,6 +458,50 @@ class BlockPool:
                     self.kvfabric_lifecycle.on_block_allocated(block)
         return ret
 
+    def cache_pressure_snapshot(self, head_window: int = 512) -> dict[str, int | float]:
+        """Summarize evictable prefix-cache pressure near the LRU head.
+
+        vLLM's free queue contains both genuinely empty blocks and cached blocks
+        that can be evicted. A high free-block ratio can therefore hide high
+        prefix-cache churn. KVFabric admission uses this head-window snapshot to
+        distinguish harmless free space from imminent cached-block eviction.
+        """
+        free_blocks = self.get_num_free_blocks()
+        if free_blocks <= 0 or head_window <= 0:
+            return {
+                "head_window_blocks": 0,
+                "head_hashed_blocks": 0,
+                "head_protected_blocks": 0,
+                "eviction_risk_ratio": 0.0,
+                "protected_risk_ratio": 0.0,
+            }
+
+        window = min(head_window, free_blocks)
+        candidates = self.free_block_queue.peek_left_n(window)
+        hashed_blocks = [
+            block for block in candidates if block.block_hash is not None
+        ]
+        protected_blocks = 0
+        if self.kvfabric_lifecycle is not None:
+            protected_blocks = sum(
+                1 for block in hashed_blocks
+                if self.kvfabric_lifecycle.is_protected(block)
+            )
+
+        candidate_count = len(candidates)
+        hashed_count = len(hashed_blocks)
+        return {
+            "head_window_blocks": candidate_count,
+            "head_hashed_blocks": hashed_count,
+            "head_protected_blocks": protected_blocks,
+            "eviction_risk_ratio": (
+                hashed_count / candidate_count if candidate_count else 0.0
+            ),
+            "protected_risk_ratio": (
+                protected_blocks / hashed_count if hashed_count else 0.0
+            ),
+        }
+
     def _maybe_evict_cached_block(self, block: KVCacheBlock) -> bool:
         """
         If a block is cached in `cached_block_hash_to_block`, we reset its hash
@@ -453,14 +531,11 @@ class BlockPool:
         block.reset_hash()
 
         if self.enable_kv_cache_events:
-            # FIXME (Chen): Not sure whether we should return `hash_value`
-            # or `(hash_value, group_id)` here. But it's fine now because
-            # we disable hybrid kv cache manager when kv cache event is
-            # enabled, so there is only one group.
             self.kv_event_queue.append(
                 BlockRemoved(
                     block_hashes=[maybe_convert_block_hash(get_block_hash(block_hash))],
                     medium=MEDIUM_GPU,
+                    group_idx=get_group_id(block_hash),
                 )
             )
         return True
@@ -497,8 +572,6 @@ class BlockPool:
         blocks_list = list(ordered_blocks)
         for block in blocks_list:
             block.ref_cnt -= 1
-            if self.metrics_collector:
-                self.metrics_collector.on_block_ref_count_changed(block)
             if self.kvfabric_lifecycle:
                 self.kvfabric_lifecycle.on_ref_count_changed(block)
         self.free_block_queue.append_n(
