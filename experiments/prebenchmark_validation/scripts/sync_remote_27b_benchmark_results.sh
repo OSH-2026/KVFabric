@@ -6,6 +6,8 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$SCRIPT_DIR/common.sh"
 
 REMOTE_HOST="${REMOTE_HOST:-robowalker}"
+REMOTE_SSH_TARGET="${REMOTE_SSH_TARGET:-$REMOTE_HOST}"
+REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
 REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_realistic_10h_pressure_long}"
 REMOTE_RUN_ROOT="${REMOTE_RUN_ROOT:-}"
@@ -17,7 +19,7 @@ load_common_env
 ensure_prebenchmark_dirs
 
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then
-  REMOTE_RUN_ROOT=$(ssh "$REMOTE_HOST" \
+  REMOTE_RUN_ROOT=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
     "cd '$REMOTE_PROJECT' && find experiments/prebenchmark_validation/runs -maxdepth 1 -type d -name '$REMOTE_RUN_PATTERN' | sort | tail -n 1")
 fi
 
@@ -34,10 +36,22 @@ echo "  remote: ${REMOTE_HOST}:${REMOTE_PROJECT}/${REMOTE_RUN_ROOT}"
 echo "  local:  ${local_run_root}"
 
 if [[ "$INCLUDE_RAW_JSONL" == "1" ]]; then
-  rsync -az "${REMOTE_HOST}:${REMOTE_PROJECT}/${REMOTE_RUN_ROOT}/" "$local_run_root/"
+  if [[ -n "$REMOTE_SSH_OPTS" ]]; then
+    rsync -az -e "ssh $REMOTE_SSH_OPTS" \
+      "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_RUN_ROOT}/" "$local_run_root/"
+  else
+    rsync -az "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_RUN_ROOT}/" "$local_run_root/"
+  fi
 else
-  rsync -az --prune-empty-dirs \
+  rsync_args=(-az --prune-empty-dirs)
+  if [[ -n "$REMOTE_SSH_OPTS" ]]; then
+    rsync_args+=(-e "ssh $REMOTE_SSH_OPTS")
+  fi
+  rsync "${rsync_args[@]}" \
     --include='*/' \
+    --include='trace/trace_summary.json' \
+    --include='trace/trace_summary.md' \
+    --include='trace/trace.jsonl' \
     --include='online_duration/config.json' \
     --include='online_duration/env.json' \
     --include='online_duration/metrics.json' \
@@ -46,16 +60,30 @@ else
     --include='online_duration/rolling_metrics.jsonl' \
     --include='online_duration/prometheus_cache_samples.jsonl' \
     --include='online_duration/raw_outputs_sample.jsonl' \
+    --include='online_trace/env.json' \
+    --include='online_trace/metrics.json' \
+    --include='online_trace/class_metrics.json' \
+    --include='online_trace/summary.md' \
+    --include='online_trace/trace_summary.json' \
+    --include='online_trace/rolling_metrics.jsonl' \
+    --include='online_trace/prometheus_cache_samples.jsonl' \
+    --include='online_trace/raw_outputs_sample.jsonl' \
     --include='kvfabric_lifecycle_metrics.json' \
     --include='prometheus_metrics_summary.json' \
     --include='prometheus_metrics_summary.txt' \
     --exclude='*' \
-    "${REMOTE_HOST}:${REMOTE_PROJECT}/${REMOTE_RUN_ROOT}/" "$local_run_root/"
+    "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_RUN_ROOT}/" "$local_run_root/"
 fi
 
 mkdir -p "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs"
-rsync -az "${REMOTE_HOST}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
-  "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
+if [[ -n "$REMOTE_SSH_OPTS" ]]; then
+  rsync -az -e "ssh $REMOTE_SSH_OPTS" \
+    "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
+    "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
+else
+  rsync -az "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
+    "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
+fi
 
 summary_path="$local_run_root/$SUMMARY_OUTPUT_NAME"
 "$PROJECT_ROOT/experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py" \

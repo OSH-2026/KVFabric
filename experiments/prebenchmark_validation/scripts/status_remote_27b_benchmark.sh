@@ -6,6 +6,8 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$SCRIPT_DIR/common.sh"
 
 REMOTE_HOST="${REMOTE_HOST:-robowalker}"
+REMOTE_SSH_TARGET="${REMOTE_SSH_TARGET:-$REMOTE_HOST}"
+REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
 REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_realistic_10h_pressure_long}"
 REMOTE_RUN_ROOT="${REMOTE_RUN_ROOT:-}"
@@ -15,7 +17,7 @@ REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
 load_common_env
 
-ssh "$REMOTE_HOST" \
+ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
   "REMOTE_PROJECT='$REMOTE_PROJECT' REMOTE_RUN_ROOT='$REMOTE_RUN_ROOT' REMOTE_RUN_PATTERN='$REMOTE_RUN_PATTERN' REMOTE_JOB_LOG='$REMOTE_JOB_LOG' TAIL_LINES='$TAIL_LINES' REMOTE_PYTHON='$REMOTE_PYTHON' bash -s" <<'REMOTE'
 set -euo pipefail
 cd "$REMOTE_PROJECT"
@@ -46,7 +48,7 @@ nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu,tempe
 echo
 
 echo "--- processes ---"
-ps -ef | grep -E 'realistic_10h|run_remote_27b_long|vllm serve|online_duration' | grep -v grep || true
+ps -ef | grep -E 'realistic_10h|trace_12h|trace_long|run_remote_27b_long|run_remote_27b_trace|vllm serve|online_duration|online_trace' | grep -v grep || true
 echo
 
 if [[ -z "$REMOTE_RUN_ROOT" || ! -d "$REMOTE_RUN_ROOT" ]]; then
@@ -79,9 +81,12 @@ def latest_jsonl(path: Path):
 
 for policy in policies:
     policy_dir = run_root / policy
-    metrics = load_json(policy_dir / "online_duration" / "metrics.json")
+    online_dir = policy_dir / "online_trace"
+    if not online_dir.exists():
+        online_dir = policy_dir / "online_duration"
+    metrics = load_json(online_dir / "metrics.json")
     lifecycle = load_json(policy_dir / "kvfabric_lifecycle_metrics.json")
-    rolling = latest_jsonl(policy_dir / "online_duration" / "rolling_metrics.jsonl")
+    rolling = latest_jsonl(online_dir / "rolling_metrics.jsonl")
     source = metrics or rolling
     if source is None:
         print(f"{policy}: pending")

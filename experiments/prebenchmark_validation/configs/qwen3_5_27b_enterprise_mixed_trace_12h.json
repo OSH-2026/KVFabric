@@ -1,0 +1,21 @@
+{
+  "name": "qwen3_5_27b_enterprise_mixed_trace_12h",
+  "description": "Trace-replay 27B benchmark for enterprise RAG/agent/multi-turn traffic. Three policies x 14400 seconds gives at least a 12 hour formal run.",
+  "trace": {
+    "profile": "enterprise_mixed",
+    "duration_seconds": 14400,
+    "request_rate": 0.18,
+    "seed": 20260624,
+    "max_model_len": 4096,
+    "load_mode": "stress_90",
+    "hint_regime": "partial_hints"
+  },
+  "loadgen": {
+    "max_in_flight": 32,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.02,
+    "raw_sample_limit": 2000,
+    "warmup_seconds": 300,
+    "timeout_seconds": 900
+  }
+}

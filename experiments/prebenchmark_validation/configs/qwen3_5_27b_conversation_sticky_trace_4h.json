@@ -1,0 +1,21 @@
+{
+  "name": "qwen3_5_27b_conversation_sticky_trace_4h",
+  "description": "Trace-replay 27B benchmark focused on sticky multi-turn and long-document follow-up reuse.",
+  "trace": {
+    "profile": "conversation_sticky",
+    "duration_seconds": 4800,
+    "request_rate": 0.45,
+    "seed": 20260624,
+    "max_model_len": 4096,
+    "load_mode": "stress_90",
+    "hint_regime": "partial_hints"
+  },
+  "loadgen": {
+    "max_in_flight": 32,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.02,
+    "raw_sample_limit": 2000,
+    "warmup_seconds": 300,
+    "timeout_seconds": 900
+  }
+}

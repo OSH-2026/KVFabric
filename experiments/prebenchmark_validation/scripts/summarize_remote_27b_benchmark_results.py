@@ -60,22 +60,27 @@ def percent(value: Any, digits: int = 2) -> str:
 
 def collect_policy(run_root: Path, policy: str) -> dict[str, Any]:
     policy_dir = run_root / policy
-    metrics = load_json(policy_dir / "online_duration" / "metrics.json")
+    online_dir = policy_dir / "online_trace"
+    if not online_dir.exists():
+        online_dir = policy_dir / "online_duration"
+    metrics = load_json(online_dir / "metrics.json")
     metric_source = "final"
     if metrics is None:
-        metrics = latest_jsonl(policy_dir / "online_duration" / "rolling_metrics.jsonl")
+        metrics = latest_jsonl(online_dir / "rolling_metrics.jsonl")
         metric_source = "rolling" if metrics is not None else "missing"
     lifecycle = load_json(policy_dir / "kvfabric_lifecycle_metrics.json")
     prometheus = load_json(policy_dir / "prometheus_metrics_summary.json")
-    class_metrics = load_json(policy_dir / "online_duration" / "class_metrics.json")
+    class_metrics = load_json(online_dir / "class_metrics.json")
     if metrics and class_metrics and "class_metrics" not in metrics:
         metrics["class_metrics"] = class_metrics
+    trace_summary = load_json(online_dir / "trace_summary.json")
     return {
         "policy": policy,
         "metrics": metrics,
         "metric_source": metric_source,
         "lifecycle": lifecycle,
         "prometheus": prometheus,
+        "trace_summary": trace_summary,
     }
 
 
@@ -101,18 +106,39 @@ def build_summary(run_root: Path) -> str:
         "## Throughput And Latency",
         "",
     ]
+    trace_summary = next(
+        (item["trace_summary"] for item in policies if item.get("trace_summary")),
+        None,
+    )
+    if trace_summary:
+        settings = trace_summary.get("settings") or {}
+        lines.extend(
+            [
+                "## Trace",
+                "",
+                f"- Profile: `{settings.get('profile', 'unknown')}`",
+                f"- Trace SHA256: `{trace_summary.get('trace_sha256', 'unknown')}`",
+                f"- Requests: {number(trace_summary.get('requests'), 0)}",
+                f"- Duration seconds: {number(trace_summary.get('duration_seconds'), 1)}",
+                f"- Target request rate: {number(trace_summary.get('request_rate'), 4)}",
+                f"- Actual request rate: {number(trace_summary.get('actual_request_rate'), 4)}",
+                f"- Hint regime: `{settings.get('hint_regime', 'unknown')}`",
+                "",
+            ]
+        )
 
     rows = []
     for item in policies:
         metrics = item["metrics"]
         if not metrics:
-            rows.append([item["policy"], "pending", "", "", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", ""])
             continue
         rows.append(
             [
                 item["policy"],
                 number(metrics.get("requests") or metrics.get("completed"), 0),
                 number(metrics.get("errors"), 0),
+                number(metrics.get("offered_requests_per_second"), 4),
                 number(metrics.get("requests_per_second"), 4),
                 number(metrics.get("total_tokens_per_second"), 2),
                 pct_delta(
@@ -130,6 +156,7 @@ def build_summary(run_root: Path) -> str:
                 "Policy",
                 "Requests",
                 "Errors",
+                "Offered req/s",
                 "Req/s",
                 "Total tok/s",
                 "Tok/s vs LRU",
