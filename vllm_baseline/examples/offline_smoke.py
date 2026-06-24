@@ -19,6 +19,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.70)
     parser.add_argument("--max-model-len", type=int, default=1024)
     parser.add_argument("--max-num-seqs", type=int, default=1)
+    parser.add_argument("--tensor-parallel-size", type=int, default=1)
+    parser.add_argument("--dtype", default="auto")
+    parser.add_argument("--quantization", default=None)
+    parser.add_argument("--distributed-executor-backend", default=None)
     parser.add_argument("--language-model-only", action="store_true")
     prefix_group = parser.add_mutually_exclusive_group()
     prefix_group.add_argument("--enable-prefix-caching", action="store_true")
@@ -50,6 +54,10 @@ def main() -> None:
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,
         max_num_seqs=args.max_num_seqs,
+        tensor_parallel_size=args.tensor_parallel_size,
+        dtype=args.dtype,
+        quantization=args.quantization,
+        distributed_executor_backend=args.distributed_executor_backend,
         language_model_only=args.language_model_only,
         **llm_kwargs,
     )

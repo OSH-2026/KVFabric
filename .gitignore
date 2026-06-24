@@ -49,7 +49,9 @@ experiments/prebenchmark_validation/runs/*
 !experiments/prebenchmark_validation/runs/.gitkeep
 vllm_baseline/runtime/*
 !vllm_baseline/runtime/.gitkeep
+vllm_baseline/runtime_kvfabric_0221/
 vllm_baseline/.env.local
+.tmp_remote_official/
 
 # Data and model artifacts
 checkpoints/

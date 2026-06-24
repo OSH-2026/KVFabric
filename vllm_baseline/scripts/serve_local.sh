@@ -11,6 +11,18 @@ configure_proxy_if_requested
 require_venv
 load_profile "${1:-qwen3_5_2b}"
 
+MAX_MODEL_LEN="${VLLM_SERVE_MAX_MODEL_LEN:-$MAX_MODEL_LEN}"
+GPU_MEMORY_UTILIZATION="${VLLM_SERVE_GPU_MEMORY_UTILIZATION:-$GPU_MEMORY_UTILIZATION}"
+MAX_NUM_SEQS="${VLLM_SERVE_MAX_NUM_SEQS:-$MAX_NUM_SEQS}"
+TENSOR_PARALLEL_SIZE="${VLLM_SERVE_TENSOR_PARALLEL_SIZE:-${TENSOR_PARALLEL_SIZE:-1}}"
+DTYPE="${VLLM_SERVE_DTYPE:-${DTYPE:-auto}}"
+QUANTIZATION="${VLLM_SERVE_QUANTIZATION:-${QUANTIZATION:-}}"
+DISTRIBUTED_EXECUTOR_BACKEND="${VLLM_SERVE_DISTRIBUTED_EXECUTOR_BACKEND:-${DISTRIBUTED_EXECUTOR_BACKEND:-}}"
+MAX_NUM_BATCHED_TOKENS="${VLLM_SERVE_MAX_NUM_BATCHED_TOKENS:-${MAX_NUM_BATCHED_TOKENS:-}}"
+SERVED_MODEL_NAME="${VLLM_SERVE_SERVED_MODEL_NAME:-$SERVED_MODEL_NAME}"
+LANGUAGE_MODEL_ONLY="${VLLM_SERVE_LANGUAGE_MODEL_ONLY:-${LANGUAGE_MODEL_ONLY:-0}}"
+ENABLE_PREFIX_CACHING="${VLLM_SERVE_ENABLE_PREFIX_CACHING:-${ENABLE_PREFIX_CACHING:-auto}}"
+
 if [[ ! -d "$MODEL_DIR" ]]; then
   echo "Model directory not found: ${MODEL_DIR}" >&2
   echo "Run: bash scripts/download_model.sh ${MODEL_PRESET}" >&2
@@ -42,6 +54,11 @@ server_pid=$(
   MAX_MODEL_LEN="$MAX_MODEL_LEN" \
   GPU_MEMORY_UTILIZATION="$GPU_MEMORY_UTILIZATION" \
   MAX_NUM_SEQS="$MAX_NUM_SEQS" \
+  TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-1}" \
+  DTYPE="${DTYPE:-auto}" \
+  QUANTIZATION="${QUANTIZATION:-}" \
+  DISTRIBUTED_EXECUTOR_BACKEND="${DISTRIBUTED_EXECUTOR_BACKEND:-}" \
+  MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-}" \
   SERVED_MODEL_NAME="$SERVED_MODEL_NAME" \
   LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-0}" \
   ENABLE_PREFIX_CACHING="${ENABLE_PREFIX_CACHING:-auto}" \
@@ -56,6 +73,7 @@ import subprocess
 import sys
 
 cmd = [
+    sys.executable,
     os.environ["VLLM_BIN"],
     "serve",
     os.environ["MODEL_DIR"],
@@ -69,9 +87,28 @@ cmd = [
     os.environ["GPU_MEMORY_UTILIZATION"],
     "--max-num-seqs",
     os.environ["MAX_NUM_SEQS"],
+    "--tensor-parallel-size",
+    os.environ["TENSOR_PARALLEL_SIZE"],
+    "--dtype",
+    os.environ["DTYPE"],
     "--served-model-name",
     os.environ["SERVED_MODEL_NAME"],
 ]
+
+if os.environ.get("QUANTIZATION"):
+    cmd.extend(["--quantization", os.environ["QUANTIZATION"]])
+
+if os.environ.get("DISTRIBUTED_EXECUTOR_BACKEND"):
+    cmd.extend([
+        "--distributed-executor-backend",
+        os.environ["DISTRIBUTED_EXECUTOR_BACKEND"],
+    ])
+
+if os.environ.get("MAX_NUM_BATCHED_TOKENS"):
+    cmd.extend([
+        "--max-num-batched-tokens",
+        os.environ["MAX_NUM_BATCHED_TOKENS"],
+    ])
 
 if os.environ.get("LANGUAGE_MODEL_ONLY") == "1":
     cmd.append("--language-model-only")
@@ -107,7 +144,7 @@ PY
 )
 echo "$server_pid" >"$pid_file"
 
-for _ in $(seq 1 180); do
+for _ in $(seq 1 "${VLLM_SERVER_START_TIMEOUT:-360}"); do
   if curl -fs "http://${VLLM_HOST}:${VLLM_PORT}/health" >/dev/null 2>&1; then
     echo "Server is ready at http://${VLLM_HOST}:${VLLM_PORT}"
     exit 0

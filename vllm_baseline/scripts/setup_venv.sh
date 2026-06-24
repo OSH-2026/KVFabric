@@ -16,12 +16,23 @@ else
   echo "Reusing virtual environment at ${VLLM_VENV_DIR}"
 fi
 
-if ! "$(python_bin)" -c "import vllm, torch" >/dev/null 2>&1; then
-  echo "Installing vLLM into ${VLLM_VENV_DIR}"
+installed_version=$("$(python_bin)" - <<'PY'
+try:
+    import vllm
+except Exception:
+    print("")
+else:
+    print(vllm.__version__)
+PY
+)
+
+if [[ "$installed_version" != "$VLLM_REQUIRED_VERSION" ]]; then
+  echo "Installing ${VLLM_PIP_PACKAGE} into ${VLLM_VENV_DIR}"
   "$(python_bin)" -m pip install --upgrade pip setuptools wheel
-  "$(python_bin)" -m pip install vllm --extra-index-url "${VLLM_PIP_INDEX}"
+  "$(python_bin)" -m pip install "${VLLM_PIP_PACKAGE}" \
+    --extra-index-url "${VLLM_PIP_INDEX}"
 else
-  echo "vLLM is already installed in ${VLLM_VENV_DIR}"
+  echo "vLLM ${installed_version} is already installed in ${VLLM_VENV_DIR}"
 fi
 
 "$(python_bin)" -c "import vllm, torch; print('vllm', vllm.__version__); print('torch', torch.__version__); print('cuda_available', torch.cuda.is_available())"

@@ -18,13 +18,29 @@ mkdir -p "$MODEL_DIR"
 
 if [[ "${USE_HF_CLI_DOWNLOAD:-0}" == "1" ]]; then
   require_venv
-  HF_HOME="$HF_HOME" \
-  XDG_CACHE_HOME="$XDG_CACHE_HOME" \
-  "$(python_bin)" -m huggingface_hub.commands.huggingface_cli download \
-    "$MODEL_ID" \
-    "${MODEL_FILES[@]}" \
-    --local-dir "$MODEL_DIR" \
-    --max-workers 4
+  hf_download_args=("$MODEL_ID")
+  if [[ ${#MODEL_FILES[@]} -gt 0 ]]; then
+    hf_download_args+=("${MODEL_FILES[@]}")
+  fi
+
+  if [[ -x "${VLLM_VENV_DIR}/bin/hf" ]]; then
+    HF_HOME="$HF_HOME" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    "${VLLM_VENV_DIR}/bin/hf" download \
+      "${hf_download_args[@]}" \
+      --local-dir "$MODEL_DIR" \
+      --max-workers 4
+  elif [[ -x "${VLLM_VENV_DIR}/bin/huggingface-cli" ]]; then
+    HF_HOME="$HF_HOME" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    "${VLLM_VENV_DIR}/bin/huggingface-cli" download \
+      "${hf_download_args[@]}" \
+      --local-dir "$MODEL_DIR" \
+      --max-workers 4
+  else
+    echo "Neither hf nor huggingface-cli was found in ${VLLM_VENV_DIR}/bin." >&2
+    exit 1
+  fi
   du -sh "$MODEL_DIR"
   exit 0
 fi

@@ -12,6 +12,8 @@ load_common_env() {
   fi
 
   : "${VLLM_VENV_DIR:=.venv}"
+  : "${VLLM_REQUIRED_VERSION:=0.22.1}"
+  : "${VLLM_PIP_PACKAGE:=vllm==${VLLM_REQUIRED_VERSION}}"
   : "${VLLM_MODELS_DIR:=.cache/models}"
   : "${VLLM_CACHE_ROOT:=.cache/vllm}"
   : "${HF_HOME:=.cache/huggingface}"
@@ -89,6 +91,9 @@ load_profile() {
 
   # shellcheck disable=SC1090
   source "$profile_file"
+  if [[ -n "${HF_ENDPOINT:-}" ]]; then
+    export HF_ENDPOINT
+  fi
   MODEL_DIR="${VLLM_MODELS_DIR}/${MODEL_DIR_NAME}"
 }
 
@@ -102,6 +107,52 @@ require_venv() {
     echo "Run: bash scripts/setup_venv.sh" >&2
     return 1
   fi
+  case ":${PATH}:" in
+    *":${VLLM_VENV_DIR}/bin:"*) ;;
+    *) export PATH="${VLLM_VENV_DIR}/bin:${PATH}" ;;
+  esac
+  require_vllm_version
+  configure_venv_library_path
+}
+
+require_vllm_version() {
+  local installed_version
+  installed_version=$("${VLLM_VENV_DIR}/bin/python" - <<'PY'
+try:
+    import vllm
+except Exception:
+    print("")
+else:
+    print(vllm.__version__)
+PY
+)
+  if [[ "$installed_version" != "$VLLM_REQUIRED_VERSION" ]]; then
+    echo "vLLM version mismatch in ${VLLM_VENV_DIR}: ${installed_version:-not installed}" >&2
+    echo "Expected: ${VLLM_REQUIRED_VERSION}" >&2
+    echo "Run: VLLM_VENV_DIR=${VLLM_VENV_DIR} bash scripts/setup_venv.sh" >&2
+    return 1
+  fi
+}
+
+configure_venv_library_path() {
+  local py_version
+  py_version=$("${VLLM_VENV_DIR}/bin/python" - <<'PY'
+import sys
+print(f"{sys.version_info.major}.{sys.version_info.minor}")
+PY
+)
+
+  local lib_dir
+  for lib_dir in \
+    "${VLLM_VENV_DIR}/lib/python${py_version}/site-packages/nvidia/cu13/lib" \
+    "${VLLM_VENV_DIR}/lib/python${py_version}/site-packages/nvidia/cuda_runtime/lib"; do
+    if [[ -d "$lib_dir" ]]; then
+      case ":${LD_LIBRARY_PATH:-}:" in
+        *":${lib_dir}:"*) ;;
+        *) export LD_LIBRARY_PATH="${lib_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ;;
+      esac
+    fi
+  done
 }
 
 python_bin() {

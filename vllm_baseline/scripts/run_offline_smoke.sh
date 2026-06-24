@@ -21,6 +21,12 @@ extra_args=()
 if [[ "${LANGUAGE_MODEL_ONLY:-0}" == "1" ]]; then
   extra_args+=(--language-model-only)
 fi
+if [[ -n "${QUANTIZATION:-}" ]]; then
+  extra_args+=(--quantization "$QUANTIZATION")
+fi
+if [[ -n "${DISTRIBUTED_EXECUTOR_BACKEND:-}" ]]; then
+  extra_args+=(--distributed-executor-backend "$DISTRIBUTED_EXECUTOR_BACKEND")
+fi
 case "${ENABLE_PREFIX_CACHING:-auto}" in
   1|true|TRUE|yes|YES)
     extra_args+=(--enable-prefix-caching)
@@ -45,4 +51,6 @@ XDG_CACHE_HOME="$XDG_CACHE_HOME" \
   --gpu-memory-utilization "$GPU_MEMORY_UTILIZATION" \
   --max-model-len "$MAX_MODEL_LEN" \
   --max-num-seqs "$MAX_NUM_SEQS" \
+  --tensor-parallel-size "${TENSOR_PARALLEL_SIZE:-1}" \
+  --dtype "${DTYPE:-auto}" \
   "${extra_args[@]}"

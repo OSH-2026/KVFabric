@@ -26,7 +26,7 @@ vllm_baseline/
 │  └─ openai_client_smoke.py
 ├─ profiles/
 │  ├─ qwen3_5_2b.env
-│  └─ qwen3_8b.env
+│  └─ qwen3_5_27b.env
 └─ scripts/
    ├─ collect_env.sh
    ├─ common.sh
@@ -42,13 +42,13 @@ vllm_baseline/
 
 以下环境已经在本机实际验证通过：
 
-- 日期：`2026-04-14`
+- 日期：`2026-06-08`
 - OS：`Ubuntu 24.04.1 LTS` on `WSL2`
 - Python：`3.12.3`
 - GPU：`NVIDIA GeForce RTX 4070 Laptop GPU (8 GiB)`
 - Driver：`581.83`
-- PyTorch：`2.10.0+cu129`
-- vLLM：`0.19.0`
+- PyTorch：`2.11.0+cu129`
+- vLLM：`0.22.1`
 
 ## Git 提交边界
 
@@ -83,14 +83,15 @@ vllm_baseline/
 
 ### 2. 可选大模型
 
-- 预设名：`qwen3_8b`
-- 官方模型：`Qwen/Qwen3-8B`
-- 用途：后续更接近真实 serving 的可选基线
+- 预设名：`qwen3_5_27b`
+- 官方模型：`Qwen/Qwen3.5-27B-FP8`
+- 用途：RTX 3090 服务器上的主实验模型
 - 备注：
-  - 按 `2026-04-14` 的 Hugging Face 官方 API 实测，公开可访问的是 `Qwen/Qwen3-8B`
-  - 同日 `Qwen/Qwen3-8B-Instruct` 在当前环境里返回了 `401`
-  - `Qwen/Qwen3-8B` 是官方公开模型，因此本目录采用它作为可选预设
-  - 这个模型以 `bf16` 形式运行时通常不适合当前这张 `8 GiB` 显存的 GPU，请优先在更大显存机器上使用
+  - profile 名称统一写作 `qwen3_5_27b`
+  - 实际模型 ID 是 `Qwen/Qwen3.5-27B-FP8`
+  - 选择 FP8 权重是为了在 2x24 GiB RTX 3090 上保留 KV cache 空间
+  - 启动时使用 `--tensor-parallel-size 2`、`--quantization fp8` 和 `--language-model-only`
+  - 这个预设不适合当前这张 `8 GiB` 显存的 GPU，请只在 3090 服务器或同级资源上使用
 
 ## 默认路径约定
 
@@ -365,21 +366,23 @@ bash scripts/verify_server.sh qwen3_5_2b
 bash scripts/stop_server.sh qwen3_5_2b
 ```
 
-## 可选模型：Qwen3 8B
+## 3090 主实验模型：Qwen3.5 27B
 
 如果你后续切到更大显存机器，可以使用：
 
 ```bash
-bash scripts/download_model.sh qwen3_8b
-bash scripts/run_offline_smoke.sh qwen3_8b
-bash scripts/serve_local.sh qwen3_8b
-bash scripts/verify_server.sh qwen3_8b
+bash scripts/download_model.sh qwen3_5_27b
+bash scripts/run_offline_smoke.sh qwen3_5_27b
+bash scripts/serve_local.sh qwen3_5_27b
+bash scripts/verify_server.sh qwen3_5_27b
 ```
 
 但请先确认资源：
 
-- `Qwen/Qwen3-8B` 为多分片 safetensors
-- 按官方模型卡信息，权重参数量约 `8B`
+- `qwen3_5_27b` 实际使用 `Qwen/Qwen3.5-27B-FP8`
+- 该模型为多分片 safetensors
+- 按官方模型卡信息，权重参数量约 `27B`
+- 该 profile 默认启用 tensor parallel 2、FP8 quantization 和 text-only serving
 - 当前这台 `RTX 4070 Laptop GPU 8 GiB` 不应作为这个预设的主运行环境
 
 建议额外准备：
@@ -497,9 +500,9 @@ python examples/openai_client_smoke.py \
 
 在当前环境中，官方 Hugging Face 页面和文件 `GET` 是可达的，但部分 `HEAD` 请求不稳定。为了让基线更稳，下载脚本直接对官方 `resolve/main` 路径做带重试的文件下载。
 
-### 3. 为什么 `Qwen3-8B` 只是可选？
+### 3. 为什么 `qwen3_5_27b` 实际使用 FP8？
 
-因为这个模型对显存和磁盘的要求明显更高。对当前工作区来说，`Qwen/Qwen3.5-2B` 更适合作为默认 bring-up 模型，`Qwen/Qwen3-8B` 更适合放到更大显存机器上做后续对照。
+因为 BF16 版 27B 会把 2x24 GiB 3090 的显存空间压得过紧，不适合作为 KV cache 生命周期实验目标。`qwen3_5_27b` 使用 `Qwen/Qwen3.5-27B-FP8`，目的是在运行 27B 级模型的同时保留足够 KV cache 空间；本地 8 GiB GPU 仍使用 `Qwen/Qwen3.5-2B` 做 bring-up 和快速回归。
 
 ### 4. 现在这套内容能直接给别人用吗？
 

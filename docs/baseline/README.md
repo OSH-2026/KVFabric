@@ -11,10 +11,10 @@
 
 - 默认验证模型：`Qwen/Qwen3.5-2B`
 - 已验证能力：offline inference + online serving
-- 可选预设：`Qwen/Qwen3-8B`
+- 3090 主实验预设：`qwen3_5_27b`，实际使用 `Qwen/Qwen3.5-27B-FP8`
 - 运行方式：相对仓库根目录的脚本化工作流
 
-`Qwen/Qwen3-8B` 保留为后续更大显存机器上的对照选项，不作为当前这台 `8 GiB` GPU 的默认 bring-up 目标。
+`qwen3_5_27b` 保留为 RTX 3090 服务器上的主实验目标，不作为当前这台 `8 GiB` GPU 的默认 bring-up 目标。该预设选择 FP8 权重，是为了在 2x24 GiB 3090 上为 KV cache 留出足够空间。
 
 ## 为什么先做 vLLM
 
