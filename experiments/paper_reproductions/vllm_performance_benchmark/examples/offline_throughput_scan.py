@@ -77,6 +77,7 @@ def run_single_point(
         "--num-prompts", str(num_prompts),
         "--gpu-memory-utilization", str(gpu_memory_utilization),
         "--max-model-len", str(max_model_len),
+        "--max-num-seqs", str(max_num_seqs),
     ]
 
     if random_prefix_len > 0:
@@ -84,6 +85,8 @@ def run_single_point(
 
     if enable_prefix_caching is True:
         cmd.append("--enable-prefix-caching")
+    elif enable_prefix_caching is False:
+        cmd.append("--no-enable-prefix-caching")
 
     env = {}
     if language_model_only:
@@ -162,6 +165,7 @@ def run_single_point(
 
     if result.returncode != 0:
         metrics["stderr_tail"] = stderr[-500:] if stderr else ""
+        metrics["stdout_tail"] = stdout[-500:] if stdout else ""
 
     return metrics
 

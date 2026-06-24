@@ -1,0 +1,23 @@
+=== soak rerun start 2026-06-08T22:42:05+08:00 ===
+/home/qy-dream/OSH_Project/KVFabric
+No PID file found for qwen3_5_2b
+Starting vLLM server for qwen3_5_2b
+Log file: /home/qy-dream/OSH_Project/KVFabric/vllm_baseline/runtime/qwen3_5_2b.log
+Server is ready at http://127.0.0.1:8000
+{
+  "requests": 3600,
+  "concurrency": 1,
+  "total_seconds": 1596.6109878549978,
+  "requests_per_second": 2.2547759143487416,
+  "latency_avg_seconds": 0.4433932505983648,
+  "latency_p50_seconds": 0.4402596860018093,
+  "latency_p95_seconds": 0.4631680739985313,
+  "prompt_tokens": 2591952,
+  "completion_tokens": 86400,
+  "total_tokens": 2678352,
+  "completion_tokens_per_second": 54.114621944369794
+}
+Run output: /home/qy-dream/OSH_Project/KVFabric/experiments/prebenchmark_validation/runs/2026-06-08_224253_qwen3_5_2b_soak_prefix_reuse_20min
+Stopping server PID 30664
+Stopped qwen3_5_2b
+=== soak rerun end 2026-06-08T23:09:33+08:00 status=0 ===

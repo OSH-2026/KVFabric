@@ -1,0 +1,13 @@
+{
+  "requests": 72,
+  "concurrency": 1,
+  "total_seconds": 34.23837550999815,
+  "requests_per_second": 2.1029035089288874,
+  "latency_avg_seconds": 0.4753983520692297,
+  "latency_p50_seconds": 0.4623155940025754,
+  "latency_p95_seconds": 0.5018503790015529,
+  "prompt_tokens": 51582,
+  "completion_tokens": 1728,
+  "total_tokens": 53310,
+  "completion_tokens_per_second": 50.4696842142933
+}

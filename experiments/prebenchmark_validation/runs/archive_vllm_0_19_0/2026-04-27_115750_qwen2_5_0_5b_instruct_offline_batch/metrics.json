@@ -1,0 +1,9 @@
+{
+  "requests": 4,
+  "load_seconds": 17.132135259998904,
+  "inference_seconds": 0.31102479199762456,
+  "total_seconds": 17.443251570999564,
+  "prompt_tokens": 67,
+  "output_tokens": 128,
+  "output_tokens_per_second": 411.5427557330465
+}

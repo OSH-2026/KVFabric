@@ -1,0 +1,157 @@
+=== quality rerun start 2026-06-09T08:21:38+08:00 ===
+/home/qy-dream/OSH_Project/KVFabric
+No PID file found for qwen3_5_2b
+INFO 06-09 08:21:47 [utils.py:278] non-default args: {'max_model_len': 1024, 'enable_prefix_caching': True, 'gpu_memory_utilization': 0.8, 'max_num_seqs': 1, 'disable_log_stats': True, 'language_model_only': True, 'model': '/home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B'}
+INFO 06-09 08:21:47 [model.py:617] Resolved architecture: Qwen3_5ForConditionalGeneration
+INFO 06-09 08:21:47 [model.py:1752] Using max model len 1024
+INFO 06-09 08:21:47 [scheduler.py:239] Chunked prefill is enabled with max_num_batched_tokens=1024.
+WARNING 06-09 08:21:47 [config.py:355] Mamba cache mode is set to 'align' for Qwen3_5ForConditionalGeneration by default when prefix caching is enabled
+INFO 06-09 08:21:47 [config.py:375] Warning: Prefix caching in Mamba cache 'align' mode is currently enabled. Its support for Mamba layers is experimental. Please report any issues you may observe.
+INFO 06-09 08:21:47 [vllm.py:977] Asynchronous scheduling is enabled.
+INFO 06-09 08:21:47 [kernel.py:270] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'], fused_add_rms_norm=['native'])
+[transformers] `Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+INFO 06-09 08:21:49 [registry.py:134] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+WARNING 06-09 08:21:51 [system_utils.py:157] We must use the `spawn` multiprocessing start method. Overriding VLLM_WORKER_MULTIPROC_METHOD to 'spawn'. See https://docs.vllm.ai/en/latest/usage/troubleshooting.html#python-multiprocessing for more information. Reasons: CUDA is initialized; WSL is detected and NVML is not compatible with fork
+(EngineCore pid=24871) INFO 06-09 08:21:59 [core.py:112] Initializing a V1 LLM engine (v0.22.1) with config: model='/home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B', speculative_config=None, tokenizer='/home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=1024, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=False, quantization=None, quantization_config=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=/home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B, enable_prefix_caching=True, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'ir_enable_torch_wrap': True, 'splitting_ops': ['vllm::unified_attention_with_output', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::qwen_gdn_attention_core', 'vllm::gdn_attention_core_xpu', 'vllm::olmo_hybrid_gdn_full_forward', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::deepseek_v4_attention', 'vllm::unified_kv_cache_update', 'vllm::unified_mla_kv_cache_update'], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_vision_items_per_batch': 0, 'encoder_cudagraph_max_frames_per_batch': None, 'compile_sizes': [], 'compile_ranges_endpoints': [1024], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.FULL_AND_PIECEWISE: (2, 1)>, 'cudagraph_num_of_warmups': 1, 'cudagraph_capture_sizes': [1, 2], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'fuse_rope_kvcache_cat_mla': False, 'fuse_act_padding': False}, 'max_cudagraph_capture_size': 2, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': False, 'static_all_moe_layers': []}, kernel_config=KernelConfig(ir_op_priority=IrOpPriorityConfig(rms_norm=['native'], fused_add_rms_norm=['native']), enable_flashinfer_autotune=True, moe_backend='auto', linear_backend='auto')
+(EngineCore pid=24871) WARNING 06-09 08:22:00 [interface.py:729] Using 'pin_memory=False' as WSL is detected. This may slow down the performance.
+(EngineCore pid=24871) [transformers] `Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+(EngineCore pid=24871) INFO 06-09 08:22:01 [registry.py:134] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+(EngineCore pid=24871) INFO 06-09 08:22:01 [parallel_state.py:1422] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://172.30.219.199:42133 backend=nccl
+(EngineCore pid=24871) INFO 06-09 08:22:01 [parallel_state.py:1735] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A, EPLB rank N/A
+(EngineCore pid=24871) INFO 06-09 08:22:02 [topk_topp_sampler.py:70] FlashInfer top-p/top-k sampling disabled via VLLM_USE_FLASHINFER_SAMPLER=0; using PyTorch-native sampler.
+(EngineCore pid=24871) INFO 06-09 08:22:02 [gpu_model_runner.py:5037] Starting to load model /home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B...
+(EngineCore pid=24871) INFO 06-09 08:22:02 [cuda.py:433] Using backend AttentionBackendEnum.FLASH_ATTN for vit attention
+(EngineCore pid=24871) INFO 06-09 08:22:02 [mm_encoder_attention.py:372] Using AttentionBackendEnum.FLASH_ATTN for MMEncoderAttention.
+(EngineCore pid=24871) INFO 06-09 08:22:02 [qwen_gdn_linear_attn.py:228] Using Triton/FLA GDN prefill kernel (requested=auto, head_k_dim=None).
+(EngineCore pid=24871) INFO 06-09 08:22:03 [cuda.py:378] Using FLASH_ATTN attention backend out of potential backends: ['FLASH_ATTN', 'FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].
+(EngineCore pid=24871) INFO 06-09 08:22:03 [flash_attn.py:636] Using FlashAttention version 2
+(EngineCore pid=24871) <frozen importlib._bootstrap_external>:1297: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(EngineCore pid=24871) <frozen importlib._bootstrap_external>:1297: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(EngineCore pid=24871) INFO 06-09 08:22:03 [weight_utils.py:922] Filesystem type for checkpoints: EXT4. Checkpoint size: 4.24 GiB. Available RAM: 11.31 GiB.
+(EngineCore pid=24871) INFO 06-09 08:22:03 [weight_utils.py:945] Auto-prefetch is disabled because the filesystem (EXT4) is not a recognized network FS (NFS/Lustre). If you want to force prefetching, start vLLM with --safetensors-load-strategy=prefetch.
+(EngineCore pid=24871) Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]
+(EngineCore pid=24871) Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  1.80it/s]
+(EngineCore pid=24871) Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  1.80it/s]
+(EngineCore pid=24871) 
+(EngineCore pid=24871) INFO 06-09 08:22:04 [default_loader.py:397] Loading weights took 0.61 seconds
+(EngineCore pid=24871) INFO 06-09 08:22:04 [gpu_model_runner.py:5132] Model loading took 3.63 GiB memory and 2.015161 seconds
+(EngineCore pid=24871) INFO 06-09 08:22:04 [interface.py:649] Setting attention block size to 544 tokens to ensure that attention page size is >= mamba page size.
+(EngineCore pid=24871) INFO 06-09 08:22:04 [interface.py:673] Padding mamba page size by 2.64% to ensure that mamba page size and attention page size are exactly equal.
+(EngineCore pid=24871) INFO 06-09 08:22:06 [backends.py:1089] Using cache directory: /home/qy-dream/OSH_Project/KVFabric/.cache/vllm/torch_compile_cache/8389cae86a/rank_0_0/backbone for vLLM's torch.compile
+(EngineCore pid=24871) INFO 06-09 08:22:06 [backends.py:1148] Dynamo bytecode transform time: 1.45 s
+(EngineCore pid=24871) INFO 06-09 08:22:07 [backends.py:292] Directly load the compiled graph(s) for compile range (1, 1024) from the cache, took 1.000 s
+(EngineCore pid=24871) INFO 06-09 08:22:07 [decorators.py:311] Directly load AOT compilation from path /home/qy-dream/OSH_Project/KVFabric/.cache/vllm/torch_compile_cache/torch_aot_compile/0bcfa3a0d07f50aed292e4dcfa18ab6f23e174d1ad97b985fd1bbc643b068f66/rank_0_0/model
+(EngineCore pid=24871) INFO 06-09 08:22:07 [monitor.py:53] torch.compile took 2.63 s in total
+(EngineCore pid=24871) INFO 06-09 08:22:08 [monitor.py:81] Initial profiling/warmup run took 0.48 s
+(EngineCore pid=24871) INFO 06-09 08:22:08 [gpu_model_runner.py:6279] Profiling CUDA graph memory: PIECEWISE=2 (largest=2), FULL=1 (largest=1)
+(EngineCore pid=24871) INFO 06-09 08:22:09 [gpu_model_runner.py:6365] Estimated CUDA graph memory: 0.03 GiB total
+(EngineCore pid=24871) INFO 06-09 08:22:09 [gpu_worker.py:466] Available KV cache memory: 2.6 GiB
+(EngineCore pid=24871) INFO 06-09 08:22:09 [gpu_worker.py:481] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.8000 is equivalent to --gpu-memory-utilization=0.7963 without CUDA graph memory profiling. To maintain the same effective KV cache size as before, increase --gpu-memory-utilization to 0.8037. To disable, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0.
+(EngineCore pid=24871) INFO 06-09 08:22:09 [kv_cache_utils.py:1748] GPU KV cache size: 53,376 tokens
+(EngineCore pid=24871) INFO 06-09 08:22:09 [kv_cache_utils.py:1749] Maximum concurrency for 1,024 tokens per request: 52.12x
+(EngineCore pid=24871) Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/2 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 2/2 [00:00<00:00, 25.04it/s]
+(EngineCore pid=24871) Capturing CUDA graphs (decode, FULL):   0%|          | 0/1 [00:00<?, ?it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 1/1 [00:00<00:00, 20.71it/s]
+(EngineCore pid=24871) INFO 06-09 08:22:10 [gpu_model_runner.py:6456] Graph capturing finished in 1 secs, took 0.03 GiB
+(EngineCore pid=24871) INFO 06-09 08:22:10 [gpu_worker.py:619] CUDA graph pool memory: 0.03 GiB (actual), 0.03 GiB (estimated), difference: 0.0 GiB (15.4%).
+(EngineCore pid=24871) INFO 06-09 08:22:10 [jit_monitor.py:54] Kernel JIT monitor activated — Triton JIT compilations during inference will be logged as warnings.
+(EngineCore pid=24871) INFO 06-09 08:22:10 [core.py:302] init engine (profile, create kv cache, warmup model) took 5.67 s (compilation: 2.63 s)
+(EngineCore pid=24871) INFO 06-09 08:22:10 [vllm.py:977] Asynchronous scheduling is enabled.
+(EngineCore pid=24871) INFO 06-09 08:22:10 [kernel.py:270] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'], fused_add_rms_norm=['native'])
+WARNING 06-09 08:22:10 [interface.py:729] Using 'pin_memory=False' as WSL is detected. This may slow down the performance.
+Rendering prompts:   0%|          | 0/8 [00:00<?, ?it/s]Rendering prompts: 100%|██████████| 8/8 [00:00<00:00, 482.19it/s]
+Processed prompts:   0%|          | 0/8 [00:00<?, ?it/s, est. speed input: 0.00 toks/s, output: 0.00 toks/s](EngineCore pid=24871) WARNING 06-09 08:22:10 [jit_monitor.py:103] Triton kernel JIT compilation during inference: _zero_kv_blocks_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=24871) WARNING 06-09 08:22:10 [jit_monitor.py:103] Triton kernel JIT compilation during inference: _compute_slot_mapping_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=24871) WARNING 06-09 08:22:10 [jit_monitor.py:103] Triton kernel JIT compilation during inference: _causal_conv1d_fwd_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=24871) WARNING 06-09 08:22:10 [jit_monitor.py:103] Triton kernel JIT compilation during inference: _fused_post_conv_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+Processed prompts:  12%|█▎        | 1/8 [00:01<00:12,  1.84s/it, est. speed input: 92.03 toks/s, output: 52.27 toks/s]Processed prompts:  25%|██▌       | 2/8 [00:02<00:05,  1.13it/s, est. speed input: 160.58 toks/s, output: 51.42 toks/s]Processed prompts:  38%|███▊      | 3/8 [00:03<00:06,  1.22s/it, est. speed input: 113.41 toks/s, output: 55.07 toks/s]Processed prompts:  50%|█████     | 4/8 [00:05<00:05,  1.38s/it, est. speed input: 94.41 toks/s, output: 56.16 toks/s] Processed prompts:  62%|██████▎   | 5/8 [00:06<00:03,  1.16s/it, est. speed input: 90.44 toks/s, output: 56.40 toks/s]Processed prompts:  75%|███████▌  | 6/8 [00:07<00:02,  1.32s/it, est. speed input: 76.24 toks/s, output: 57.02 toks/s]Processed prompts:  88%|████████▊ | 7/8 [00:09<00:01,  1.41s/it, est. speed input: 68.51 toks/s, output: 57.54 toks/s]Processed prompts: 100%|██████████| 8/8 [00:10<00:00,  1.48s/it, est. speed input: 61.63 toks/s, output: 57.78 toks/s]Processed prompts: 100%|██████████| 8/8 [00:10<00:00,  1.48s/it, est. speed input: 61.63 toks/s, output: 57.78 toks/s]Processed prompts: 100%|██████████| 8/8 [00:10<00:00,  1.37s/it, est. speed input: 61.63 toks/s, output: 57.78 toks/s]
+(EngineCore pid=24871) INFO 06-09 08:22:21 [core.py:1266] Shutdown initiated (timeout=0)
+(EngineCore pid=24871) INFO 06-09 08:22:21 [core.py:1289] Shutdown complete
+{
+  "variant_name": "vanilla_vllm",
+  "suite_name": "qwen3_5_2b_kvcache_quality_suite",
+  "tasks": 8,
+  "load_seconds": 23.582938004001335,
+  "inference_seconds": 10.9391113879974,
+  "total_seconds": 34.522296690003714,
+  "prompt_tokens": 673,
+  "output_tokens": 631,
+  "output_tokens_per_second": 57.68293032396993,
+  "overall_avg_score": 0.625,
+  "overall_pass_rate": 0.625,
+  "overall_pass_count": 5,
+  "category_summary": {
+    "code_generation": {
+      "items": 2,
+      "avg_score": 1.0,
+      "pass_rate": 1.0,
+      "pass_count": 2
+    },
+    "long_context_qa": {
+      "items": 2,
+      "avg_score": 0.5,
+      "pass_rate": 0.5,
+      "pass_count": 1
+    },
+    "multi_turn_dialog": {
+      "items": 2,
+      "avg_score": 1.0,
+      "pass_rate": 1.0,
+      "pass_count": 2
+    },
+    "reasoning": {
+      "items": 2,
+      "avg_score": 0.0,
+      "pass_rate": 0.0,
+      "pass_count": 0
+    }
+  },
+  "gpu_free_before_load_bytes": 7396655104,
+  "gpu_free_after_load_bytes": 7396655104,
+  "gpu_free_after_generate_bytes": 7396655104,
+  "gpu_used_delta_load_bytes": 0,
+  "gpu_used_delta_generate_bytes": 0,
+  "gpu_total_bytes": 8585216000
+}
+Variant output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/kvcache_quality_benchmark/runs/2026-06-09_082138_qwen3_5_2b_quality_suite/vanilla_vllm
+{
+  "run_group_dir": "/home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/kvcache_quality_benchmark/runs/2026-06-09_082138_qwen3_5_2b_quality_suite",
+  "baseline_variant": "vanilla_vllm",
+  "variants": [
+    {
+      "variant_name": "vanilla_vllm",
+      "overall_avg_score": 0.625,
+      "overall_pass_rate": 0.625,
+      "output_tokens_per_second": 57.68293032396993,
+      "load_seconds": 23.582938004001335,
+      "inference_seconds": 10.9391113879974,
+      "category_summary": {
+        "code_generation": {
+          "items": 2,
+          "avg_score": 1.0,
+          "pass_rate": 1.0,
+          "pass_count": 2
+        },
+        "long_context_qa": {
+          "items": 2,
+          "avg_score": 0.5,
+          "pass_rate": 0.5,
+          "pass_count": 1
+        },
+        "multi_turn_dialog": {
+          "items": 2,
+          "avg_score": 1.0,
+          "pass_rate": 1.0,
+          "pass_count": 2
+        },
+        "reasoning": {
+          "items": 2,
+          "avg_score": 0.0,
+          "pass_rate": 0.0,
+          "pass_count": 0
+        }
+      }
+    }
+  ]
+}
+Suite output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/kvcache_quality_benchmark/runs/2026-06-09_082138_qwen3_5_2b_quality_suite
+=== quality rerun end 2026-06-09T08:22:27+08:00 status=0 ===

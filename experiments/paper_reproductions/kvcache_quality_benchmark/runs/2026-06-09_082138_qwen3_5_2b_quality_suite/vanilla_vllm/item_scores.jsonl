@@ -1,0 +1,8 @@
+{"id": "long_qa_001", "category": "long_context_qa", "score": 0.0, "passed": false, "detail": "matched=0/1", "reference_answer": "Cedar-42", "prompt_tokens": 169, "output_tokens": 96}
+{"id": "long_qa_002", "category": "long_context_qa", "score": 1.0, "passed": true, "detail": "matched=1/1", "reference_answer": "0.0%", "prompt_tokens": 162, "output_tokens": 10}
+{"id": "dialog_001", "category": "multi_turn_dialog", "score": 1.0, "passed": true, "detail": "matched=3/3", "reference_answer": "关注共享前缀命中率；优先中文且简洁。", "prompt_tokens": 85, "output_tokens": 96}
+{"id": "dialog_002", "category": "multi_turn_dialog", "score": 1.0, "passed": true, "detail": "matched=4/4", "reference_answer": "周五下午，重点看 block_pool.py 和 kv_cache_manager.py。", "prompt_tokens": 85, "output_tokens": 96}
+{"id": "code_001", "category": "code_generation", "score": 1.0, "passed": true, "detail": "matched=3/3", "reference_answer": "def normalize_spaces(text): return ' '.join(text.split())", "prompt_tokens": 49, "output_tokens": 45}
+{"id": "code_002", "category": "code_generation", "score": 1.0, "passed": true, "detail": "matched=4/4", "reference_answer": "def prefix_hit_ratio(hit, total): return 0.0 if total == 0 else hit / total", "prompt_tokens": 37, "output_tokens": 96}
+{"id": "reason_001", "category": "reasoning", "score": 0.0, "passed": false, "detail": "regex", "reference_answer": "Final: 75%", "prompt_tokens": 50, "output_tokens": 96}
+{"id": "reason_002", "category": "reasoning", "score": 0.0, "passed": false, "detail": "regex", "reference_answer": "Final: 30%", "prompt_tokens": 36, "output_tokens": 96}

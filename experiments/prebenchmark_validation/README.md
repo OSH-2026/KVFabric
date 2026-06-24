@@ -18,8 +18,36 @@ prebenchmark_validation/
 ├─ README.md
 ├─ configs/                         # workload 配置
 ├─ examples/                        # online/offline 请求、summary、A/B 对比脚本
-├─ runs/                            # 真实运行输出，默认不提交大量原始结果
+├─ runs/                            # 当前 vLLM 0.22.1 记录，保留历史日期目录
+│  └─ archive_vllm_0_19_0/          # 原始 0.19.0 内容备份
 └─ scripts/                         # shell 入口
+```
+
+## 当前主记录
+
+当前主线记录统一使用 vLLM `0.22.1`。`runs/` 顶层保留原有
+`2026-04-27_*` 日期目录，同时包含本次 `2026-06-08_*` 完整验证目录；
+这些主记录中的 summary、env、metrics、raw outputs 和 config 已按本地
+RTX 4070 Laptop + `Qwen/Qwen3.5-2B` 的 vLLM `0.22.1` 结果维护，包括
+baseline、prefix reuse、cache pressure、KVFabric A/B、admission probe、
+ablation 和 `qwen3_5_2b_lowkv` 验证。
+
+汇总文件：
+
+```text
+runs/2026-06-08_vllm_0_22_1_local_summary.md
+```
+
+原始 0.19.0 内容备份保留在：
+
+```text
+runs/archive_vllm_0_19_0/
+```
+
+原始 baseline runtime 日志备份保留在：
+
+```text
+../../vllm_baseline/runtime/archive_vllm_0_19_0/
 ```
 
 ## 普通预验证入口
@@ -48,14 +76,14 @@ bash vllm_baseline/scripts/stop_server.sh qwen3_5_2b
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24 \
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1 \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
 ```
 
 默认策略组：
 
 ```text
-lru family_protect
+lru shared_aware family_protect
 ```
 
 可以通过环境变量覆盖：
@@ -63,7 +91,7 @@ lru family_protect
 ```bash
 KVFABRIC_AB_POLICIES="lru shared_aware family_protect" \
 bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
-  qwen3_5_2b \
+  qwen3_5_27b \
   experiments/prebenchmark_validation/configs/cache_pressure_ambiguous_hot_revisit.json
 ```
 

@@ -70,6 +70,10 @@ def expand_requests(config: dict) -> list[dict]:
         return expand_phased_hot_revisit_requests(scenario)
     if scenario.get("type") == "multi_hot_pressure":
         return expand_multi_hot_pressure_requests(scenario)
+    if scenario.get("type") == "mixed_long_pressure":
+        return expand_mixed_long_pressure_requests(scenario)
+    if scenario.get("type") == "mixed_realistic_pressure":
+        return expand_mixed_realistic_pressure_requests(scenario)
 
     shared_system = scenario.get("shared_system", "")
     if "shared_system_unit" in scenario:
@@ -333,6 +337,307 @@ def expand_multi_hot_pressure_requests(scenario: dict) -> list[dict]:
                         ]
                     }
                 )
+
+    return requests
+
+
+def expand_mixed_long_pressure_requests(scenario: dict) -> list[dict]:
+    hot_family_count = int(scenario.get("hot_family_count", 12))
+    rounds = int(scenario.get("rounds", 600))
+    hot_requests_per_round = int(scenario.get("hot_requests_per_round", 4))
+    cold_requests_per_round = int(scenario.get("cold_requests_per_round", 8))
+    ambiguous_families_per_round = int(
+        scenario.get("ambiguous_families_per_round", 2)
+    )
+    ambiguous_variants = int(scenario.get("ambiguous_variants", 3))
+    revisit_every_rounds = max(1, int(scenario.get("revisit_every_rounds", 20)))
+    revisit_per_family = int(scenario.get("revisit_per_family", 2))
+    hot_shared_unit = scenario["hot_shared_unit"]
+    hot_shared_repeat = int(scenario.get("hot_shared_repeat", 28))
+    family_unit = scenario["family_unit"]
+    family_repeat = int(scenario.get("family_repeat", 10))
+    cold_unit = scenario["cold_unit"]
+    cold_repeat = int(scenario.get("cold_repeat", 44))
+    ambiguous_anchor_unit = scenario["ambiguous_anchor_unit"]
+    ambiguous_anchor_repeat = int(scenario.get("ambiguous_anchor_repeat", 20))
+    ambiguous_tail_unit = scenario["ambiguous_tail_unit"]
+    ambiguous_tail_repeat = int(scenario.get("ambiguous_tail_repeat", 24))
+    requests = []
+
+    def append_hot(round_index: int, family: int, index: int, phase: str) -> None:
+        shared_system = (
+            f"KVFabric 27B 长压测热点族 {family + 1}。"
+            "该族会在数百轮内反复回访，前缀主干应尽量保留。"
+            + hot_shared_unit * hot_shared_repeat
+            + f"热点族专属分支 {family + 1}。"
+            + family_unit * family_repeat
+        )
+        requests.append(
+            {
+                "meta": {
+                    "class": "hot_family",
+                    "round": round_index + 1,
+                    "family": family + 1,
+                    "phase": phase,
+                },
+                "messages": [
+                    {"role": "system", "content": shared_system},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"{phase} round={round_index + 1} "
+                            f"family={family + 1} index={index + 1}: "
+                            "用一句话回答为什么该共享前缀适合跨请求复用。"
+                        ),
+                    },
+                ],
+            }
+        )
+
+    for round_index in range(rounds):
+        for hot_index in range(hot_requests_per_round):
+            family = (round_index + hot_index) % hot_family_count
+            append_hot(round_index, family, hot_index, "steady")
+
+        for cold_index in range(cold_requests_per_round):
+            cold_prefix = (
+                f"KVFabric 27B 冷长尾请求 round={round_index + 1} "
+                f"index={cold_index + 1}。该请求不应长期占用热点缓存。"
+            )
+            requests.append(
+                {
+                    "meta": {
+                        "class": "cold_long",
+                        "round": round_index + 1,
+                        "index": cold_index + 1,
+                    },
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": cold_prefix + cold_unit * cold_repeat,
+                        },
+                        {
+                            "role": "user",
+                            "content": "用一句话回答：这是用于制造 KV 压力的冷请求。",
+                        },
+                    ],
+                }
+            )
+
+        for amb_family in range(ambiguous_families_per_round):
+            anchor = (
+                f"KVFabric 27B 伪共享族 round={round_index + 1} "
+                f"family={amb_family + 1}。该族短期重复但不会跨长周期回访。"
+                + ambiguous_anchor_unit * ambiguous_anchor_repeat
+            )
+            for variant in range(ambiguous_variants):
+                requests.append(
+                    {
+                        "meta": {
+                            "class": "ambiguous_short_family",
+                            "round": round_index + 1,
+                            "family": amb_family + 1,
+                            "variant": variant + 1,
+                        },
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": anchor
+                                + f"伪共享变体 {variant + 1}。"
+                                + ambiguous_tail_unit * ambiguous_tail_repeat,
+                            },
+                            {
+                                "role": "user",
+                                "content": (
+                                    "用一句话回答：这是看起来像热点但不应长期保护的请求。"
+                                ),
+                            },
+                        ],
+                    }
+                )
+
+        if (round_index + 1) % revisit_every_rounds == 0:
+            for family in range(hot_family_count):
+                for index in range(revisit_per_family):
+                    append_hot(round_index, family, index, "revisit")
+
+    return requests
+
+
+def expand_mixed_realistic_pressure_requests(scenario: dict) -> list[dict]:
+    """Build a deterministic mixed workload with non-uniform request arrivals."""
+
+    rng = __import__("random").Random(int(scenario.get("seed", 20260617)))
+    hot_family_count = int(scenario.get("hot_family_count", 24))
+    tenant_count = int(scenario.get("tenant_count", 6))
+    rounds = int(scenario.get("rounds", 2400))
+    hot_min = int(scenario.get("hot_requests_per_round_min", 3))
+    hot_max = int(scenario.get("hot_requests_per_round_max", 7))
+    cold_min = int(scenario.get("cold_requests_per_round_min", 10))
+    cold_max = int(scenario.get("cold_requests_per_round_max", 18))
+    ambiguous_min = int(scenario.get("ambiguous_families_per_round_min", 1))
+    ambiguous_max = int(scenario.get("ambiguous_families_per_round_max", 4))
+    ambiguous_variants_min = int(scenario.get("ambiguous_variants_min", 2))
+    ambiguous_variants_max = int(scenario.get("ambiguous_variants_max", 5))
+    revisit_every_min = int(scenario.get("revisit_every_rounds_min", 24))
+    revisit_every_max = int(scenario.get("revisit_every_rounds_max", 42))
+    revisit_per_family = int(scenario.get("revisit_per_family", 2))
+    burst_every_rounds = int(scenario.get("burst_every_rounds", 160))
+    burst_cold_multiplier = int(scenario.get("burst_cold_multiplier", 2))
+
+    global_unit = scenario["global_unit"]
+    tenant_unit = scenario["tenant_unit"]
+    family_unit = scenario["family_unit"]
+    cold_unit = scenario["cold_unit"]
+    ambiguous_anchor_unit = scenario["ambiguous_anchor_unit"]
+    ambiguous_tail_unit = scenario["ambiguous_tail_unit"]
+
+    global_repeat = int(scenario.get("global_repeat", 26))
+    tenant_repeat = int(scenario.get("tenant_repeat", 12))
+    family_repeat = int(scenario.get("family_repeat", 14))
+    cold_repeat = int(scenario.get("cold_repeat", 58))
+    burst_cold_repeat = int(scenario.get("burst_cold_repeat", cold_repeat + 10))
+    ambiguous_anchor_repeat = int(scenario.get("ambiguous_anchor_repeat", 28))
+    ambiguous_tail_repeat = int(scenario.get("ambiguous_tail_repeat", 28))
+
+    requests = []
+    next_revisit_round = rng.randint(revisit_every_min, revisit_every_max)
+
+    def hot_request(round_index: int, family: int, phase: str, index: int) -> dict:
+        tenant = family % tenant_count
+        system = (
+            f"Production tenant {tenant + 1}; persistent assistant and tool policy. "
+            + global_unit * global_repeat
+            + f"Tenant {tenant + 1} stable catalog and schema. "
+            + tenant_unit * tenant_repeat
+            + f"Workflow family {family + 1} durable branch. "
+            + family_unit * family_repeat
+        )
+        return {
+            "meta": {
+                "class": "hot_family",
+                "round": round_index + 1,
+                "tenant": tenant + 1,
+                "tenant_id": f"tenant-{tenant + 1}",
+                "family": family + 1,
+                "family_id": f"hot-{family + 1}",
+                "phase": phase,
+                "cache_priority": "high",
+                "expected_reuse": "durable",
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": (
+                        f"{phase} request round={round_index + 1} "
+                        f"family={family + 1} index={index + 1}. "
+                        "Answer with one operational sentence."
+                    ),
+                },
+            ],
+        }
+
+    def cold_request(round_index: int, index: int, burst: bool) -> dict:
+        repeat = burst_cold_repeat if burst else cold_repeat
+        system = (
+            f"Unique RAG evidence bundle round={round_index + 1} index={index + 1}. "
+            "This document set is unlikely to be reused after the current request. "
+            + cold_unit * repeat
+        )
+        return {
+            "meta": {
+                "class": "cold_rag_burst" if burst else "cold_rag",
+                "round": round_index + 1,
+                "index": index + 1,
+                "burst": burst,
+                "cache_priority": "bypass" if burst else "low",
+                "expected_reuse": "none",
+                "phase": "burst" if burst else "steady",
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": "Answer with one sentence based only on this bundle.",
+                },
+            ],
+        }
+
+    def ambiguous_requests(round_index: int, family: int, variants: int) -> list[dict]:
+        anchor = (
+            f"Short campaign family round={round_index + 1} family={family + 1}. "
+            "These requests share a near-term template but should decay quickly. "
+            + ambiguous_anchor_unit * ambiguous_anchor_repeat
+        )
+        output = []
+        for variant in range(variants):
+            output.append(
+                {
+                    "meta": {
+                        "class": "ambiguous_short_family",
+                        "round": round_index + 1,
+                        "family": family + 1,
+                        "family_id": (
+                            f"ambiguous-{round_index + 1}-{family + 1}"
+                        ),
+                        "variant": variant + 1,
+                        "cache_priority": "normal",
+                        "expected_reuse": "transient",
+                        "phase": "transient",
+                    },
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                anchor
+                                + f"Variant {variant + 1} transient evidence. "
+                                + ambiguous_tail_unit * ambiguous_tail_repeat
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": "Answer with one sentence for this transient task.",
+                        },
+                    ],
+                }
+            )
+        return output
+
+    for round_index in range(rounds):
+        round_requests = []
+        burst = burst_every_rounds > 0 and (round_index + 1) % burst_every_rounds == 0
+        hot_count = rng.randint(hot_min, hot_max)
+        cold_count = rng.randint(cold_min, cold_max)
+        if burst:
+            cold_count *= burst_cold_multiplier
+        ambiguous_family_count = rng.randint(ambiguous_min, ambiguous_max)
+
+        for hot_index in range(hot_count):
+            family = (round_index * 7 + hot_index * 5 + rng.randrange(hot_family_count)) % hot_family_count
+            round_requests.append(
+                hot_request(round_index, family, "steady", hot_index)
+            )
+
+        for cold_index in range(cold_count):
+            round_requests.append(cold_request(round_index, cold_index, burst))
+
+        for ambiguous_family in range(ambiguous_family_count):
+            variants = rng.randint(ambiguous_variants_min, ambiguous_variants_max)
+            round_requests.extend(
+                ambiguous_requests(round_index, ambiguous_family, variants)
+            )
+
+        if round_index + 1 >= next_revisit_round:
+            for family in range(hot_family_count):
+                for revisit_index in range(revisit_per_family):
+                    round_requests.append(
+                        hot_request(round_index, family, "revisit", revisit_index)
+                    )
+            next_revisit_round += rng.randint(revisit_every_min, revisit_every_max)
+
+        rng.shuffle(round_requests)
+        requests.extend(round_requests)
 
     return requests
 

@@ -1,0 +1,18 @@
+{
+  "name": "cache_pressure_multi_hot_qwen2_5_0_5b",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 8
+  },
+  "concurrency": 1,
+  "scenario": {
+    "type": "multi_hot_pressure",
+    "hot_family_count": 6,
+    "cycles": 6,
+    "cold_requests_after_hot": 6,
+    "hot_shared_unit": "热点族共享 KV block。该句用于形成可复用 full block。同一热点族跨 cycle 共享该前缀，不同热点族互不共享。",
+    "hot_shared_repeat": 16,
+    "cold_unit": "多热点压力冷长尾 filler。该内容不共享，用于占用 KV block 并冲刷 prefix cache。",
+    "cold_repeat": 18
+  }
+}

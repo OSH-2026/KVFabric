@@ -1,0 +1,23 @@
+{
+  "name": "cache_pressure_ambiguous_hot_revisit_qwen2_5_0_5b",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 8
+  },
+  "concurrency": 1,
+  "scenario": {
+    "type": "ambiguous_hot_revisit",
+    "warmup_hot_requests": 4,
+    "cold_families": 56,
+    "cold_variants_per_family": 3,
+    "revisit_hot_requests": 8,
+    "hot_shared_system": "你是一个用于 KVFabric ambiguous hot revisit 实验的简洁助手。下面是长期热点共享前缀，目标是在很多相似冷请求冲刷后仍能复用。",
+    "hot_shared_unit": "长期热点共享 anchor block。该句用于形成多个可复用 full block。热点请求会先 warmup，再经历冷压力，最后 revisit。",
+    "hot_shared_repeat": 24,
+    "hot_user_template": "{phase} 热点请求 {index}：用一句话解释为什么长期热点共享前缀应该跨冷压力保留。",
+    "cold_anchor_unit": "短期冷族共享 anchor block。该句让冷请求看起来也有较深 prefix 和较高 recompute cost，但这个冷族不会长期回访。",
+    "cold_tail_unit": "冷族唯一尾部 filler。该内容用于占用更多 KV block，并让不同 variant 在共享 anchor 后发生分叉。",
+    "cold_anchor_repeat": 14,
+    "cold_tail_repeat": 8
+  }
+}

@@ -46,10 +46,12 @@ if [[ -z "${VARIANT_PRESET:-}" ]]; then
 fi
 
 load_profile "$VARIANT_PRESET"
+export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
 
 # Re-source variant so its values take precedence over profile defaults
 # shellcheck disable=SC1090
 source "$VARIANT_PATH"
+export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
 
 # Apply overrides (variant values take precedence over profile defaults)
 MAX_MODEL_LEN="${OVERRIDE_MAX_MODEL_LEN:-$MAX_MODEL_LEN}"

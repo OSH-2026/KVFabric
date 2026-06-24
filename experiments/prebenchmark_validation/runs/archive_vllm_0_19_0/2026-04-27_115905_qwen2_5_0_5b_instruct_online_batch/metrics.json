@@ -1,0 +1,9 @@
+{
+  "requests": 3,
+  "concurrency": 1,
+  "total_seconds": 1.0209504009981174,
+  "requests_per_second": 2.9384385343960817,
+  "latency_avg_seconds": 0.3399473560008725,
+  "latency_p50_seconds": 0.26770543299790006,
+  "latency_p95_seconds": 0.6061449240005459
+}

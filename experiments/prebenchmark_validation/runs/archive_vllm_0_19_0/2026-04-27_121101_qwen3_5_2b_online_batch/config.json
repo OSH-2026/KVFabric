@@ -1,0 +1,22 @@
+{
+  "name": "medium_prefix_reuse_qwen3_5_2b",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 32
+  },
+  "concurrency": 1,
+  "scenario": {
+    "repeat": 6,
+    "shared_system": "你是一个用于 KV Cache 评测的简洁助手。请始终使用中文回答。下面是一段较长的共享系统前缀，用于制造可以被 prefix caching 复用的完整 block。回答时保持简洁，避免长篇解释。",
+    "shared_system_unit": "KV Cache 复用测试公共前缀。该句用于填充共享前缀长度，使其超过 vLLM full-block prefix caching 的命中粒度。所有请求都共享这段内容，只有用户问题部分发生变化。",
+    "shared_system_repeat": 40,
+    "user_templates": [
+      "第 {round} 轮第 {index} 个请求：用三句话解释 prefix caching 对 TTFT 的帮助。",
+      "第 {round} 轮第 {index} 个请求：用三句话解释 KV block 为什么适合做生命周期管理。",
+      "第 {round} 轮第 {index} 个请求：用三句话说明共享前缀请求为什么能减少 prefill。",
+      "第 {round} 轮第 {index} 个请求：用三句话说明错误驱逐高价值前缀块的代价。",
+      "第 {round} 轮第 {index} 个请求：用三句话说明为什么需要记录 prefix hit rate。",
+      "第 {round} 轮第 {index} 个请求：用三句话说明 KVFabric 后续可以在哪些路径加日志。"
+    ]
+  }
+}

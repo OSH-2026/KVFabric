@@ -1,0 +1,142 @@
+=== perf rerun start 2026-06-09T07:54:28+08:00 ===
+/home/qy-dream/OSH_Project/KVFabric
+No PID file found for qwen3_5_2b
+Suite: qwen3_5_2b_perf_suite
+Run group: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite
+Variants: variants/vanilla.env variants/prefix_on.env
+
+==> Running variant: variants/vanilla.env
+Model:      /home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B
+Variant:    vanilla_vllm (preset=qwen3_5_2b)
+Output:     /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite/vanilla_vllm
+GPU util:   0.85
+Max len:    2048
+Max seqs:   16
+Prefix cache: 0
+
+Resolving scan points from: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/configs/throughput_scan.json
+
+[1/8] i=128, o=64, n=100
+  -> 5.76 req/s
+
+[2/8] i=256, o=64, n=100
+  -> 7.49 req/s
+
+[3/8] i=256, o=128, n=80
+  -> 5.39 req/s
+
+[4/8] i=512, o=64, n=80
+  -> 7.64 req/s
+
+[5/8] i=512, o=128, n=80
+  -> 4.72 req/s
+
+[6/8] i=512, o=256, n=50
+  -> 2.15 req/s
+
+[7/8] i=1024, o=128, n=50
+  -> 3.32 req/s
+
+[8/8] i=1024, o=256, n=30
+  -> 2.23 req/s
+
+============================================================
+Run complete: 8/8 points succeeded
+Output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite/vanilla_vllm
+
+Variant output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite/vanilla_vllm
+
+==> Running variant: variants/prefix_on.env
+Model:      /home/qy-dream/OSH_Project/KVFabric/.cache/models/Qwen3.5-2B
+Variant:    prefix_caching_on (preset=qwen3_5_2b)
+Output:     /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite/prefix_caching_on
+GPU util:   0.85
+Max len:    2048
+Max seqs:   16
+Prefix cache: 1
+
+Resolving scan points from: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/configs/throughput_scan.json
+
+[1/8] i=128, o=64, n=100
+  -> 5.93 req/s
+
+[2/8] i=256, o=64, n=100
+  -> 8.73 req/s
+
+[3/8] i=256, o=128, n=80
+  -> 5.36 req/s
+
+[4/8] i=512, o=64, n=80
+  -> 7.31 req/s
+
+[5/8] i=512, o=128, n=80
+  -> 4.60 req/s
+
+[6/8] i=512, o=256, n=50
+  -> 2.19 req/s
+
+[7/8] i=1024, o=128, n=50
+  -> 3.09 req/s
+
+[8/8] i=1024, o=256, n=30
+  -> 2.13 req/s
+
+============================================================
+Run complete: 8/8 points succeeded
+Output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite/prefix_caching_on
+
+Variant output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite/prefix_caching_on
+
+==> Building suite summary...
+{
+  "run_group": "/home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite",
+  "baseline_variant": "prefix_caching_on",
+  "baseline_summary": {
+    "successful_points": 8,
+    "total_points": 8,
+    "avg_request_throughput": 4.9174999999999995,
+    "avg_total_token_throughput": 2638.1725,
+    "avg_output_token_throughput": 522.60375,
+    "peak_kv_cache_usage_pct": 73.7,
+    "kv_cache_capacity_tokens": 23552
+  },
+  "variants": {
+    "prefix_caching_on": {
+      "variant_name": "prefix_caching_on",
+      "variant_description": "Official vLLM with prefix caching enabled. Compare with vanilla_vllm to measure prefix cache overhead and hit rate.",
+      "summary": {
+        "successful_points": 8,
+        "total_points": 8,
+        "avg_request_throughput": 4.9174999999999995,
+        "avg_total_token_throughput": 2638.1725,
+        "avg_output_token_throughput": 522.60375,
+        "peak_kv_cache_usage_pct": 73.7,
+        "kv_cache_capacity_tokens": 23552
+      },
+      "delta_vs_baseline": {
+        "request_throughput_pct": 0.0,
+        "total_token_throughput_pct": 0.0
+      }
+    },
+    "vanilla_vllm": {
+      "variant_name": "vanilla_vllm",
+      "variant_description": "Official vLLM baseline, no KV compression, no prefix caching.",
+      "summary": {
+        "successful_points": 8,
+        "total_points": 8,
+        "avg_request_throughput": 4.8374999999999995,
+        "avg_total_token_throughput": 2665.17,
+        "avg_output_token_throughput": 522.19125,
+        "peak_kv_cache_usage_pct": 73.7,
+        "kv_cache_capacity_tokens": 33645
+      },
+      "delta_vs_baseline": {
+        "request_throughput_pct": -1.6,
+        "total_token_throughput_pct": 1.0
+      }
+    }
+  }
+}
+
+Suite complete. Output: /home/qy-dream/OSH_Project/KVFabric/experiments/paper_reproductions/vllm_performance_benchmark/runs/2026-06-09_075429_qwen3_5_2b_perf_suite
+=== perf rerun end 2026-06-09T08:17:55+08:00 status=0 ===

@@ -1,0 +1,24 @@
+{
+  "name": "cache_pressure_hot_cold_qwen2_5_0_5b",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 8
+  },
+  "concurrency": 1,
+  "scenario": {
+    "type": "cache_pressure",
+    "rounds": 16,
+    "hot_requests_per_round": 3,
+    "cold_requests_per_round": 8,
+    "hot_shared_system": "你是一个用于 KVFabric cache pressure 实验的简洁助手。下面是热点共享前缀，应该被多个请求反复复用。",
+    "hot_shared_unit": "热点共享 KV block。该句用于填充共享前缀，使其形成多个可复用 full block。所有热点请求共享这段内容，只有用户问题变化。",
+    "hot_shared_repeat": 18,
+    "hot_user_templates": [
+      "第 {round} 轮热点请求 {index}：用一句话解释为什么共享前缀应该保留。",
+      "第 {round} 轮热点请求 {index}：用一句话解释错误驱逐热点 block 的代价。",
+      "第 {round} 轮热点请求 {index}：用一句话解释 prefix hit rate 的意义。"
+    ],
+    "cold_unit": "冷长尾 KV cache pressure filler。该内容不共享，用于占用 KV block 并冲刷 free queue。每个冷请求都带有不同 round/index 前缀，避免 prefix cache 复用。",
+    "cold_repeat": 20
+  }
+}

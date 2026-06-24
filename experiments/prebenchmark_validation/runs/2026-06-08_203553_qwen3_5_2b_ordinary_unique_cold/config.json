@@ -1,0 +1,14 @@
+{
+  "name": "ordinary_unique_cold_qwen3_5_2b",
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 8
+  },
+  "concurrency": 1,
+  "scenario": {
+    "type": "unique_cold",
+    "request_count": 180,
+    "cold_unit": "普通无共享请求 filler。该内容用于模拟没有稳定模板、没有长期共享历史、没有可复用前缀的常规 serving 输入。",
+    "cold_repeat": 18
+  }
+}

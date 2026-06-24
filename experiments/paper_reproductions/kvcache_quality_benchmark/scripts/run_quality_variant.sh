@@ -37,6 +37,7 @@ source "$variant_file"
 : "${VARIANT_PRESET:?VARIANT_PRESET is required in variant file}"
 
 load_profile "$VARIANT_PRESET"
+export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
 
 max_model_len="${OVERRIDE_MAX_MODEL_LEN:-$MAX_MODEL_LEN}"
 gpu_memory_utilization="${OVERRIDE_GPU_MEMORY_UTILIZATION:-$GPU_MEMORY_UTILIZATION}"
