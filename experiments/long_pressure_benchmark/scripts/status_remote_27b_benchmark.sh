@@ -9,9 +9,9 @@ REMOTE_HOST="${REMOTE_HOST:-robowalker}"
 REMOTE_SSH_TARGET="${REMOTE_SSH_TARGET:-$REMOTE_HOST}"
 REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
-REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_realistic_10h_pressure_long}"
+REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_*_long}"
 REMOTE_RUN_ROOT="${REMOTE_RUN_ROOT:-}"
-REMOTE_JOB_LOG="${REMOTE_JOB_LOG:-vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_realistic_10h.log}"
+REMOTE_JOB_LOG="${REMOTE_JOB_LOG:-}"
 TAIL_LINES="${TAIL_LINES:-80}"
 REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
 
@@ -27,6 +27,10 @@ if [[ -z "$REMOTE_RUN_ROOT" ]]; then
     -maxdepth 1 -type d -name "$REMOTE_RUN_PATTERN" | sort | tail -n 1 || true)
 fi
 
+if [[ -z "$REMOTE_JOB_LOG" ]]; then
+  REMOTE_JOB_LOG=$(ls -t vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_*.log 2>/dev/null | head -n 1 || true)
+fi
+
 echo "--- wall clock ---"
 date '+%F %T %Z'
 echo
@@ -39,7 +43,12 @@ fi
 echo
 
 echo "--- job log tail ---"
-tail -n "$TAIL_LINES" "$REMOTE_JOB_LOG" 2>/dev/null || true
+if [[ -n "$REMOTE_JOB_LOG" ]]; then
+  echo "$REMOTE_PROJECT/$REMOTE_JOB_LOG"
+  tail -n "$TAIL_LINES" "$REMOTE_JOB_LOG" 2>/dev/null || true
+else
+  echo "No remote_27b job log found."
+fi
 echo
 
 echo "--- gpu ---"
@@ -48,7 +57,7 @@ nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu,tempe
 echo
 
 echo "--- processes ---"
-ps -ef | grep -E 'realistic_10h|trace_12h|trace_long|run_remote_27b_long|run_remote_27b_trace|vllm serve|online_duration|online_trace' | grep -v grep || true
+ps -ef | grep -E 'saturation_throughput|realistic_10h|trace_12h|trace_long|run_remote_27b_long|run_remote_27b_trace|vllm serve|online_duration|online_trace' | grep -v grep || true
 echo
 
 if [[ -z "$REMOTE_RUN_ROOT" || ! -d "$REMOTE_RUN_ROOT" ]]; then
