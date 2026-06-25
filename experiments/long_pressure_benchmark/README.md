@@ -4,6 +4,9 @@ This directory contains the current long-running KVFabric pressure benchmarks.
 It is separate from `experiments/prebenchmark_validation`, which is reserved for
 early smoke tests and short validation suites.
 
+The formal 12h acceptance design is documented in
+`docs/current/kvfabric_12h_acceptance_experiment_design.md`.
+
 Main entry points:
 
 - `scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh`
