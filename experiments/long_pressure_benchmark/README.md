@@ -17,6 +17,14 @@ Main entry points:
 - `scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh`
   starts the closed-loop saturation benchmark. This is the main throughput
   uplift experiment and uses segmented pressure inside each 4h policy run.
+- `scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh`
+  starts the sticky multi-turn conversation trace benchmark.
+- `scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh`,
+  `scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh`, and
+  `scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh`
+  start short acceptance runs. These keep the same workload mix and pressure
+  settings as the formal suites, but reduce each policy run to 80 minutes so
+  the three-policy A/B finishes in roughly 4 hours.
 - `scripts/deploy_remote_27b_long_benchmark.sh`
   syncs the overlay, configs, load generators, and long-benchmark scripts to the
   remote server.
@@ -31,6 +39,14 @@ Planned formal 12h experiments:
 saturation_throughput_12h
 enterprise_mixed_trace_12h
 sticky_conversation_trace_12h
+```
+
+Short 4h mirrors:
+
+```text
+saturation_throughput_4h
+enterprise_mixed_trace_4h
+sticky_conversation_trace_4h
 ```
 
 `saturation_throughput_12h` writes `segment_metrics.json` in addition to the

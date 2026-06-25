@@ -32,7 +32,11 @@ sync_paths=(
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_realistic_10h_pressure.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_hint_pressure_10h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_12h.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_4h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_4h.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_12h.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_4h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_conversation_sticky_trace_4h.json"
   "experiments/long_pressure_benchmark/scripts/common.sh"
   "experiments/long_pressure_benchmark/scripts/deploy_remote_27b_long_benchmark.sh"
@@ -40,11 +44,16 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_realistic_10h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/sync_remote_27b_benchmark_results.sh"
   "experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py"
+  "experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py"
 )
 
 echo "Syncing KVFabric overlay and long benchmark scripts to ${REMOTE_HOST}:${REMOTE_PROJECT}"
@@ -60,7 +69,11 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_realistic_10h_pressure.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_hint_pressure_10h.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_saturation_throughput_12h.json \
+    experiments/prebenchmark_validation/configs/qwen3_5_27b_saturation_throughput_4h.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json \
+    experiments/prebenchmark_validation/configs/qwen3_5_27b_enterprise_mixed_trace_4h.json \
+    experiments/prebenchmark_validation/configs/qwen3_5_27b_sticky_conversation_trace_12h.json \
+    experiments/prebenchmark_validation/configs/qwen3_5_27b_sticky_conversation_trace_4h.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_conversation_sticky_trace_4h.json \
     experiments/prebenchmark_validation/examples/online_duration_loadgen.py \
     experiments/prebenchmark_validation/examples/online_trace_loadgen.py \
@@ -70,11 +83,16 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/prebenchmark_validation/scripts/run_remote_27b_realistic_10h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh \
+    experiments/prebenchmark_validation/scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_trace_long_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh \
+    experiments/prebenchmark_validation/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh \
+    experiments/prebenchmark_validation/scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh \
+    experiments/prebenchmark_validation/scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/status_remote_27b_benchmark.sh \
     experiments/prebenchmark_validation/scripts/sync_remote_27b_benchmark_results.sh \
-    experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py"
+    experiments/prebenchmark_validation/scripts/summarize_remote_27b_benchmark_results.py \
+    experiments/prebenchmark_validation/scripts/validate_payload_lengths.py"
 
 for path in "${sync_paths[@]}"; do
   if [[ -n "$REMOTE_SSH_OPTS" ]]; then
@@ -99,7 +117,8 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/long_pressure_benchmark/examples/online_trace_loadgen.py \
     experiments/long_pressure_benchmark/examples/generate_realistic_trace.py \
     experiments/long_pressure_benchmark/examples/online_batch.py \
-    experiments/long_pressure_benchmark/examples/summarize_kvfabric_lifecycle.py"
+    experiments/long_pressure_benchmark/examples/summarize_kvfabric_lifecycle.py \
+    experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py"
 
 if [[ "$REMOTE_MODE" == "sync" ]]; then
   echo "Remote sync and compile completed."

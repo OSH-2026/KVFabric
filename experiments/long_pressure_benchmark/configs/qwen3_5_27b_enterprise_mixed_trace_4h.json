@@ -1,0 +1,21 @@
+{
+  "name": "qwen3_5_27b_enterprise_mixed_trace_4h",
+  "description": "Short 4h version of qwen3_5_27b_enterprise_mixed_trace_12h. It keeps the same enterprise mixed trace profile, pressure, seed, and hint regime, with each policy replaying an 80 minute trace.",
+  "trace": {
+    "profile": "enterprise_mixed",
+    "duration_seconds": 4800,
+    "request_rate": 0.18,
+    "seed": 20260624,
+    "max_model_len": 4096,
+    "load_mode": "stress_90",
+    "hint_regime": "partial_hints"
+  },
+  "loadgen": {
+    "max_in_flight": 32,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.02,
+    "raw_sample_limit": 2000,
+    "warmup_seconds": 100,
+    "timeout_seconds": 900
+  }
+}

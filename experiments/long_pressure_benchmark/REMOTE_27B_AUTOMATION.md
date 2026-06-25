@@ -14,8 +14,11 @@ This note is the recovery point for long `qwen3_5_27b` benchmarks on
   `experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json`
 - Saturation config:
   `experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_12h.json`
+- Sticky conversation config:
+  `experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_12h.json`
 - Policies: `lru shared_aware family_protect`
 - Formal duration: 4 hours per policy, 12 hours total
+- Short-run duration: 80 minutes per policy, 4 hours total
 - Current pressure target: calibrate LRU into ORANGE pressure before a formal run
 - Serve caps to start calibration:
   `LONG_BENCH_MAX_NUM_SEQS=16`,
@@ -74,6 +77,23 @@ LONG_BENCH_MAX_NUM_SEQS=20 \
 LONG_BENCH_MAX_NUM_BATCHED_TOKENS=16384 \
 KVFABRIC_SCHEDULER_AFFINITY=positive \
 bash experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh
+```
+
+## Start A New 12h Sticky Conversation Job
+
+```bash
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh
+```
+
+## Start Short 4h Jobs
+
+These launch the same three-policy A/B structure as the formal suites, but each
+policy runs for 80 minutes.
+
+```bash
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh
 ```
 
 ## Check Progress
