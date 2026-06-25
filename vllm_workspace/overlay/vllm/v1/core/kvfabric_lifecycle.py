@@ -258,6 +258,21 @@ class KVFabricLifecycleTracker:
         self.scheduler_positive_max_per_step = int(
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_MAX_PER_STEP", "4")
         )
+        self.scheduler_positive_hit_aware = os.environ.get(
+            "KVFABRIC_SCHEDULER_POSITIVE_HIT_AWARE", "0"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self.scheduler_positive_hit_topk = int(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_HIT_TOPK", "4")
+        )
+        self.scheduler_positive_hit_weight = float(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_HIT_WEIGHT", "0.004")
+        )
+        self.scheduler_positive_hit_max_bonus = float(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_HIT_MAX_BONUS", "18.0")
+        )
+        self.scheduler_positive_session_turn_bonus = float(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SESSION_TURN_BONUS", "1.5")
+        )
         self.protect_min_hit_count = int(
             os.environ.get("KVFABRIC_PROTECT_MIN_HIT_COUNT", "1")
         )
@@ -362,6 +377,15 @@ class KVFabricLifecycleTracker:
             ),
             scheduler_positive_score_margin=self.scheduler_positive_score_margin,
             scheduler_positive_max_per_step=self.scheduler_positive_max_per_step,
+            scheduler_positive_hit_aware=self.scheduler_positive_hit_aware,
+            scheduler_positive_hit_topk=self.scheduler_positive_hit_topk,
+            scheduler_positive_hit_weight=self.scheduler_positive_hit_weight,
+            scheduler_positive_hit_max_bonus=(
+                self.scheduler_positive_hit_max_bonus
+            ),
+            scheduler_positive_session_turn_bonus=(
+                self.scheduler_positive_session_turn_bonus
+            ),
         )
 
     @classmethod
@@ -1183,6 +1207,7 @@ class KVFabricLifecycleTracker:
         request_id: str,
         prompt_tokens: int,
         queue_index: int,
+        estimated_hit_tokens: int = 0,
     ) -> float:
         hints = self._get_request_hints(request_id)
         if hints is None or not hints.has_hints:
@@ -1200,6 +1225,8 @@ class KVFabricLifecycleTracker:
             score += 2.0 * confidence
         if hints.turn_index > 0:
             score += min(hints.turn_index, 16) * 0.5 * confidence
+        if hints.session_id and hints.turn_index > 0 and hints.is_durable:
+            score += self.scheduler_positive_session_turn_bonus * confidence
         if prompt_tokens >= self.scheduler_defer_min_prompt_tokens and hints.is_durable:
             score += min(prompt_tokens / 1024.0, 6.0)
 
@@ -1219,7 +1246,16 @@ class KVFabricLifecycleTracker:
             score -= 8.0
         if "decode" in request_class:
             score -= 4.0
+        score += self.positive_hit_bonus(estimated_hit_tokens)
         return score
+
+    def positive_hit_bonus(self, estimated_hit_tokens: int) -> float:
+        if estimated_hit_tokens <= 0:
+            return 0.0
+        return min(
+            estimated_hit_tokens * self.scheduler_positive_hit_weight,
+            self.scheduler_positive_hit_max_bonus,
+        )
 
     def should_promote_positive_request(
         self,
@@ -1237,6 +1273,12 @@ class KVFabricLifecycleTracker:
         head_score: float,
         waiting_queue_size: int,
         eviction_risk_ratio: float,
+        estimated_hit_tokens: int = 0,
+        selected_base_score: float | None = None,
+        selected_hit_bonus: float = 0.0,
+        head_base_score: float | None = None,
+        hit_aware: bool = False,
+        hit_topk: int = 0,
     ) -> None:
         if not self.enabled or not self.scheduler_trace:
             return
@@ -1248,6 +1290,14 @@ class KVFabricLifecycleTracker:
             "queue_index": queue_index,
             "selected_score": selected_score,
             "head_score": head_score,
+            "selected_base_score": (
+                selected_score if selected_base_score is None else selected_base_score
+            ),
+            "head_base_score": head_score if head_base_score is None else head_base_score,
+            "selected_hit_bonus": selected_hit_bonus,
+            "estimated_hit_tokens": estimated_hit_tokens,
+            "hit_aware": hit_aware,
+            "hit_topk": hit_topk,
             "waiting_queue_size": waiting_queue_size,
             "eviction_risk_ratio": eviction_risk_ratio,
             "scheduler_affinity": self.scheduler_affinity,

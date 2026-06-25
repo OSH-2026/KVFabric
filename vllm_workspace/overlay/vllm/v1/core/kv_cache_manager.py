@@ -266,6 +266,26 @@ class KVCacheManager:
 
         return self.create_kv_cache_blocks(computed_blocks), num_new_computed_tokens
 
+    def peek_computed_tokens(self, request: Request) -> int:
+        """Estimate local prefix-cache hit tokens without assigning blocks.
+
+        The scheduler uses this for queue ordering. The real allocation path
+        still calls ``get_computed_blocks`` before scheduling the request, so a
+        concurrent eviction or an intervening request cannot make this stale
+        estimate unsafe.
+        """
+        if not self.enable_caching or request.skip_reading_prefix_cache:
+            return 0
+        if request.num_tokens <= 1:
+            return 0
+
+        max_cache_hit_length = request.num_tokens - 1
+        _, num_new_computed_tokens = self.coordinator.find_longest_cache_hit(
+            request.block_hashes,
+            max_cache_hit_length,
+        )
+        return num_new_computed_tokens
+
     def allocate_slots(
         self,
         request: Request,

@@ -116,6 +116,17 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         float(e.get("eviction_risk_ratio", 0.0) or 0.0)
         for e in request_promotions
     ]
+    promotion_estimated_hit_tokens = [
+        int(e.get("estimated_hit_tokens", 0) or 0)
+        for e in request_promotions
+    ]
+    promotion_hit_bonuses = [
+        float(e.get("selected_hit_bonus", 0.0) or 0.0)
+        for e in request_promotions
+    ]
+    promotion_hit_aware_events = [
+        e for e in request_promotions if bool(e.get("hit_aware", False))
+    ]
     scheduled_tokens = sum(
         int(e.get("scheduled_tokens", 0) or 0) for e in request_schedules
     )
@@ -324,6 +335,21 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "scheduler_promote_max_eviction_risk_ratio": (
             max(promotion_risks) if promotion_risks else 0.0
+        ),
+        "scheduler_promote_estimated_hit_tokens": sum(
+            promotion_estimated_hit_tokens
+        ),
+        "scheduler_promote_avg_estimated_hit_tokens": (
+            sum(promotion_estimated_hit_tokens) / len(promotion_estimated_hit_tokens)
+            if promotion_estimated_hit_tokens
+            else 0.0
+        ),
+        "scheduler_promote_hit_aware_events": len(promotion_hit_aware_events),
+        "scheduler_promote_hit_bonus_total": sum(promotion_hit_bonuses),
+        "scheduler_promote_avg_hit_bonus": (
+            sum(promotion_hit_bonuses) / len(promotion_hit_bonuses)
+            if promotion_hit_bonuses
+            else 0.0
         ),
         "eviction_policies": sorted(
             {

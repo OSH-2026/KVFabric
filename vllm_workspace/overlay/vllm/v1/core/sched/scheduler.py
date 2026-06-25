@@ -583,21 +583,10 @@ class Scheduler(SchedulerInterface):
                             len(request_queue),
                         )
                         candidates = list(itertools.islice(request_queue, scan_window))
-                        head_request = candidates[0]
-                        tracker.on_request_hints(
-                            request_id=head_request.request_id,
-                            trace_headers=getattr(head_request, "trace_headers", None),
-                            prompt_tokens=head_request.num_tokens,
-                        )
-                        head_score = tracker.positive_request_score(
-                            request_id=head_request.request_id,
-                            prompt_tokens=head_request.num_tokens,
-                            queue_index=0,
-                        )
-                        best_request = head_request
-                        best_index = 0
-                        best_score = head_score
-                        for queue_index, candidate in enumerate(candidates[1:], 1):
+                        scored_candidates: list[
+                            tuple[Request, int, float, float, int]
+                        ] = []
+                        for queue_index, candidate in enumerate(candidates):
                             tracker.on_request_hints(
                                 request_id=candidate.request_id,
                                 trace_headers=getattr(
@@ -610,10 +599,69 @@ class Scheduler(SchedulerInterface):
                                 prompt_tokens=candidate.num_tokens,
                                 queue_index=queue_index,
                             )
-                            if score > best_score:
-                                best_request = candidate
-                                best_index = queue_index
-                                best_score = score
+                            scored_candidates.append(
+                                (candidate, queue_index, score, 0.0, 0)
+                            )
+
+                        hit_topk = 0
+                        if tracker.scheduler_positive_hit_aware:
+                            hit_topk = min(
+                                tracker.scheduler_positive_hit_topk,
+                                len(scored_candidates),
+                            )
+                            hit_candidate_ids = {
+                                candidate.request_id
+                                for candidate, _, _, _, _ in sorted(
+                                    scored_candidates,
+                                    key=lambda item: item[2],
+                                    reverse=True,
+                                )[:hit_topk]
+                            }
+                            rescored_candidates = []
+                            for (
+                                candidate,
+                                queue_index,
+                                base_score,
+                                _hit_bonus,
+                                _estimated_hit_tokens,
+                            ) in scored_candidates:
+                                if candidate.request_id in hit_candidate_ids:
+                                    estimated_hit_tokens = (
+                                        self.kv_cache_manager.peek_computed_tokens(
+                                            candidate
+                                        )
+                                    )
+                                    hit_bonus = tracker.positive_hit_bonus(
+                                        estimated_hit_tokens
+                                    )
+                                else:
+                                    estimated_hit_tokens = 0
+                                    hit_bonus = 0.0
+                                rescored_candidates.append(
+                                    (
+                                        candidate,
+                                        queue_index,
+                                        base_score + hit_bonus,
+                                        hit_bonus,
+                                        estimated_hit_tokens,
+                                    )
+                                )
+                            scored_candidates = rescored_candidates
+
+                        head_request, _, head_score, _, _ = scored_candidates[0]
+                        head_base_score = tracker.positive_request_score(
+                            request_id=head_request.request_id,
+                            prompt_tokens=head_request.num_tokens,
+                            queue_index=0,
+                        )
+                        (
+                            best_request,
+                            best_index,
+                            best_score,
+                            best_hit_bonus,
+                            best_estimated_hit_tokens,
+                        ) = max(scored_candidates, key=lambda item: item[2])
+                        best_base_score = best_score - best_hit_bonus
                         if best_index > 0 and tracker.should_promote_positive_request(
                             best_score=best_score,
                             head_score=head_score,
@@ -631,6 +679,12 @@ class Scheduler(SchedulerInterface):
                                 eviction_risk_ratio=float(
                                     pressure["eviction_risk_ratio"]
                                 ),
+                                estimated_hit_tokens=best_estimated_hit_tokens,
+                                selected_base_score=best_base_score,
+                                selected_hit_bonus=best_hit_bonus,
+                                head_base_score=head_base_score,
+                                hit_aware=tracker.scheduler_positive_hit_aware,
+                                hit_topk=hit_topk,
                             )
 
                 request = request_queue.peek_request()
