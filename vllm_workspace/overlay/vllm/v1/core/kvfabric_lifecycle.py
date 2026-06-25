@@ -126,6 +126,10 @@ class RequestMeta:
     hint_expected_reuse: str = "unknown"
     hint_phase: str | None = None
     hint_burst: bool = False
+    hint_session_id: str | None = None
+    hint_turn_index: int = 0
+    hint_slo_ms: int = 0
+    hint_confidence: float = 1.0
     hint_has_hints: bool = False
     deferred_count: int = 0
     admission_limited_count: int = 0
@@ -239,6 +243,21 @@ class KVFabricLifecycleTracker:
         self.scheduler_defer_max_per_step = int(
             os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP", "4")
         )
+        self.scheduler_positive_scan_window = int(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW", "0")
+        )
+        self.scheduler_positive_min_risk_ratio = float(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_POSITIVE_MIN_RISK_RATIO",
+                str(self.scheduler_defer_min_risk_ratio),
+            )
+        )
+        self.scheduler_positive_score_margin = float(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SCORE_MARGIN", "4.0")
+        )
+        self.scheduler_positive_max_per_step = int(
+            os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_MAX_PER_STEP", "4")
+        )
         self.protect_min_hit_count = int(
             os.environ.get("KVFABRIC_PROTECT_MIN_HIT_COUNT", "1")
         )
@@ -337,6 +356,12 @@ class KVFabricLifecycleTracker:
             admission_cold_discovery_blocks=self.admission_cold_discovery_blocks,
             admission_cold_discovery_tokens=self.admission_cold_discovery_tokens,
             scheduler_affinity=self.scheduler_affinity,
+            scheduler_positive_scan_window=self.scheduler_positive_scan_window,
+            scheduler_positive_min_risk_ratio=(
+                self.scheduler_positive_min_risk_ratio
+            ),
+            scheduler_positive_score_margin=self.scheduler_positive_score_margin,
+            scheduler_positive_max_per_step=self.scheduler_positive_max_per_step,
         )
 
     @classmethod
@@ -498,6 +523,10 @@ class KVFabricLifecycleTracker:
         request_meta.hint_expected_reuse = hints.expected_reuse
         request_meta.hint_phase = hints.phase
         request_meta.hint_burst = hints.burst
+        request_meta.hint_session_id = hints.session_id
+        request_meta.hint_turn_index = hints.turn_index
+        request_meta.hint_slo_ms = hints.slo_ms
+        request_meta.hint_confidence = hints.hint_confidence
         request_meta.hint_has_hints = hints.has_hints
 
     def _get_request_hints(
@@ -1128,6 +1157,105 @@ class KVFabricLifecycleTracker:
         else:
             self.request_defer_reasons.pop(request_id, None)
         return should_defer
+
+    def should_scan_positive_requests(
+        self,
+        waiting_queue_size: int,
+        promotions_this_step: int,
+        eviction_risk_ratio: float,
+    ) -> bool:
+        if self.scheduler_affinity not in {"positive", "hybrid"}:
+            return False
+        if self.eviction_policy == "lru":
+            return False
+        if not self.enable_hints or not self.hint_scheduler:
+            return False
+        if self.scheduler_positive_scan_window <= 1:
+            return False
+        if waiting_queue_size < self.scheduler_defer_min_waiting:
+            return False
+        if promotions_this_step >= self.scheduler_positive_max_per_step:
+            return False
+        return eviction_risk_ratio >= self.scheduler_positive_min_risk_ratio
+
+    def positive_request_score(
+        self,
+        request_id: str,
+        prompt_tokens: int,
+        queue_index: int,
+    ) -> float:
+        hints = self._get_request_hints(request_id)
+        if hints is None or not hints.has_hints:
+            return 0.0
+
+        score = max(0.0, 1.0 - 0.02 * queue_index)
+        confidence = max(min(hints.hint_confidence, 1.0), 0.0)
+        if hints.is_durable:
+            score += 12.0 * confidence
+        if hints.cache_priority == "high":
+            score += 8.0 * confidence
+        if hints.expected_reuse == "durable":
+            score += 6.0 * confidence
+        if hints.is_transient:
+            score += 2.0 * confidence
+        if hints.turn_index > 0:
+            score += min(hints.turn_index, 16) * 0.5 * confidence
+        if prompt_tokens >= self.scheduler_defer_min_prompt_tokens and hints.is_durable:
+            score += min(prompt_tokens / 1024.0, 6.0)
+
+        runtime = self.hint_family_index.get(hints)
+        if runtime is not None:
+            score += min(runtime.request_count, 32) * 0.15
+            score += min(runtime.scheduled_count, 32) * 0.10
+            score += min(runtime.prefix_hit_tokens / 512.0, 16.0)
+            score -= min(runtime.deferred_count, 16) * 0.05
+
+        request_class = hints.request_class
+        if hints.cache_priority == "bypass":
+            score -= 24.0
+        elif hints.is_low_reuse:
+            score -= 14.0
+        if "cold" in request_class or "unique" in request_class:
+            score -= 8.0
+        if "decode" in request_class:
+            score -= 4.0
+        return score
+
+    def should_promote_positive_request(
+        self,
+        best_score: float,
+        head_score: float,
+    ) -> bool:
+        return best_score >= max(1.0, head_score + self.scheduler_positive_score_margin)
+
+    def on_request_promoted(
+        self,
+        request_id: str,
+        prompt_tokens: int,
+        queue_index: int,
+        selected_score: float,
+        head_score: float,
+        waiting_queue_size: int,
+        eviction_risk_ratio: float,
+    ) -> None:
+        if not self.enabled or not self.scheduler_trace:
+            return
+        hints = self._get_request_hints(request_id)
+        runtime = self.hint_family_index.get(hints)
+        payload = {
+            "request_id": request_id,
+            "prompt_tokens": prompt_tokens,
+            "queue_index": queue_index,
+            "selected_score": selected_score,
+            "head_score": head_score,
+            "waiting_queue_size": waiting_queue_size,
+            "eviction_risk_ratio": eviction_risk_ratio,
+            "scheduler_affinity": self.scheduler_affinity,
+            **self._hint_event_fields(request_id),
+        }
+        if runtime is not None:
+            payload.update(runtime.event_fields())
+        self._emit("request_promoted", **payload)
 
     def on_request_deferred(
         self,

@@ -31,6 +31,7 @@ sync_paths=(
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_mixed_long_pressure.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_realistic_10h_pressure.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_hint_pressure_10h.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_12h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_conversation_sticky_trace_4h.json"
   "experiments/long_pressure_benchmark/scripts/common.sh"
@@ -38,6 +39,7 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_long_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_realistic_10h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh"
@@ -57,6 +59,7 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_mixed_long_pressure.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_realistic_10h_pressure.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_hint_pressure_10h.json \
+    experiments/prebenchmark_validation/configs/qwen3_5_27b_saturation_throughput_12h.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json \
     experiments/prebenchmark_validation/configs/qwen3_5_27b_conversation_sticky_trace_4h.json \
     experiments/prebenchmark_validation/examples/online_duration_loadgen.py \
@@ -66,6 +69,7 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/prebenchmark_validation/scripts/run_remote_27b_long_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_realistic_10h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh \
+    experiments/prebenchmark_validation/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_trace_long_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/status_remote_27b_benchmark.sh \
@@ -86,6 +90,7 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
   VLLM_VENV_DIR='$REMOTE_VENV' bash vllm_workspace/scripts/apply_to_worktree.sh && \
   '$REMOTE_VENV/bin/python' -m py_compile \
     vllm_workspace/overlay/vllm/v1/core/kvfabric_family.py \
+    vllm_workspace/overlay/vllm/v1/core/kvfabric_hints.py \
     vllm_workspace/overlay/vllm/v1/core/kvfabric_lifecycle.py \
     vllm_workspace/overlay/vllm/v1/core/block_pool.py \
     vllm_workspace/overlay/vllm/v1/core/kv_cache_manager.py \

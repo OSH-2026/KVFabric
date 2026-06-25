@@ -550,6 +550,7 @@ class Scheduler(SchedulerInterface):
             step_skipped_waiting = create_request_queue(self.policy)
             kvfabric_deferred_requests: set[str] = set()
             kvfabric_deferrals_this_step = 0
+            kvfabric_promotions_this_step = 0
 
             while (self.waiting or self.skipped_waiting) and token_budget > 0:
                 if len(self.running) == self.max_num_running_reqs:
@@ -557,12 +558,83 @@ class Scheduler(SchedulerInterface):
 
                 request_queue = self._select_waiting_queue_for_scheduling()
                 assert request_queue is not None
-
-                request = request_queue.peek_request()
-                request_id = request.request_id
                 tracker = getattr(
                     self.kv_cache_manager.block_pool, "kvfabric_lifecycle", None
                 )
+                if (
+                    tracker is not None
+                    and self.policy == SchedulingPolicy.FCFS
+                    and request_queue is self.waiting
+                    and len(request_queue) > 1
+                ):
+                    pressure = self.kv_cache_manager.block_pool.cache_pressure_snapshot(
+                        tracker.admission_head_window
+                    )
+                    waiting_queue_size = len(self.waiting) + len(self.skipped_waiting)
+                    if tracker.should_scan_positive_requests(
+                        waiting_queue_size=waiting_queue_size,
+                        promotions_this_step=kvfabric_promotions_this_step,
+                        eviction_risk_ratio=float(
+                            pressure["eviction_risk_ratio"]
+                        ),
+                    ):
+                        scan_window = min(
+                            tracker.scheduler_positive_scan_window,
+                            len(request_queue),
+                        )
+                        candidates = list(itertools.islice(request_queue, scan_window))
+                        head_request = candidates[0]
+                        tracker.on_request_hints(
+                            request_id=head_request.request_id,
+                            trace_headers=getattr(head_request, "trace_headers", None),
+                            prompt_tokens=head_request.num_tokens,
+                        )
+                        head_score = tracker.positive_request_score(
+                            request_id=head_request.request_id,
+                            prompt_tokens=head_request.num_tokens,
+                            queue_index=0,
+                        )
+                        best_request = head_request
+                        best_index = 0
+                        best_score = head_score
+                        for queue_index, candidate in enumerate(candidates[1:], 1):
+                            tracker.on_request_hints(
+                                request_id=candidate.request_id,
+                                trace_headers=getattr(
+                                    candidate, "trace_headers", None
+                                ),
+                                prompt_tokens=candidate.num_tokens,
+                            )
+                            score = tracker.positive_request_score(
+                                request_id=candidate.request_id,
+                                prompt_tokens=candidate.num_tokens,
+                                queue_index=queue_index,
+                            )
+                            if score > best_score:
+                                best_request = candidate
+                                best_index = queue_index
+                                best_score = score
+                        if best_index > 0 and tracker.should_promote_positive_request(
+                            best_score=best_score,
+                            head_score=head_score,
+                        ):
+                            request_queue.remove_request(best_request)
+                            request_queue.prepend_request(best_request)
+                            kvfabric_promotions_this_step += 1
+                            tracker.on_request_promoted(
+                                request_id=best_request.request_id,
+                                prompt_tokens=best_request.num_tokens,
+                                queue_index=best_index,
+                                selected_score=best_score,
+                                head_score=head_score,
+                                waiting_queue_size=waiting_queue_size,
+                                eviction_risk_ratio=float(
+                                    pressure["eviction_risk_ratio"]
+                                ),
+                            )
+
+                request = request_queue.peek_request()
+                request_id = request.request_id
                 if tracker is not None:
                     tracker.on_request_hints(
                         request_id=request_id,

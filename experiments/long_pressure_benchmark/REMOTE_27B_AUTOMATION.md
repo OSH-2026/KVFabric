@@ -12,6 +12,8 @@ This note is the recovery point for long `qwen3_5_27b` benchmarks on
 - Model: `Qwen/Qwen3.5-27B-FP8`
 - Default config:
   `experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_12h.json`
+- Saturation config:
+  `experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_12h.json`
 - Policies: `lru shared_aware family_protect`
 - Formal duration: 4 hours per policy, 12 hours total
 - Current pressure target: calibrate LRU into ORANGE pressure before a formal run
@@ -56,6 +58,23 @@ bash experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed
 The older `run_remote_27b_realistic_10h_benchmark.sh` and
 `run_remote_27b_hint_pressure_10h_benchmark.sh` launchers are kept for result
 reproduction.
+
+## Start A New 12h Saturation Job
+
+This is the main high-pressure throughput experiment.
+
+```bash
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh
+```
+
+Useful overrides:
+
+```bash
+LONG_BENCH_MAX_NUM_SEQS=20 \
+LONG_BENCH_MAX_NUM_BATCHED_TOKENS=16384 \
+KVFABRIC_SCHEDULER_AFFINITY=positive \
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh
+```
 
 ## Check Progress
 

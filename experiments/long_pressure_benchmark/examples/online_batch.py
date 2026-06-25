@@ -74,6 +74,8 @@ def expand_requests(config: dict) -> list[dict]:
         return expand_mixed_long_pressure_requests(scenario)
     if scenario.get("type") == "mixed_realistic_pressure":
         return expand_mixed_realistic_pressure_requests(scenario)
+    if scenario.get("type") == "saturation_throughput_pressure":
+        return expand_saturation_throughput_pressure_requests(scenario)
 
     shared_system = scenario.get("shared_system", "")
     if "shared_system_unit" in scenario:
@@ -636,6 +638,226 @@ def expand_mixed_realistic_pressure_requests(scenario: dict) -> list[dict]:
                     )
             next_revisit_round += rng.randint(revisit_every_min, revisit_every_max)
 
+        rng.shuffle(round_requests)
+        requests.extend(round_requests)
+
+    return requests
+
+
+def expand_saturation_throughput_pressure_requests(scenario: dict) -> list[dict]:
+    """Build a high-pressure closed-loop workload for throughput saturation."""
+
+    rng = __import__("random").Random(int(scenario.get("seed", 20260625)))
+    tenant_count = int(scenario.get("tenant_count", 8))
+    hot_family_count = int(scenario.get("hot_family_count", 48))
+    sticky_session_count = int(scenario.get("sticky_session_count", 384))
+    rounds = int(scenario.get("rounds", 2600))
+
+    hot_per_round = int(scenario.get("hot_family_per_round", 9))
+    sticky_per_round = int(scenario.get("sticky_followup_per_round", 5))
+    cold_per_round = int(scenario.get("cold_rag_per_round", 8))
+    transient_per_round = int(scenario.get("transient_per_round", 3))
+    decode_every_rounds = max(1, int(scenario.get("decode_every_rounds", 3)))
+    burst_every_rounds = max(1, int(scenario.get("burst_every_rounds", 25)))
+    burst_cold_requests = int(scenario.get("burst_cold_requests", 5))
+
+    global_unit = scenario["global_unit"]
+    tenant_unit = scenario["tenant_unit"]
+    family_unit = scenario["family_unit"]
+    sticky_unit = scenario["sticky_unit"]
+    cold_unit = scenario["cold_unit"]
+    transient_unit = scenario["transient_unit"]
+    decode_unit = scenario["decode_unit"]
+
+    global_repeat = int(scenario.get("global_repeat", 34))
+    tenant_repeat = int(scenario.get("tenant_repeat", 14))
+    family_repeat = int(scenario.get("family_repeat", 24))
+    sticky_history_repeat = int(scenario.get("sticky_history_repeat", 28))
+    cold_repeat = int(scenario.get("cold_repeat", 92))
+    burst_cold_repeat = int(scenario.get("burst_cold_repeat", 118))
+    transient_repeat = int(scenario.get("transient_repeat", 44))
+    decode_repeat = int(scenario.get("decode_repeat", 32))
+
+    requests: list[dict] = []
+    sticky_turns = [0 for _ in range(sticky_session_count)]
+
+    def tenant_prefix(tenant: int) -> str:
+        return (
+            f"Tenant {tenant + 1} shared assistant policy, tool contracts, "
+            "response schema, audit fields, escalation rules, and data-retention "
+            "requirements. "
+            + global_unit * global_repeat
+            + f"Tenant {tenant + 1} stable business catalog and field aliases. "
+            + tenant_unit * tenant_repeat
+        )
+
+    def hot_request(round_index: int, index: int) -> dict:
+        family = (
+            round_index * 11 + index * 7 + rng.randrange(hot_family_count)
+        ) % hot_family_count
+        tenant = family % tenant_count
+        system = (
+            tenant_prefix(tenant)
+            + f"Durable workflow family {family + 1}. "
+            + family_unit * family_repeat
+        )
+        return {
+            "meta": {
+                "class": "durable_hot_family",
+                "round": round_index + 1,
+                "tenant_id": f"tenant-{tenant + 1}",
+                "family_id": f"hot-{family + 1}",
+                "phase": "high_main",
+                "cache_priority": "high",
+                "expected_reuse": "durable",
+                "max_tokens": 64,
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Handle durable workflow request round={round_index + 1} "
+                        f"family={family + 1}. Answer with a concise action plan."
+                    ),
+                },
+            ],
+        }
+
+    def sticky_request(round_index: int, index: int) -> dict:
+        session = (
+            round_index * 17 + index * 13 + rng.randrange(sticky_session_count)
+        ) % sticky_session_count
+        sticky_turns[session] += 1
+        turn = sticky_turns[session]
+        tenant = session % tenant_count
+        family = session % hot_family_count
+        history_repeat = sticky_history_repeat + min(turn, 16) * 3
+        system = (
+            tenant_prefix(tenant)
+            + f"Sticky support session {session + 1}; durable family {family + 1}. "
+            + family_unit * max(family_repeat - 4, 8)
+            + f"Conversation history before turn {turn}. "
+            + sticky_unit * history_repeat
+        )
+        return {
+            "meta": {
+                "class": "sticky_session_followup",
+                "round": round_index + 1,
+                "tenant_id": f"tenant-{tenant + 1}",
+                "family_id": f"sticky-{session + 1}",
+                "session_id": f"session-{session + 1}",
+                "turn_index": turn,
+                "phase": "high_main",
+                "cache_priority": "high",
+                "expected_reuse": "durable",
+                "max_tokens": 96,
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Continue the same case at turn {turn}. "
+                        "Give the next operational response."
+                    ),
+                },
+            ],
+        }
+
+    def cold_request(round_index: int, index: int, burst: bool) -> dict:
+        repeat = burst_cold_repeat if burst else cold_repeat
+        system = (
+            f"One-off RAG bundle round={round_index + 1} item={index + 1}. "
+            "The evidence is unique and has no planned revisit. "
+            + cold_unit * repeat
+        )
+        return {
+            "meta": {
+                "class": "cold_rag_burst" if burst else "cold_rag_unique",
+                "round": round_index + 1,
+                "burst": burst,
+                "phase": "red_burst" if burst else "high_main",
+                "cache_priority": "bypass" if burst else "low",
+                "expected_reuse": "none",
+                "max_tokens": 64,
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": "Answer from this evidence only in two short sentences.",
+                },
+            ],
+        }
+
+    def transient_request(round_index: int, index: int) -> dict:
+        family = round_index * 100 + index
+        system = (
+            f"Transient campaign template {family}. "
+            "Several near-duplicate requests share this short-lived prefix. "
+            + transient_unit * transient_repeat
+        )
+        return {
+            "meta": {
+                "class": "transient_template_family",
+                "round": round_index + 1,
+                "family_id": f"transient-{family}",
+                "phase": "transient",
+                "cache_priority": "normal",
+                "expected_reuse": "transient",
+                "max_tokens": 64,
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": "Resolve this temporary template request.",
+                },
+            ],
+        }
+
+    def decode_request(round_index: int) -> dict:
+        system = (
+            f"Decode-heavy content generation request round={round_index + 1}. "
+            + decode_unit * decode_repeat
+        )
+        return {
+            "meta": {
+                "class": "decode_heavy",
+                "round": round_index + 1,
+                "phase": "decode_tail",
+                "cache_priority": "low",
+                "expected_reuse": "none",
+                "max_tokens": 320,
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": (
+                        "Write a detailed operational memo with numbered points, "
+                        "risks, and mitigations."
+                    ),
+                },
+            ],
+        }
+
+    for round_index in range(rounds):
+        round_requests: list[dict] = []
+        for index in range(hot_per_round):
+            round_requests.append(hot_request(round_index, index))
+        for index in range(sticky_per_round):
+            round_requests.append(sticky_request(round_index, index))
+        for index in range(cold_per_round):
+            round_requests.append(cold_request(round_index, index, burst=False))
+        for index in range(transient_per_round):
+            round_requests.append(transient_request(round_index, index))
+        if (round_index + 1) % burst_every_rounds == 0:
+            for index in range(burst_cold_requests):
+                round_requests.append(cold_request(round_index, index, burst=True))
+        if (round_index + 1) % decode_every_rounds == 0:
+            round_requests.append(decode_request(round_index))
         rng.shuffle(round_requests)
         requests.extend(round_requests)
 

@@ -14,6 +14,9 @@ Main entry points:
 - `scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh`
   starts the current 12h realistic trace benchmark on the remote 2 x RTX 3090
   server. This is the enterprise mixed trace path.
+- `scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh`
+  starts the closed-loop saturation benchmark. This is the main throughput
+  uplift experiment and uses segmented pressure inside each 4h policy run.
 - `scripts/deploy_remote_27b_long_benchmark.sh`
   syncs the overlay, configs, load generators, and long-benchmark scripts to the
   remote server.
@@ -29,6 +32,10 @@ saturation_throughput_12h
 enterprise_mixed_trace_12h
 sticky_conversation_trace_12h
 ```
+
+`saturation_throughput_12h` writes `segment_metrics.json` in addition to the
+normal per-policy metrics so low-pressure guard, high-pressure main, and red
+burst can be scored separately.
 
 Raw `kvfabric_lifecycle.jsonl` streams are intentionally not included by
 default. Set `INCLUDE_RAW_JSONL=1` only when a specific run needs full event

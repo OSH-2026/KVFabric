@@ -73,23 +73,58 @@ class RunStats:
         self.latencies: list[float] = []
         self.recent_latencies: deque[float] = deque(maxlen=4096)
         self.sampled_outputs = 0
+        self.goodput_prompt_tokens = 0
+        self.goodput_completion_tokens = 0
+        self.goodput_total_tokens = 0
         self.class_stats: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {
-                "completed": 0,
-                "errors": 0,
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0,
-                "latencies": [],
-                "recent_latencies": deque(maxlen=1024),
-            }
+            self._new_bucket
         )
+        self.segment_stats: dict[str, dict[str, Any]] = defaultdict(
+            self._new_bucket
+        )
+
+    @staticmethod
+    def _new_bucket() -> dict[str, Any]:
+        return {
+            "completed": 0,
+            "errors": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "goodput_prompt_tokens": 0,
+            "goodput_completion_tokens": 0,
+            "goodput_total_tokens": 0,
+            "latencies": [],
+            "recent_latencies": deque(maxlen=1024),
+        }
+
+    @staticmethod
+    def _record_bucket(
+        bucket: dict[str, Any],
+        latency: float,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        slo_pass: bool,
+    ) -> None:
+        bucket["completed"] += 1
+        bucket["prompt_tokens"] += prompt_tokens
+        bucket["completion_tokens"] += completion_tokens
+        bucket["total_tokens"] += total_tokens
+        if slo_pass:
+            bucket["goodput_prompt_tokens"] += prompt_tokens
+            bucket["goodput_completion_tokens"] += completion_tokens
+            bucket["goodput_total_tokens"] += total_tokens
+        bucket["latencies"].append(latency)
+        bucket["recent_latencies"].append(latency)
 
     def record_success(
         self,
         latency: float,
         usage: dict[str, Any],
         request_class: str,
+        segment: str,
+        slo_seconds: float,
     ) -> None:
         self.completed += 1
         self.latencies.append(latency)
@@ -100,18 +135,33 @@ class RunStats:
         self.prompt_tokens += prompt_tokens
         self.completion_tokens += completion_tokens
         self.total_tokens += total_tokens
+        slo_pass = slo_seconds <= 0 or latency <= slo_seconds
+        if slo_pass:
+            self.goodput_prompt_tokens += prompt_tokens
+            self.goodput_completion_tokens += completion_tokens
+            self.goodput_total_tokens += total_tokens
 
-        class_stats = self.class_stats[request_class]
-        class_stats["completed"] += 1
-        class_stats["prompt_tokens"] += prompt_tokens
-        class_stats["completion_tokens"] += completion_tokens
-        class_stats["total_tokens"] += total_tokens
-        class_stats["latencies"].append(latency)
-        class_stats["recent_latencies"].append(latency)
+        self._record_bucket(
+            self.class_stats[request_class],
+            latency,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            slo_pass,
+        )
+        self._record_bucket(
+            self.segment_stats[segment],
+            latency,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            slo_pass,
+        )
 
-    def record_error(self, request_class: str) -> None:
+    def record_error(self, request_class: str, segment: str) -> None:
         self.errors += 1
         self.class_stats[request_class]["errors"] += 1
+        self.segment_stats[segment]["errors"] += 1
 
     def snapshot(self, now: float) -> dict[str, Any]:
         elapsed = max(now - self.started, 1e-9)
@@ -127,6 +177,12 @@ class RunStats:
             "prompt_tokens_per_second": self.prompt_tokens / elapsed,
             "completion_tokens_per_second": self.completion_tokens / elapsed,
             "total_tokens_per_second": self.total_tokens / elapsed,
+            "goodput_prompt_tokens": self.goodput_prompt_tokens,
+            "goodput_completion_tokens": self.goodput_completion_tokens,
+            "goodput_total_tokens": self.goodput_total_tokens,
+            "goodput_total_tokens_per_second": (
+                self.goodput_total_tokens / elapsed
+            ),
             "latency_avg_seconds": statistics.mean(recent) if recent else 0.0,
             "latency_p50_seconds": percentile(recent, 0.50),
             "latency_p95_seconds": percentile(recent, 0.95),
@@ -134,30 +190,23 @@ class RunStats:
         }
 
     def class_snapshot(self, elapsed: float) -> dict[str, Any]:
-        output = {}
-        for request_class, stats in sorted(self.class_stats.items()):
-            recent = list(stats["recent_latencies"])
-            completed = int(stats["completed"])
-            output[request_class] = {
-                "completed": completed,
-                "errors": int(stats["errors"]),
-                "requests_per_second": completed / elapsed,
-                "prompt_tokens": int(stats["prompt_tokens"]),
-                "completion_tokens": int(stats["completion_tokens"]),
-                "total_tokens": int(stats["total_tokens"]),
-                "total_tokens_per_second": int(stats["total_tokens"]) / elapsed,
-                "latency_avg_seconds": statistics.mean(recent) if recent else 0.0,
-                "latency_p50_seconds": percentile(recent, 0.50),
-                "latency_p95_seconds": percentile(recent, 0.95),
-            }
-        return output
+        return self._bucket_snapshot(self.class_stats, elapsed, recent=True)
 
-    def final_class_metrics(self, elapsed: float) -> dict[str, Any]:
+    def _bucket_snapshot(
+        self,
+        buckets: dict[str, dict[str, Any]],
+        elapsed: float,
+        recent: bool = False,
+    ) -> dict[str, Any]:
         output = {}
-        for request_class, stats in sorted(self.class_stats.items()):
-            latencies = list(stats["latencies"])
+        for name, stats in sorted(buckets.items()):
+            latencies = (
+                list(stats["recent_latencies"])
+                if recent
+                else list(stats["latencies"])
+            )
             completed = int(stats["completed"])
-            output[request_class] = {
+            output[name] = {
                 "completed": completed,
                 "errors": int(stats["errors"]),
                 "requests_per_second": completed / elapsed,
@@ -169,6 +218,14 @@ class RunStats:
                     int(stats["completion_tokens"]) / elapsed
                 ),
                 "total_tokens_per_second": int(stats["total_tokens"]) / elapsed,
+                "goodput_prompt_tokens": int(stats["goodput_prompt_tokens"]),
+                "goodput_completion_tokens": int(
+                    stats["goodput_completion_tokens"]
+                ),
+                "goodput_total_tokens": int(stats["goodput_total_tokens"]),
+                "goodput_total_tokens_per_second": (
+                    int(stats["goodput_total_tokens"]) / elapsed
+                ),
                 "latency_avg_seconds": statistics.mean(latencies)
                 if latencies
                 else 0.0,
@@ -177,6 +234,86 @@ class RunStats:
                 "latency_p99_seconds": percentile(latencies, 0.99),
             }
         return output
+
+    def final_class_metrics(self, elapsed: float) -> dict[str, Any]:
+        return self._bucket_snapshot(self.class_stats, elapsed)
+
+    def final_segment_metrics(
+        self,
+        segment_elapsed: dict[str, float],
+    ) -> dict[str, Any]:
+        output = {}
+        for name, stats in sorted(self.segment_stats.items()):
+            elapsed = max(segment_elapsed.get(name, 0.0), 1e-9)
+            output[name] = self._bucket_snapshot({name: stats}, elapsed)[name]
+        return output
+
+
+def build_segments(
+    config: dict[str, Any],
+    duration_seconds: float,
+    fallback_concurrency: int,
+) -> list[dict[str, Any]]:
+    loadgen = config.get("loadgen", {})
+    configured = loadgen.get("segments") or []
+    if not configured:
+        return [
+            {
+                "name": "main",
+                "start": 0.0,
+                "end": duration_seconds,
+                "duration": duration_seconds,
+                "concurrency": fallback_concurrency,
+                "score": True,
+            }
+        ]
+
+    segments: list[dict[str, Any]] = []
+    cursor = 0.0
+    for item in configured:
+        duration = float(item.get("duration_seconds", 0.0))
+        if duration <= 0:
+            continue
+        name = str(item.get("name", f"segment_{len(segments)}"))
+        concurrency = int(item.get("concurrency", fallback_concurrency))
+        segments.append(
+            {
+                "name": name,
+                "start": cursor,
+                "end": cursor + duration,
+                "duration": duration,
+                "concurrency": max(concurrency, 1),
+                "score": bool(item.get("score", True)),
+            }
+        )
+        cursor += duration
+    if not segments:
+        raise ValueError("loadgen.segments was present but empty after parsing.")
+    return segments
+
+
+def active_segment(
+    segments: list[dict[str, Any]],
+    elapsed: float,
+) -> dict[str, Any]:
+    for segment in segments:
+        if segment["start"] <= elapsed < segment["end"]:
+            return segment
+    return segments[-1]
+
+
+def segment_elapsed_map(
+    segments: list[dict[str, Any]],
+    total_elapsed: float,
+) -> dict[str, float]:
+    output: dict[str, float] = {}
+    for segment in segments:
+        elapsed = max(
+            min(total_elapsed, float(segment["end"])) - float(segment["start"]),
+            0.0,
+        )
+        output[str(segment["name"])] = elapsed
+    return output
 
 
 class PayloadSelector:
@@ -213,15 +350,21 @@ def build_payloads(config: dict[str, Any], model: str) -> list[dict[str, Any]]:
     generation = config.get("generation", {})
     payloads = []
     for index, item in enumerate(expand_requests(config)):
+        meta = item.get("meta", {})
+        max_tokens = int(
+            item.get("max_tokens")
+            or meta.get("max_tokens")
+            or generation.get("max_tokens", 32)
+        )
         payloads.append(
             {
                 "index": index,
-                "meta": item.get("meta", {}),
+                "meta": meta,
                 "payload": {
                     "model": model,
                     "messages": item["messages"],
                     "temperature": float(generation.get("temperature", 0.0)),
-                    "max_tokens": int(generation.get("max_tokens", 32)),
+                    "max_tokens": max_tokens,
                 },
             }
         )
@@ -281,12 +424,24 @@ def build_kvfabric_headers(meta: dict[str, Any]) -> dict[str, str]:
     tenant = _meta_value(meta, "tenant_id", "tenant")
     family = _meta_value(meta, "family_id", "family")
     phase = _meta_value(meta, "phase")
+    segment = _meta_value(meta, "segment")
+    session = _meta_value(meta, "session_id", "session")
+    turn = _meta_value(meta, "turn_index", "turn")
+    slo_ms = _meta_value(meta, "slo_ms")
     if tenant is not None:
         headers["x-kvfabric-tenant-id"] = tenant
     if family is not None:
         headers["x-kvfabric-family-id"] = family
     if phase is not None:
         headers["x-kvfabric-phase"] = phase
+    elif segment is not None:
+        headers["x-kvfabric-phase"] = segment
+    if session is not None:
+        headers["x-kvfabric-session-id"] = session
+    if turn is not None:
+        headers["x-kvfabric-turn-index"] = turn
+    if slo_ms is not None:
+        headers["x-kvfabric-slo-ms"] = slo_ms
     return headers
 
 
@@ -326,17 +481,29 @@ async def worker(
     counter: dict[str, int],
     sample_rng: random.Random,
     kvfabric_headers_enabled: bool,
+    segments: list[dict[str, Any]],
+    run_started: float,
+    slo_seconds: float,
 ) -> None:
     while time.perf_counter() < stop_time:
+        now = time.perf_counter()
+        elapsed = max(now - run_started, 0.0)
+        segment = active_segment(segments, elapsed)
+        segment_name = str(segment["name"])
+        if worker_id >= int(segment["concurrency"]):
+            await asyncio.sleep(0.05)
+            continue
         async with index_lock:
             if max_requests > 0 and counter["issued"] >= max_requests:
                 return
             request_no = counter["issued"]
             counter["issued"] += 1
             item = selector.select(request_no)
-        request_class = str(item.get("meta", {}).get("class", "unclassified"))
+        request_meta = dict(item.get("meta", {}))
+        request_meta["segment"] = segment_name
+        request_class = str(request_meta.get("class", "unclassified"))
         headers = (
-            build_kvfabric_headers(item["meta"])
+            build_kvfabric_headers(request_meta)
             if kvfabric_headers_enabled
             else None
         )
@@ -354,7 +521,13 @@ async def worker(
                 or sample_rng.random() < raw_sample_rate
             )
             async with stats_lock:
-                stats.record_success(latency, usage, request_class)
+                stats.record_success(
+                    latency,
+                    usage,
+                    request_class,
+                    segment_name,
+                    slo_seconds,
+                )
                 if should_sample and stats.sampled_outputs < raw_sample_limit:
                     choice = data.get("choices", [{}])[0]
                     message = choice.get("message", {})
@@ -364,7 +537,8 @@ async def worker(
                                 "worker_id": worker_id,
                                 "request_no": request_no,
                                 "source_index": item["index"],
-                                "meta": item["meta"],
+                                "meta": request_meta,
+                                "segment": segment_name,
                                 "kvfabric_headers": headers or {},
                                 "latency_seconds": latency,
                                 "usage": usage,
@@ -377,14 +551,15 @@ async def worker(
                     stats.sampled_outputs += 1
         except Exception as exc:  # noqa: BLE001
             async with stats_lock:
-                stats.record_error(request_class)
+                stats.record_error(request_class, segment_name)
                 raw_file.write(
                     json.dumps(
                         {
                             "worker_id": worker_id,
                             "request_no": request_no,
                             "source_index": item["index"],
-                            "meta": item["meta"],
+                            "meta": request_meta,
+                            "segment": segment_name,
                             "kvfabric_headers": headers or {},
                             "error": repr(exc),
                         },
@@ -465,7 +640,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     loadgen_config = config.get("loadgen", {})
-    concurrency = args.concurrency or int(config.get("concurrency", 1))
+    configured_concurrency = args.concurrency or int(config.get("concurrency", 1))
     request_selection = args.request_selection or str(
         loadgen_config.get("request_selection", "sequential")
     )
@@ -481,10 +656,19 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     payloads = build_payloads(config, args.model)
     selector = PayloadSelector(payloads, request_selection, selector_rng)
     kvfabric_headers_enabled = not args.disable_kvfabric_headers
+    segments = build_segments(
+        config,
+        args.duration_seconds,
+        configured_concurrency,
+    )
+    total_segment_duration = max(float(segment["end"]) for segment in segments)
+    effective_duration = min(args.duration_seconds, total_segment_duration)
+    concurrency = max(int(segment["concurrency"]) for segment in segments)
+    slo_seconds = float(loadgen_config.get("slo_seconds", 0.0))
     url = f"http://{args.host}:{args.port}/v1/chat/completions"
     metrics_url = f"http://{args.host}:{args.port}/metrics"
     started = time.perf_counter()
-    stop_time = started + args.duration_seconds
+    stop_time = started + effective_duration
     stats = RunStats(started=started)
     stats_lock = asyncio.Lock()
     index_lock = asyncio.Lock()
@@ -502,8 +686,12 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "port": args.port,
                 "model": args.model,
                 "concurrency": concurrency,
-                "duration_seconds": args.duration_seconds,
+                "configured_concurrency": configured_concurrency,
+                "duration_seconds": effective_duration,
+                "requested_duration_seconds": args.duration_seconds,
                 "warmup_seconds": args.warmup_seconds,
+                "segments": segments,
+                "slo_seconds": slo_seconds,
                 "payload_pool_size": len(payloads),
                 "max_requests": args.max_requests,
                 "request_selection": request_selection,
@@ -548,6 +736,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         counter=counter,
                         sample_rng=sample_rng,
                         kvfabric_headers_enabled=kvfabric_headers_enabled,
+                        segments=segments,
+                        run_started=started,
+                        slo_seconds=slo_seconds,
                     )
                 )
                 for worker_id in range(concurrency)
@@ -577,7 +768,15 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "concurrency": concurrency,
             "total_seconds": total_seconds,
             "warmup_seconds": args.warmup_seconds,
+            "segments": segments,
+            "slo_seconds": slo_seconds,
             "errors": stats.errors,
+            "goodput_prompt_tokens": stats.goodput_prompt_tokens,
+            "goodput_completion_tokens": stats.goodput_completion_tokens,
+            "goodput_total_tokens": stats.goodput_total_tokens,
+            "goodput_total_tokens_per_second": (
+                stats.goodput_total_tokens / total_seconds
+            ),
             "latency_avg_seconds": statistics.mean(latencies) if latencies else 0.0,
             "latency_p50_seconds": percentile(latencies, 0.50),
             "latency_p95_seconds": percentile(latencies, 0.95),
@@ -585,6 +784,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "request_selection": request_selection,
             "random_seed": random_seed,
             "class_metrics": stats.final_class_metrics(total_seconds),
+            "segment_metrics": stats.final_segment_metrics(
+                segment_elapsed_map(segments, total_seconds)
+            ),
         }
 
     (output_dir / "metrics.json").write_text(
@@ -592,6 +794,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     (output_dir / "class_metrics.json").write_text(
         json.dumps(metrics["class_metrics"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "segment_metrics.json").write_text(
+        json.dumps(metrics["segment_metrics"], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     (output_dir / "summary.md").write_text(
@@ -604,6 +810,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Errors: {metrics['errors']}",
                 f"- Payload pool size: {metrics['payload_pool_size']}",
                 f"- Concurrency: {metrics['concurrency']}",
+                f"- Segments: {json.dumps(segments, ensure_ascii=False)}",
+                f"- SLO seconds: {metrics['slo_seconds']:.2f}",
                 f"- Request selection: {metrics['request_selection']}",
                 f"- Random seed: {metrics['random_seed']}",
                 f"- KVFabric headers: {kvfabric_headers_enabled}",
@@ -611,6 +819,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Prompt tokens/s: {metrics['prompt_tokens_per_second']:.2f}",
                 f"- Completion tokens/s: {metrics['completion_tokens_per_second']:.2f}",
                 f"- Total tokens/s: {metrics['total_tokens_per_second']:.2f}",
+                f"- Goodput tokens/s: {metrics['goodput_total_tokens_per_second']:.2f}",
                 f"- Latency avg seconds: {metrics['latency_avg_seconds']:.2f}",
                 f"- Latency p50 seconds: {metrics['latency_p50_seconds']:.2f}",
                 f"- Latency p95 seconds: {metrics['latency_p95_seconds']:.2f}",

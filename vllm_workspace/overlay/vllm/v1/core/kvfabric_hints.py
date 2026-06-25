@@ -37,6 +37,22 @@ KVFABRIC_HINT_HEADERS = {
     "burst": (
         "x-kvfabric-burst",
     ),
+    "session_id": (
+        "x-kvfabric-session-id",
+        "x-kvfabric-session",
+    ),
+    "turn_index": (
+        "x-kvfabric-turn-index",
+        "x-kvfabric-turn",
+    ),
+    "slo_ms": (
+        "x-kvfabric-slo-ms",
+        "x-kvfabric-slo",
+    ),
+    "hint_confidence": (
+        "x-kvfabric-hint-confidence",
+        "x-kvfabric-confidence",
+    ),
 }
 
 KVFABRIC_ALL_HINT_HEADERS = tuple(
@@ -130,6 +146,10 @@ class KVFabricRequestHints:
     expected_reuse: str = "unknown"
     phase: str | None = None
     burst: bool = False
+    session_id: str | None = None
+    turn_index: int = 0
+    slo_ms: int = 0
+    hint_confidence: float = 1.0
     has_hints: bool = False
 
     @classmethod
@@ -168,6 +188,20 @@ class KVFabricRequestHints:
 
         tenant_id = _clean(values.get("tenant_id"))
         family_id = _clean(values.get("family_id"))
+        session_id = _clean(values.get("session_id"))
+        try:
+            turn_index = int(_clean(values.get("turn_index")) or 0)
+        except ValueError:
+            turn_index = 0
+        try:
+            slo_ms = int(float(_clean(values.get("slo_ms")) or 0))
+        except ValueError:
+            slo_ms = 0
+        try:
+            hint_confidence = float(_clean(values.get("hint_confidence")) or 1.0)
+        except ValueError:
+            hint_confidence = 1.0
+        hint_confidence = min(max(hint_confidence, 0.0), 1.0)
         has_hints = any(value is not None for value in values.values())
 
         return cls(
@@ -178,6 +212,10 @@ class KVFabricRequestHints:
             expected_reuse=expected_reuse,
             phase=phase,
             burst=burst,
+            session_id=session_id,
+            turn_index=max(turn_index, 0),
+            slo_ms=max(slo_ms, 0),
+            hint_confidence=hint_confidence,
             has_hints=has_hints,
         )
 
@@ -213,6 +251,10 @@ class KVFabricRequestHints:
             "hint_expected_reuse": self.expected_reuse,
             "hint_phase": self.phase,
             "hint_burst": self.burst,
+            "hint_session_id": self.session_id,
+            "hint_turn_index": self.turn_index,
+            "hint_slo_ms": self.slo_ms,
+            "hint_confidence": self.hint_confidence,
             "hint_has_hints": self.has_hints,
         }
 
@@ -222,6 +264,7 @@ class HintFamilyRuntime:
     family_key: str
     tenant_id: str | None = None
     family_id: str | None = None
+    session_id: str | None = None
     first_seen_ns: int = 0
     last_seen_ns: int = 0
     request_count: int = 0
@@ -252,6 +295,7 @@ class HintFamilyRuntime:
         self.last_seen_ns = now_ns
         self.tenant_id = hints.tenant_id or self.tenant_id
         self.family_id = hints.family_id or self.family_id
+        self.session_id = hints.session_id or self.session_id
         self.request_count += 1
         self.prompt_tokens += max(prompt_tokens, 0)
         self.class_counts[hints.request_class] += 1
@@ -302,6 +346,7 @@ class HintFamilyRuntime:
             "hint_family_key": self.family_key,
             "hint_tenant_id": self.tenant_id,
             "hint_family_id": self.family_id,
+            "hint_session_id": self.session_id,
             "hint_family_request_count": self.request_count,
             "hint_family_scheduled_count": self.scheduled_count,
             "hint_family_deferred_count": self.deferred_count,

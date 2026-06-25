@@ -45,6 +45,7 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     request_finishes = [e for e in events if e.get("event") == "request_finished"]
     request_schedules = [e for e in events if e.get("event") == "request_scheduled"]
     request_deferrals = [e for e in events if e.get("event") == "request_deferred"]
+    request_promotions = [e for e in events if e.get("event") == "request_promoted"]
     request_hints = [e for e in events if e.get("event") == "request_hints_observed"]
 
     prefix_query_tokens = sum(int(e.get("prompt_tokens", 0)) for e in prefix_lookups)
@@ -110,6 +111,10 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     deferral_risks = [
         float(e.get("eviction_risk_ratio", 0.0) or 0.0)
         for e in request_deferrals
+    ]
+    promotion_risks = [
+        float(e.get("eviction_risk_ratio", 0.0) or 0.0)
+        for e in request_promotions
     ]
     scheduled_tokens = sum(
         int(e.get("scheduled_tokens", 0) or 0) for e in request_schedules
@@ -178,6 +183,7 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         "request_finished_events": len(request_finishes),
         "request_scheduled_events": len(request_schedules),
         "request_deferred_events": len(request_deferrals),
+        "request_promoted_events": len(request_promotions),
         "request_hints_observed_events": len(request_hints),
         "request_hint_coverage_vs_finished": (
             len(request_hints) / len(request_finishes) if request_finishes else 0.0
@@ -302,6 +308,22 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "scheduler_defer_max_eviction_risk_ratio": (
             max(deferral_risks) if deferral_risks else 0.0
+        ),
+        "scheduler_promote_hint_classes": dict(
+            sorted(
+                Counter(
+                    str(e.get("hint_request_class", "unknown"))
+                    for e in request_promotions
+                ).items()
+            )
+        ),
+        "scheduler_promote_avg_eviction_risk_ratio": (
+            sum(promotion_risks) / len(promotion_risks)
+            if promotion_risks
+            else 0.0
+        ),
+        "scheduler_promote_max_eviction_risk_ratio": (
+            max(promotion_risks) if promotion_risks else 0.0
         ),
         "eviction_policies": sorted(
             {

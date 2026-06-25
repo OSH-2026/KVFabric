@@ -131,7 +131,7 @@ def build_summary(run_root: Path) -> str:
     for item in policies:
         metrics = item["metrics"]
         if not metrics:
-            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", ""])
             continue
         rows.append(
             [
@@ -140,10 +140,13 @@ def build_summary(run_root: Path) -> str:
                 number(metrics.get("errors"), 0),
                 number(metrics.get("offered_requests_per_second"), 4),
                 number(metrics.get("requests_per_second"), 4),
+                number(metrics.get("goodput_total_tokens_per_second"), 2),
                 number(metrics.get("total_tokens_per_second"), 2),
                 pct_delta(
-                    metrics.get("total_tokens_per_second"),
-                    lru_metrics.get("total_tokens_per_second"),
+                    metrics.get("goodput_total_tokens_per_second")
+                    or metrics.get("total_tokens_per_second"),
+                    lru_metrics.get("goodput_total_tokens_per_second")
+                    or lru_metrics.get("total_tokens_per_second"),
                 ),
                 number(metrics.get("latency_avg_seconds"), 3),
                 number(metrics.get("latency_p95_seconds"), 3),
@@ -158,8 +161,9 @@ def build_summary(run_root: Path) -> str:
                 "Errors",
                 "Offered req/s",
                 "Req/s",
+                "Goodput tok/s",
                 "Total tok/s",
-                "Tok/s vs LRU",
+                "Goodput vs LRU",
                 "Avg latency s",
                 "P95 latency s",
                 "Source",
@@ -209,7 +213,7 @@ def build_summary(run_root: Path) -> str:
     for item in policies:
         lifecycle = item["lifecycle"]
         if not lifecycle:
-            rows.append([item["policy"], "pending", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", ""])
             continue
         rows.append(
             [
@@ -221,6 +225,7 @@ def build_summary(run_root: Path) -> str:
                     lifecycle.get("cache_admission_avg_eviction_risk_ratio"), 2
                 ),
                 number(lifecycle.get("request_deferred_events"), 0),
+                number(lifecycle.get("request_promoted_events"), 0),
                 percent(
                     lifecycle.get("scheduler_defer_avg_eviction_risk_ratio"), 2
                 ),
@@ -235,6 +240,7 @@ def build_summary(run_root: Path) -> str:
                 "Saved ratio",
                 "Admission risk avg",
                 "Scheduler defers",
+                "Scheduler promotes",
                 "Defer risk avg",
             ],
             rows,
@@ -346,6 +352,60 @@ def build_summary(run_root: Path) -> str:
             )
             lines.append("")
 
+    segment_names = sorted(
+        {
+            segment_name
+            for item in policies
+            for segment_name in ((item["metrics"] or {}).get("segment_metrics") or {})
+        }
+    )
+    if segment_names:
+        lines.extend(["", "## Segment Metrics", ""])
+        for segment_name in segment_names:
+            rows = []
+            lru_segment = (
+                (policies[0]["metrics"] or {}).get("segment_metrics") or {}
+            ).get(segment_name, {})
+            for item in policies:
+                metrics = item["metrics"] or {}
+                segment_metrics = (metrics.get("segment_metrics") or {}).get(
+                    segment_name
+                )
+                if not segment_metrics:
+                    rows.append([item["policy"], "pending", "", "", "", "", ""])
+                    continue
+                goodput = segment_metrics.get("goodput_total_tokens_per_second")
+                rows.append(
+                    [
+                        item["policy"],
+                        number(segment_metrics.get("completed"), 0),
+                        number(segment_metrics.get("requests_per_second"), 4),
+                        number(goodput, 2),
+                        pct_delta(
+                            goodput,
+                            lru_segment.get("goodput_total_tokens_per_second"),
+                        ),
+                        number(segment_metrics.get("latency_avg_seconds"), 3),
+                        number(segment_metrics.get("latency_p95_seconds"), 3),
+                    ]
+                )
+            lines.extend([f"### {segment_name}", ""])
+            lines.extend(
+                table(
+                    [
+                        "Policy",
+                        "Completed",
+                        "Req/s",
+                        "Goodput tok/s",
+                        "Goodput vs LRU",
+                        "Avg latency s",
+                        "P95 latency s",
+                    ],
+                    rows,
+                )
+            )
+            lines.append("")
+
     lines.extend(["## Notes", ""])
     completed = [item for item in policies if item["metrics"] and item["lifecycle"]]
     if len(completed) < len(policies):
@@ -353,11 +413,14 @@ def build_summary(run_root: Path) -> str:
     else:
         best = max(
             completed,
-            key=lambda item: item["metrics"].get("total_tokens_per_second", 0),
+            key=lambda item: (
+                item["metrics"].get("goodput_total_tokens_per_second")
+                or item["metrics"].get("total_tokens_per_second", 0)
+            ),
         )
         lines.append(
             f"- Best throughput policy: `{best['policy']}` "
-            f"({number(best['metrics'].get('total_tokens_per_second'), 2)} total tok/s)."
+            f"({number(best['metrics'].get('goodput_total_tokens_per_second') or best['metrics'].get('total_tokens_per_second'), 2)} goodput tok/s)."
         )
         for item in completed:
             if item["policy"] == "lru":

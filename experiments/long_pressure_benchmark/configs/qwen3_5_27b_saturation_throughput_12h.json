@@ -1,0 +1,70 @@
+{
+  "name": "qwen3_5_27b_saturation_throughput_12h",
+  "description": "Closed-loop 12h saturation benchmark for Qwen3.5-27B-FP8 on 2x3090. It uses segmented pressure, durable hot families, sticky multi-turn follow-up, unique cold RAG churn, transient templates, cold bursts, and decode-heavy tails.",
+  "concurrency": 20,
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 64
+  },
+  "loadgen": {
+    "request_selection": "shuffle",
+    "random_seed": 20260625,
+    "slo_seconds": 25.0,
+    "segments": [
+      {
+        "name": "warmup",
+        "duration_seconds": 600,
+        "concurrency": 8,
+        "score": false
+      },
+      {
+        "name": "low_guard",
+        "duration_seconds": 1200,
+        "concurrency": 4,
+        "score": true
+      },
+      {
+        "name": "high_main",
+        "duration_seconds": 11400,
+        "concurrency": 16,
+        "score": true
+      },
+      {
+        "name": "red_burst",
+        "duration_seconds": 1200,
+        "concurrency": 20,
+        "score": true
+      }
+    ]
+  },
+  "scenario": {
+    "type": "saturation_throughput_pressure",
+    "seed": 20260625,
+    "tenant_count": 8,
+    "hot_family_count": 48,
+    "sticky_session_count": 384,
+    "rounds": 3000,
+    "hot_family_per_round": 9,
+    "sticky_followup_per_round": 5,
+    "cold_rag_per_round": 8,
+    "transient_per_round": 3,
+    "decode_every_rounds": 1,
+    "burst_every_rounds": 5,
+    "burst_cold_requests": 5,
+    "global_unit": "Stable enterprise assistant policy with tool rules, response schema, audit tags, permission boundaries, escalation logic, tenant routing hints, and long lived operational constraints. ",
+    "tenant_unit": "Tenant catalog metadata, integration names, data retention rules, field aliases, pricing groups, compliance tags, and formatting preferences remain stable across requests. ",
+    "family_unit": "Reusable workflow definitions, shared business rules, previous decision criteria, field normalization rules, approval thresholds, and repeated tool-call patterns define this family. ",
+    "sticky_unit": "Conversation history preserves prior user intent, assistant decisions, extracted fields, unresolved actions, tool observations, and follow-up constraints from earlier turns. ",
+    "cold_unit": "Unique evidence paragraph with one-off ticket notes, retrieval snippets, timestamps, numeric fields, customer details, attachments, and context that should not be reused later. ",
+    "transient_unit": "Temporary campaign template with near-duplicate labels, short lived field names, partial overlap, and suffix evidence that expires after a few requests. ",
+    "decode_unit": "Content generation brief with objectives, audience, tone, risk notes, examples, and constraints for a longer answer that stresses decode time rather than reusable prefill. ",
+    "global_repeat": 34,
+    "tenant_repeat": 14,
+    "family_repeat": 24,
+    "sticky_history_repeat": 28,
+    "cold_repeat": 92,
+    "burst_cold_repeat": 118,
+    "transient_repeat": 44,
+    "decode_repeat": 32
+  }
+}
