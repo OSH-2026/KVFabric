@@ -1,0 +1,21 @@
+# qwen3_5_27b_saturation_throughput_4h
+
+- Duration seconds: 4805.92
+- Requests: 2670
+- Errors: 0
+- Payload pool size: 81000
+- Concurrency: 20
+- Segments: [{"name": "warmup", "start": 0.0, "end": 200.0, "duration": 200.0, "concurrency": 8, "score": false}, {"name": "low_guard", "start": 200.0, "end": 600.0, "duration": 400.0, "concurrency": 4, "score": true}, {"name": "high_main", "start": 600.0, "end": 4400.0, "duration": 3800.0, "concurrency": 16, "score": true}, {"name": "red_burst", "start": 4400.0, "end": 4800.0, "duration": 400.0, "concurrency": 20, "score": true}]
+- SLO seconds: 25.00
+- Request selection: shuffle
+- Random seed: 20260625
+- KVFabric headers: True
+- Requests/s: 0.556
+- Prompt tokens/s: 1403.97
+- Completion tokens/s: 40.88
+- Total tokens/s: 1444.86
+- Goodput tokens/s: 683.39
+- Latency avg seconds: 27.00
+- Latency p50 seconds: 25.22
+- Latency p95 seconds: 32.23
+- Latency p99 seconds: 123.02
