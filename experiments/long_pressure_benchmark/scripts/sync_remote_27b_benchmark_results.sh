@@ -9,9 +9,9 @@ REMOTE_HOST="${REMOTE_HOST:-robowalker}"
 REMOTE_SSH_TARGET="${REMOTE_SSH_TARGET:-$REMOTE_HOST}"
 REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
-REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_realistic_10h_pressure_long}"
+REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_*_long}"
 REMOTE_RUN_ROOT="${REMOTE_RUN_ROOT:-}"
-REMOTE_JOB_LOG="${REMOTE_JOB_LOG:-vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_realistic_10h.log}"
+REMOTE_JOB_LOG="${REMOTE_JOB_LOG:-}"
 INCLUDE_RAW_JSONL="${INCLUDE_RAW_JSONL:-0}"
 SUMMARY_OUTPUT_NAME="${SUMMARY_OUTPUT_NAME:-remote_27b_benchmark_summary.md}"
 
@@ -21,6 +21,11 @@ ensure_long_benchmark_dirs
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then
   REMOTE_RUN_ROOT=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
     "cd '$REMOTE_PROJECT' && find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d -name '$REMOTE_RUN_PATTERN' | sort | tail -n 1")
+fi
+
+if [[ -z "$REMOTE_JOB_LOG" ]]; then
+  REMOTE_JOB_LOG=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
+    "cd '$REMOTE_PROJECT' && ls -t vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_*.log 2>/dev/null | head -n 1 || true")
 fi
 
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then
@@ -56,6 +61,8 @@ else
     --include='online_duration/env.json' \
     --include='online_duration/metrics.json' \
     --include='online_duration/class_metrics.json' \
+    --include='online_duration/segment_metrics.json' \
+    --include='online_duration/class_segment_metrics.json' \
     --include='online_duration/summary.md' \
     --include='online_duration/rolling_metrics.jsonl' \
     --include='online_duration/prometheus_cache_samples.jsonl' \
@@ -63,6 +70,8 @@ else
     --include='online_trace/env.json' \
     --include='online_trace/metrics.json' \
     --include='online_trace/class_metrics.json' \
+    --include='online_trace/segment_metrics.json' \
+    --include='online_trace/class_segment_metrics.json' \
     --include='online_trace/summary.md' \
     --include='online_trace/trace_summary.json' \
     --include='online_trace/rolling_metrics.jsonl' \
@@ -76,13 +85,15 @@ else
 fi
 
 mkdir -p "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs"
-if [[ -n "$REMOTE_SSH_OPTS" ]]; then
-  rsync -az -e "ssh $REMOTE_SSH_OPTS" \
-    "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
-    "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
-else
-  rsync -az "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
-    "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
+if [[ -n "$REMOTE_JOB_LOG" ]]; then
+  if [[ -n "$REMOTE_SSH_OPTS" ]]; then
+    rsync -az -e "ssh $REMOTE_SSH_OPTS" \
+      "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
+      "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
+  else
+    rsync -az "${REMOTE_SSH_TARGET}:${REMOTE_PROJECT}/${REMOTE_JOB_LOG}" \
+      "$PROJECT_ROOT/vllm_baseline/runtime_kvfabric_0221/jobs/" || true
+  fi
 fi
 
 summary_path="$local_run_root/$SUMMARY_OUTPUT_NAME"

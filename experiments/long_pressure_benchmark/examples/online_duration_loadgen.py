@@ -82,6 +82,9 @@ class RunStats:
         self.segment_stats: dict[str, dict[str, Any]] = defaultdict(
             self._new_bucket
         )
+        self.class_segment_stats: dict[str, dict[str, dict[str, Any]]] = (
+            defaultdict(lambda: defaultdict(self._new_bucket))
+        )
 
     @staticmethod
     def _new_bucket() -> dict[str, Any]:
@@ -94,6 +97,9 @@ class RunStats:
             "goodput_prompt_tokens": 0,
             "goodput_completion_tokens": 0,
             "goodput_total_tokens": 0,
+            "slo_pass": 0,
+            "slo_miss": 0,
+            "error_kinds": defaultdict(int),
             "latencies": [],
             "recent_latencies": deque(maxlen=1024),
         }
@@ -115,6 +121,9 @@ class RunStats:
             bucket["goodput_prompt_tokens"] += prompt_tokens
             bucket["goodput_completion_tokens"] += completion_tokens
             bucket["goodput_total_tokens"] += total_tokens
+            bucket["slo_pass"] += 1
+        else:
+            bucket["slo_miss"] += 1
         bucket["latencies"].append(latency)
         bucket["recent_latencies"].append(latency)
 
@@ -157,11 +166,24 @@ class RunStats:
             total_tokens,
             slo_pass,
         )
+        self._record_bucket(
+            self.class_segment_stats[segment][request_class],
+            latency,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            slo_pass,
+        )
 
-    def record_error(self, request_class: str, segment: str) -> None:
+    def record_error(self, request_class: str, segment: str, error_kind: str) -> None:
         self.errors += 1
-        self.class_stats[request_class]["errors"] += 1
-        self.segment_stats[segment]["errors"] += 1
+        for bucket in (
+            self.class_stats[request_class],
+            self.segment_stats[segment],
+            self.class_segment_stats[segment][request_class],
+        ):
+            bucket["errors"] += 1
+            bucket["error_kinds"][error_kind] += 1
 
     def snapshot(self, now: float) -> dict[str, Any]:
         elapsed = max(now - self.started, 1e-9)
@@ -213,6 +235,15 @@ class RunStats:
                 "prompt_tokens": int(stats["prompt_tokens"]),
                 "completion_tokens": int(stats["completion_tokens"]),
                 "total_tokens": int(stats["total_tokens"]),
+                "prompt_tokens_per_request": (
+                    int(stats["prompt_tokens"]) / completed if completed else 0.0
+                ),
+                "completion_tokens_per_request": (
+                    int(stats["completion_tokens"]) / completed if completed else 0.0
+                ),
+                "total_tokens_per_request": (
+                    int(stats["total_tokens"]) / completed if completed else 0.0
+                ),
                 "prompt_tokens_per_second": int(stats["prompt_tokens"]) / elapsed,
                 "completion_tokens_per_second": (
                     int(stats["completion_tokens"]) / elapsed
@@ -226,6 +257,12 @@ class RunStats:
                 "goodput_total_tokens_per_second": (
                     int(stats["goodput_total_tokens"]) / elapsed
                 ),
+                "slo_pass": int(stats["slo_pass"]),
+                "slo_miss": int(stats["slo_miss"]),
+                "slo_miss_rate": (
+                    int(stats["slo_miss"]) / completed if completed else 0.0
+                ),
+                "error_kinds": dict(sorted(stats["error_kinds"].items())),
                 "latency_avg_seconds": statistics.mean(latencies)
                 if latencies
                 else 0.0,
@@ -246,6 +283,16 @@ class RunStats:
         for name, stats in sorted(self.segment_stats.items()):
             elapsed = max(segment_elapsed.get(name, 0.0), 1e-9)
             output[name] = self._bucket_snapshot({name: stats}, elapsed)[name]
+        return output
+
+    def final_class_segment_metrics(
+        self,
+        segment_elapsed: dict[str, float],
+    ) -> dict[str, Any]:
+        output = {}
+        for segment_name, buckets in sorted(self.class_segment_stats.items()):
+            elapsed = max(segment_elapsed.get(segment_name, 0.0), 1e-9)
+            output[segment_name] = self._bucket_snapshot(buckets, elapsed)
         return output
 
 
@@ -423,8 +470,8 @@ def build_kvfabric_headers(meta: dict[str, Any]) -> dict[str, str]:
     }
     tenant = _meta_value(meta, "tenant_id", "tenant")
     family = _meta_value(meta, "family_id", "family")
-    phase = _meta_value(meta, "phase")
     segment = _meta_value(meta, "segment")
+    phase = segment or _meta_value(meta, "phase")
     session = _meta_value(meta, "session_id", "session")
     turn = _meta_value(meta, "turn_index", "turn")
     slo_ms = _meta_value(meta, "slo_ms")
@@ -469,6 +516,21 @@ def serialize_request_error(exc: Exception) -> dict[str, Any]:
         fields["status_code"] = exc.response.status_code
         fields["response_text"] = exc.response.text[:1000]
     return fields
+
+
+def request_error_kind(exc: Exception) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        return "timeout"
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        if 400 <= status < 500:
+            return "http_4xx"
+        if 500 <= status < 600:
+            return "http_5xx"
+        return "http_status"
+    if isinstance(exc, httpx.TransportError):
+        return "transport"
+    return "other"
 
 
 async def worker(
@@ -559,7 +621,11 @@ async def worker(
                     stats.sampled_outputs += 1
         except Exception as exc:  # noqa: BLE001
             async with stats_lock:
-                stats.record_error(request_class, segment_name)
+                stats.record_error(
+                    request_class,
+                    segment_name,
+                    request_error_kind(exc),
+                )
                 raw_file.write(
                     json.dumps(
                         {
@@ -795,6 +861,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "segment_metrics": stats.final_segment_metrics(
                 segment_elapsed_map(segments, total_seconds)
             ),
+            "class_segment_metrics": stats.final_class_segment_metrics(
+                segment_elapsed_map(segments, total_seconds)
+            ),
         }
 
     (output_dir / "metrics.json").write_text(
@@ -806,6 +875,14 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     (output_dir / "segment_metrics.json").write_text(
         json.dumps(metrics["segment_metrics"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "class_segment_metrics.json").write_text(
+        json.dumps(
+            metrics["class_segment_metrics"],
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     (output_dir / "summary.md").write_text(
