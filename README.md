@@ -2,7 +2,7 @@
 
 > 基于 vLLM Python 控制面的 KVCache 生命周期管理、共享感知驱逐与长对话压测原型
 
-[English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [Current Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Prebenchmark Validation](experiments/prebenchmark_validation/README.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
+[English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [Current Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Long Pressure Benchmark](experiments/long_pressure_benchmark/README.md) | [12h Acceptance Design](docs/current/kvfabric_12h_acceptance_experiment_design.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
 
 KVFabric 是一个围绕 LLM serving 中 KVCache 生命周期管理展开的系统项目。当前项目已经在 vLLM Python 控制面中实现了一个可运行、可观测、可 A/B 对比的 KVCache 管理原型。
 
@@ -47,22 +47,24 @@ KVFabric 是一个围绕 LLM serving 中 KVCache 生命周期管理展开的系�
 - 已完成长时间对话压测程序的设计与实现，为多轮、长上下文、相似对话和压力场景提供测试入口。
 - 已在模板化 prompt、相似多轮回访等场景中观察到 KVFabric 能减少共享主干误驱逐，提高 prefix-hit tokens，并带来小幅端到端收益。
 
-当前更稳妥的阶段性结论是：
+当前阶段性结论：
 
 - 普通无共享请求中，KVFabric 能退化为低开销路径。
 - 模板化 prompt、相似多轮对话、长期共享前缀回访等场景中，KVFabric 能明显改善 eviction quality。
 - 当前收益主要体现在 `rebuilt-from-eviction` 下降、prefix-hit tokens 增加、TTFT/E2E latency 改善和 requests/s 小幅提升。
-- 当前还不能宣称所有 workload 都有大幅吞吐提升；项目重点是解释性 KVCache 资源管理，而不是单一 raw throughput 优化。
+- 当前不把所有 workload 的 raw throughput 都归纳为大幅提升。正式结论按 workload 类型区分：普通请求看低开销退化，模板/多轮/长期 family 回访看 eviction quality、prefix-hit tokens、延迟和吞吐。
 
 ## 项目方向
 
-KVFabric 当前的项目方向是围绕 vLLM 中 KVCache 的生命周期管理做一个可观测、可解释、可对照的系统原型。项目不只是打开 prefix caching，也不是只在显存不足时临时决定驱逐谁，而是持续记录 KV block 从创建、写满、进入 prefix cache、被共享、引用归零、进入候选、被驱逐到后续重建的过程。
+KVFabric 当前的项目方向是围绕 vLLM 中 KVCache 的生命周期管理做一个可观测、可解释、可对照的系统原型。系统持续记录 KV block 从创建、写满、进入 prefix cache、被共享、引用归零、进入候选、被驱逐到后续重建的过程，并把这些信息用于共享感知驱逐、admission 和 scheduler 实验。
 
 当前实现主要落在 vLLM Python 控制面：
 
 - `vllm_workspace/overlay/vllm/v1/core/kvfabric_lifecycle.py`：维护 lifecycle side table、JSONL 事件日志、retain score、family-protect 选择器和 admission gate。
+- `vllm_workspace/overlay/vllm/v1/core/kvfabric_family.py` / `kvfabric_hints.py`：维护 prefix-family 元数据和请求 hint 元数据。
 - `vllm_workspace/overlay/vllm/v1/core/block_pool.py`：接入 block sealed、touch、free、evict 和候选选择逻辑。
 - `vllm_workspace/overlay/vllm/v1/core/kv_cache_manager.py`：记录 request 级 prefix lookup、prompt tokens 和 hit tokens。
+- `vllm_workspace/overlay/vllm/v1/core/sched/scheduler.py`：接入 hint-aware deferral 和后续 family/session affinity 调度入口。
 - `vllm_workspace/overlay/vllm/v1/core/kv_cache_metrics.py` 与 `vllm_workspace/overlay/vllm/v1/metrics/`：导出 block lookup、eviction、rebuilt、metadata overhead 等指标。
 
 策略方向分为三层：

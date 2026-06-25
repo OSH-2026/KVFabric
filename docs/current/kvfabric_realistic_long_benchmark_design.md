@@ -5,6 +5,10 @@
 目标环境：vLLM 0.22.1 overlay，`qwen3_5_27b` / `Qwen/Qwen3.5-27B-FP8`，
 远程 `robowalker`，2 x RTX 3090 24GB。
 
+更新说明：本文保留为 realistic trace 设计记录。正式 12h 验收和 30% 吞吐提升路线以
+`docs/current/kvfabric_12h_acceptance_experiment_design.md` 和
+`docs/current/kvfabric_30pct_throughput_refactor_research.md` 为准。
+
 ## 目标
 
 下一阶段长压测试需要把两个问题分开回答：
@@ -50,8 +54,7 @@
   self-consistency、tree-of-thought 都视为常见共享 prompt 结构，并展示了 cache-aware
   execution 在这些模式下的价值。来源：<https://www.lmsys.org/blog/2024-01-17-sglang/>。
 
-这些资料共同说明：下一版 benchmark 不应该只做一个“长 prompt + 短输出”的混合体，
-而应该至少覆盖三类 regime：
+这些资料给出的约束是：下一版 benchmark 需要覆盖三类 regime：
 
 1. 通用网关混合流量：可复用比例较低，请求类型更杂，有 decode-heavy 尾部。
 2. 企业 RAG/agent 流量：稳定租户、稳定业务 workflow、RAG 冷热文档、agent/tool loop。
@@ -104,17 +107,17 @@ experiments/long_pressure_benchmark/configs/qwen3_5_27b_hint_pressure_10h.json
 真实 chat completion 多轮场景通常是：客户端每一轮都把完整历史重新发送给服务端。
 因此第 `n+1` 轮请求包含第 `n` 轮的大部分 prompt，再加上新的 user/assistant 内容。
 如果同一 session 的后续 turn 到来时，前一轮 KV blocks 还留在 GPU cache 中，
-prefix reuse 应该很高。
+prefix reuse 会很高。
 
 但“多轮对话天然高复用”有几个前提：
 
 - session 的后续 turn 到达间隔不能太长；
 - 同一 session 中间不能插入过多冷 RAG 或其他租户长 prompt；
-- 客户端必须稳定地把上轮 assistant 输出原样带回；
+- 客户端稳定地把上轮 assistant 输出原样带回；
 - system prompt、tool schema、历史格式不能频繁漂移；
 - scheduler 最好能感知 session/family affinity，让同一 session 的 follow-up 不被冷流量长期挤开。
 
-因此下一版测试必须显式建模：
+因此下一版测试显式建模：
 
 - `session_id`；
 - `turn_index`；
@@ -124,28 +127,26 @@ prefix reuse 应该很高。
 - turn 级 prefix hit；
 - 冷流量冲刷后 follow-up 是否 rebuild。
 
-## 是否可以让模型自己和自己对话
+## 自对话 trace 的使用方式
 
-可以，但不应该作为正式 A/B benchmark 的在线生成方式。
+自对话适合用来离线生成 transcript，不适合作为正式 A/B benchmark 的在线生成方式。
 
 如果让模型在 benchmark 过程中实时自我对话，不同策略会生成不同 assistant 内容，
 后续 turn 的 prompt 就不再相同。这样 LRU、shared-aware、family-protect 的输入不一致，
 吞吐差异会混入“模型生成了不同历史”的变量，A/B 不干净。
 
-推荐做法是“离线自对话生成 + 固定 trace replay”：
+采用“离线自对话生成 + 固定 trace replay”：
 
 1. 先用固定模型、固定 seed、固定 prompt template 生成一批 session transcripts。
 2. 把每个 session 的每一轮 user/assistant 历史冻结下来。
 3. 正式 benchmark 中，第 `k` 轮请求发送完全相同的 message history。
 4. 所有 policy 使用同一个 trace 文件和同一批 prompt payload。
 
-可以保留一个非正式的 live self-dialogue soak，用来观察长时间稳定性、文本漂移和服务质量，
-但正式性能比较必须用 frozen transcript。
+live self-dialogue soak 可以作为稳定性观察项。正式性能比较使用 frozen transcript。
 
 ## 推荐的会话深度分布
 
-公开 trace 显示很多 conversation 很短，所以不能把所有请求都做成深度多轮。
-建议采用三套 profile：
+公开 trace 显示很多 conversation 很短，因此三套 profile 使用不同会话深度分布：
 
 | Session depth | 通用网关 | 企业混合 | 多轮高复用压力 |
 |---:|---:|---:|---:|
@@ -160,7 +161,7 @@ prefix reuse 应该很高。
 
 ## 请求类别 Profile
 
-下面的占比不是“全球真实分布”，而是透明、可复现、可讨论的测试假设。
+下面的占比是本项目采用的测试假设，报告中记录 seed 和 trace hash 以便复现。
 
 ### Profile A：General Gateway 10h
 
@@ -176,7 +177,8 @@ prefix reuse 应该很高。
 | `multi_turn_chat` | 10% | 256-4096 增长 | 32-512 | active session 内高 |
 | `decode_heavy_content` | 5% | 128-2048 | 512-2048 | 低 |
 
-预期：KVFabric 应该不退化；如果有真实 session/doc reuse，5-15% 提升是可信的。
+预期：KVFabric 在该 profile 下以不退化为底线；如果存在稳定 session/doc reuse，5-15%
+提升属于可信范围。
 如果在这个 profile 下宣称 +30%，需要非常强的 class-level 证据。
 
 ### Profile B：Enterprise RAG/Agent 10h
@@ -215,13 +217,14 @@ prefix reuse 应该很高。
 
 正式长压不应再固定 `max_tokens=32`。
 
-建议：
+采用：
 
 - 输入长度按 class 使用 Pareto + lognormal 混合分布，再按 `max_model_len` 截断；
 - 输出长度按 class 使用 exponential 或 lognormal tail；
 - 保留 decode-heavy tail，让 TPOT、decode batch 和 tail latency 进入测量；
 - qwen3_5_27b 在 2 x 3090 上，正式默认仍用 `max_model_len=4096`；
-- 8192 token 可以做 smoke 或小模型验证，但不应在 27B 上作为默认通过条件，除非先证明显存稳定。
+- 8192 token 可用于 smoke 或小模型验证；27B 正式通过条件仍以显存稳定的 4096 token
+  配置为主。
 
 推荐输出范围：
 
@@ -277,7 +280,7 @@ queueing delay、drop/timeout，而不是静默退化为 closed-loop。
 trace 生成应包含：
 
 - client-level skew：少数租户/客户端贡献大量请求；
-- per-client burstiness：使用 Gamma/Weibull 或经验 burst，不要只用固定并发；
+- per-client burstiness：使用 Gamma/Weibull 或经验 burst，避免只用固定并发；
 - session stickiness：同一 session 后续 turn 通常在 10-180 秒后到达；
 - epoch/diurnal scaling：10 小时以上 run 里模拟负载涨落；
 - cold RAG burst：真实时间窗口内集中到来，而不是只在全局 shuffle 中随机散落。
@@ -304,7 +307,7 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 
 ### Prompt drift
 
-真实应用的 prefix 不总是 byte-identical。建议加入：
+真实应用的 prefix 不总是 byte-identical。trace 中加入：
 
 | Drift mode | Share | 含义 |
 |---|---:|---|
@@ -313,7 +316,7 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 | `versioned_schema` | 10% | schema/tool 版本变化 |
 | `semantic_shift` | 5% | family_id 可能相同，但语义上不应复用 |
 
-所有 summary 必须按 drift mode 报告结果，避免策略只在完全相同 prompt 上看起来好。
+summary 按 drift mode 报告结果，避免策略只在完全相同 prompt 上显得有效。
 
 ## Hint 质量矩阵
 
@@ -348,7 +351,7 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 | `no_hint_enterprise_2h` | 2400s | Enterprise RAG/Agent | `stress_90` | `no_hints` |
 | `overload_boundary_1h` | 3600s | Enterprise RAG/Agent | `overload_105` | `noisy_hints` |
 
-2 x RTX 3090 24GB 建议：
+2 x RTX 3090 24GB 初始配置：
 
 - 默认 `max_model_len=4096`；
 - 初始 `max_num_seqs=8` 或 `10`；
@@ -357,7 +360,7 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 - 完整 `kvfabric_lifecycle.jsonl` 保留本地，不提交 Git；
 - 提交 trace summary、metrics、rolling samples、class/session/family summary。
 
-## 必须报告的指标
+## 报告指标
 
 ### Load / latency
 
@@ -400,7 +403,7 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 
 ## 成功标准
 
-不要再用一个统一的 “+30%” 判断所有 workload。
+不同 workload 使用不同验收口径：
 
 | Suite | 合理预期 |
 |---|---|
@@ -408,11 +411,11 @@ RAG 不应只有 `cold_rag` 一个类，应拆成：
 | Enterprise RAG/Agent | 高压力下 15-30% 合理 |
 | Sticky Conversation | prefix-hit 应很高，可能出现 30%+ |
 | No Hints | cache quality 仍应改善，吞吐收益可小 |
-| Noisy Hints | 不应明显退化；错 hint 的影响必须可见 |
+| Noisy Hints | 无明显退化；错 hint 的影响可见 |
 | Overload Boundary | 应改善 goodput 或尾延迟，而不只是 raw tok/s |
 
-如果只有 `full_hints` + `conversation_sticky` 能到 +30%，结论应写成
-“高复用、有较准业务 hint 的上限场景”，不能写成“通用生产服务 +30%”。
+如果只有 `full_hints` + `conversation_sticky` 能到 +30%，结论限定为
+“高复用、有较准业务 hint 的上限场景”。
 
 ## 实施计划
 
@@ -482,31 +485,19 @@ experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_resul
 - hint quality regime；
 - conversation-specific metrics。
 
-## 立即建议的下一次测试
+## 后续测试入口
 
-不要继续只调当前 `hint_pressure_10h`。下一次更有价值的是：
-
-```text
-qwen3_5_27b_enterprise_mixed_trace_12h
-profile: Enterprise RAG/Agent
-duration: 12000s per policy
-load mode: stress_90
-hint regime: partial_hints first, noisy_hints second
-max_model_len: 4096
-max_num_seqs: 10
-max_num_batched_tokens: 8192, smoke 稳定后试 16384
-policies: lru, shared_aware, family_protect, next scheduler-positive policy
-```
-
-然后补：
+当前主线转到 12h formal suites：
 
 ```text
-qwen3_5_27b_conversation_sticky_4h
+saturation_throughput_12h
+enterprise_mixed_trace_12h
+sticky_conversation_trace_12h
 ```
 
-第二个测试专门回答：当长上下文多轮对话的 prefix reuse 理论上很高时，
-KVFabric 是否真正保住并利用了 session/document prefix。正式 A/B 必须使用冻结自对话
-transcripts，而不是实时自对话。
+其中 sticky conversation 专门回答：当长上下文多轮对话的 prefix reuse 很高时，
+KVFabric 是否真正保住并利用了 session/document prefix。正式 A/B 使用冻结自对话
+transcripts。
 
 ## 结论
 

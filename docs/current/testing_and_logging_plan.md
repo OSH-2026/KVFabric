@@ -1,6 +1,6 @@
 # 当前测试、日志与复跑方案
 
-本文档描述 KVFabric 当前已经可运行的测试链路，以及最终收尾阶段建议保留的复跑和日志证据。
+本文档描述 KVFabric 当前已经可运行的测试链路，以及最终收尾阶段保留的复跑和日志证据。
 
 ## 当前已可运行的测试
 
@@ -88,7 +88,7 @@ prometheus_metrics_summary.txt
 - 普通无共享请求中，`family_protect` 基本不触发 protected deferral。
 - 模板 family 回访和相似多轮场景中，`family_protect` 能减少共享主干误驱逐，提高 prefix-hit tokens。
 
-## 推荐最终复跑矩阵
+## 最终复跑矩阵
 
 ### 1. 普通无共享场景
 
@@ -112,7 +112,7 @@ experiments/prebenchmark_validation/configs/ordinary_unique_cold.json
 experiments/prebenchmark_validation/configs/template_family_revisit.json
 ```
 
-建议参数：
+参数：
 
 ```bash
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1
@@ -137,9 +137,9 @@ experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
 - 更接近多轮对话或周期性回访；
 - 验证策略在多轮冷压力/热回访交替下是否稳定。
 
-### 4. 三组对照，可选但推荐
+### 4. 三组对照
 
-最终报告最好补齐：
+最终报告补齐：
 
 1. prefix caching off；
 2. prefix caching on + LRU；
@@ -149,7 +149,7 @@ experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
 
 ## 结果文件要求
 
-每个代表性 run 建议保留：
+每个代表性 run 保留：
 
 ```text
 <run>/
@@ -170,10 +170,10 @@ experiments/prebenchmark_validation/configs/template_family_revisit_cycles.json
 
 ## 报告解释原则
 
-最终报告中建议按三层解释结果：
+最终报告按三层解释结果：
 
 1. 行为指标：是否减少 protected/shared-anchor block 误驱逐。
 2. 复用指标：prefix-hit tokens、rebuilt-from-eviction 是否改善。
 3. 服务指标：TTFT、E2E latency、requests/s 是否改善或至少不过度退化。
 
-不要只用单一 requests/s 判断项目成败。KVFabric 当前 prototype 的主要价值是让 KVCache 资源管理更可观测、更可解释，并在长期复用结构明显的 workload 中减少错误驱逐和重复 prefill。
+最终报告按 workload 类型解释结果。普通请求看低开销退化，模板/多轮/长期 family 回访看 eviction quality、rebuilt-from-eviction、prefix-hit tokens、TTFT/E2E latency 和 requests/s。

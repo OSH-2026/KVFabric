@@ -176,8 +176,8 @@ KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24
 - 把阶段结论写成“场景化收益”，避免泛化为所有 workload 提速；
 - 明确未实现内容：非严格 chunk 级共享、真实 CoW、显式 prefix-family tree、scheduler 改调度。
 
-## 最终表述建议
+## 最终表述口径
 
-最终报告中建议采用以下口径：
+最终报告采用以下口径：
 
 > KVFabric 已经在 vLLM Python 控制面实现生命周期观测、共享主干保护和可复现 A/B 工具链。在普通无共享请求中，策略可低开销退化；在模板化 prompt、相似多轮和长期共享前缀回访场景中，KVFabric 能减少共享主干误驱逐，降低 rebuilt-from-eviction，并提高 prefix-hit tokens。当前 prototype 的收益主要来自 KVCache 资源管理质量改善，而不是对所有 workload 的通用吞吐加速。

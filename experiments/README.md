@@ -1,12 +1,13 @@
 # Experiments
 
-`experiments/` 统一管理 KVFabric 的实验资产。当前实验结构已经覆盖 baseline 预验证、真实 vLLM A/B、纯 Python 生命周期策略闭环、长时间对话压测，以及论文复现/质量评测入口。
+`experiments/` 统一管理 KVFabric 的实验资产。当前结构覆盖 baseline 预验证、真实 vLLM A/B、纯 Python 生命周期策略闭环、长时间对话压测、远程 27B 长压，以及论文复现/质量评测入口。
 
 ## 目录结构
 
 ```text
 experiments/
-├─ prebenchmark_validation/        # 真实 vLLM serving、lifecycle JSONL、A/B 验收
+├─ prebenchmark_validation/        # 早期 smoke、短验证和历史 run
+├─ long_pressure_benchmark/        # 当前远程 27B 长周期压力测试
 ├─ benchmarks/
 │  └─ lifecycle_policy/            # 纯 Python 生命周期策略最小闭环
 ├─ langtime_running_test/          # 长时间对话、多轮分叉和压力测试
@@ -16,7 +17,10 @@ experiments/
 ## 当前入口
 
 - `prebenchmark_validation/`
-  当前最重要的真实 vLLM 验证套件。覆盖 offline/online 请求、prefix reuse、cache pressure、KVFabric lifecycle JSONL、Prometheus metrics 和 LRU vs family-protect A/B。
+  早期真实 vLLM 验证套件。覆盖 offline/online 请求、prefix reuse、cache pressure、KVFabric lifecycle JSONL、Prometheus metrics 和 LRU vs family-protect A/B。新增长压不再放到这里。
+
+- `long_pressure_benchmark/`
+  当前远程 27B 长周期测试入口。正式方案包括 `saturation_throughput_12h`、`enterprise_mixed_trace_12h` 和 `sticky_conversation_trace_12h`。
 
 - `benchmarks/lifecycle_policy/`
   纯 Python 合成闭环。用于解释 lifecycle side table、LRU vs shared-aware、eviction regret 和 TTFT/吞吐代理，不直接宣称真实 GPU 性能收益。
@@ -32,7 +36,8 @@ experiments/
 1. 用 `prebenchmark_validation/` 跑真实 vLLM 小规模 A/B。
 2. 用 `benchmarks/lifecycle_policy/` 解释策略思想和指标。
 3. 用 `langtime_running_test/` 构造长对话、多轮和分叉型 workload。
-4. 用 `paper_reproductions/` 承接正式性能/质量评测扩展。
+4. 用 `long_pressure_benchmark/` 跑远程 27B 长周期压力测试。
+5. 用 `paper_reproductions/` 承接正式性能/质量评测扩展。
 
 ## 结果保存约定
 

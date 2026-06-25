@@ -2,7 +2,7 @@
 
 > A vLLM Python-control-plane prototype for KVCache lifecycle management, sharing-aware eviction, and long-dialogue stress testing.
 
-[Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [Current Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Prebenchmark Validation](experiments/prebenchmark_validation/README.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
+[Chinese README](README.md) | [Architecture](docs/architecture/overview.md) | [Current Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Long Pressure Benchmark](experiments/long_pressure_benchmark/README.md) | [12h Acceptance Design](docs/current/kvfabric_12h_acceptance_experiment_design.md) | [Research Report](docs/research/group_research/research_report.md) | [Feasibility Report](docs/reports/feasibility_report.md)
 
 KVFabric is a systems project for KVCache lifecycle management in LLM serving. The current implementation is no longer only a baseline workspace: it now contains a runnable vLLM Python-control-plane prototype with lifecycle instrumentation, event logging, metrics probes, sharing-aware policies, A/B scripts, and long-dialogue workload generation.
 
@@ -20,8 +20,8 @@ Completed work includes:
 
 - vLLM baseline validation for offline inference, OpenAI-compatible serving, and metrics collection.
 - Lifecycle probes and side-table encapsulation for allocation, sealed blocks, prefix hits, ref-count changes, evictions, and rebuild-after-eviction events.
-- vLLM overlay support for `shared_aware`, `family_protect`, admission control, JSONL lifecycle logs, and Prometheus metrics.
-- A/B validation scripts in `experiments/prebenchmark_validation/`.
+- vLLM overlay support for `shared_aware`, `family_protect`, hint-aware admission/scheduler hooks, JSONL lifecycle logs, and Prometheus metrics.
+- A/B validation scripts in `experiments/prebenchmark_validation/` and 27B long-pressure automation in `experiments/long_pressure_benchmark/`.
 - Long-dialogue stress testing in `experiments/langtime_running_test/`.
 - Initial validation showing low overhead in ordinary no-sharing workloads and better eviction quality in template-like / multi-turn reuse workloads.
 
@@ -81,7 +81,8 @@ KVFabric/
 ├─ vllm_baseline/                         # vLLM baseline service and metrics scripts
 ├─ vllm_workspace/                        # vLLM Python-control-plane overlay
 ├─ experiments/
-│  ├─ prebenchmark_validation/            # online validation, lifecycle logs, A/B reports
+│  ├─ prebenchmark_validation/            # early online validation, lifecycle logs, A/B reports
+│  ├─ long_pressure_benchmark/            # current remote 27B long-pressure suites
 │  ├─ benchmarks/lifecycle_policy/         # deterministic Python lifecycle-policy loop
 │  ├─ langtime_running_test/               # long-dialogue and multi-turn stress tests
 │  └─ paper_reproductions/                 # performance and quality benchmark workflows
@@ -115,6 +116,9 @@ Important outputs:
 - [Current Iteration Log](docs/current/kvfabric_iteration_log.md)
 - [Source Modification and Team Plan](docs/current/source_modification_and_team_plan.md)
 - [3090 Handoff](docs/current/3090_handoff.md)
+- [12h Acceptance Experiment Design](docs/current/kvfabric_12h_acceptance_experiment_design.md)
+- [30% Throughput Refactor Research](docs/current/kvfabric_30pct_throughput_refactor_research.md)
+- [Long Pressure Benchmark](experiments/long_pressure_benchmark/README.md)
 - [vLLM Overlay Workspace](vllm_workspace/README.md)
 - [Prebenchmark Validation](experiments/prebenchmark_validation/README.md)
 - [Lifecycle Policy Loop](experiments/benchmarks/lifecycle_policy/README.md)

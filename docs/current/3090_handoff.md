@@ -2,7 +2,15 @@
 
 > 3090 主实验预设统一使用 `qwen3_5_27b`。该预设名表示 27B 级目标，实际模型 ID 是 `Qwen/Qwen3.5-27B-FP8`；选择 FP8 是为了在 2x24 GiB RTX 3090 上为 KV cache 留出足够空间。历史 4070 / `qwen3_5_2b` 结果只作为趋势参考，不作为 3090 主实验命令。
 
-本文档给使用 3090ti 复跑和继续优化 KVFabric 使用。重点是：先复现当前 4070 Laptop / qwen3.5-2B 上已经验证的结论，再逐步加大模型、压力和模板化长对话场景。
+本文档给 3090 复跑和继续优化 KVFabric 使用。早期流程从 4070 Laptop / qwen3.5-2B
+结论开始复现，再逐步加大模型、压力和模板化长对话场景。当前正式长压入口已经迁移到
+`experiments/long_pressure_benchmark/`。
+
+当前长测设计入口：
+
+- `docs/current/kvfabric_12h_acceptance_experiment_design.md`
+- `docs/current/kvfabric_30pct_throughput_refactor_research.md`
+- `experiments/long_pressure_benchmark/README.md`
 
 ## 当前结论
 
@@ -27,7 +35,7 @@ bash vllm_workspace/scripts/apply_to_worktree.sh
 
 需要先确认对应模型已经下载、profile 可用、vLLM 服务能正常启动。
 
-## 推荐复跑顺序
+## 早期复跑顺序
 
 ### 1. 普通无共享场景 sanity check
 
@@ -53,7 +61,7 @@ bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
   experiments/prebenchmark_validation/configs/template_family_revisit.json
 ```
 
-注意：模板/多轮场景建议使用：
+模板/多轮场景使用：
 
 ```bash
 KVFABRIC_PROTECT_MIN_HIT_COUNT=1
@@ -130,7 +138,7 @@ experiments/prebenchmark_validation/runs/2026-xx-xx_xxxxxx_qwen3_5_27b_template_
    - `revisit_cycles`
    - `revisit_per_family`
 3. 模板/多轮场景优先保持 `KVFABRIC_PROTECT_MIN_HIT_COUNT=1`。
-4. 下一步建议做三组对照：
+4. 下一步做三组对照：
    - prefix caching off；
    - vLLM prefix caching on + LRU；
    - KVFabric `family_protect`。

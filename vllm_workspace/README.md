@@ -1,8 +1,8 @@
 # vLLM Overlay 源码工作区
 
-本目录用于管理 KVFabric 对 vLLM Python 控制面的原型改造。它不是一个可直接导入的完整 `vllm` 包，而是一组 overlay 文件：在这里维护局部改动，需要真实运行时再显式应用到 `.venv` 或完整 vLLM 源码树。
+本目录用于管理 KVFabric 对 vLLM Python 控制面的原型改造。这里维护的是 overlay 文件，运行时通过脚本应用到 `.venv` 或完整 vLLM 源码树。
 
-当前 overlay 已经不只是观测探针，而是包含：
+当前 overlay 包含：
 
 - KVFabric lifecycle side table；
 - JSONL lifecycle event logger；
@@ -10,11 +10,12 @@
 - `shared_aware` retain-score 驱逐策略；
 - `family_protect` 共享主干保护策略；
 - request-aware / length-aware admission control；
+- hint-aware scheduler/admission 实验入口；
 - 与 A/B 实验脚本对接的指标输出。
 
 ## 工作流定位
 
-采用 overlay 的原因是避免把半成品 vLLM 源码直接作为完整包导入，造成缺文件或运行行为混乱。
+overlay 工作流便于把局部改动和官方 vLLM 0.22.1 对齐，也方便在 baseline 环境和 KVFabric 环境之间切换。
 
 推荐流程：
 
@@ -37,6 +38,8 @@ bash vllm_workspace/scripts/apply_to_worktree.sh
 vllm/v1/core/block_pool.py
 vllm/v1/core/kv_cache_manager.py
 vllm/v1/core/kvfabric_lifecycle.py
+vllm/v1/core/kvfabric_family.py
+vllm/v1/core/kvfabric_hints.py
 vllm/v1/core/kv_cache_metrics.py
 vllm/v1/core/kv_cache_utils.py
 vllm/v1/core/single_type_kv_cache_manager.py
@@ -61,7 +64,7 @@ vllm/v1/core/kvfabric_lifecycle.py
 
 - `LifecycleBlockMeta`：记录 block hash、prefix depth、ref count、hit count、share degree、branch factor、recompute cost、state。
 - `EvictedShadow`：记录被驱逐 block 的摘要，用于识别后续 rebuilt-from-eviction。
-- `KVFabricLifecycleTracker`：维护 side table、事件日志、retain score、protected 判断、family protect 选择器和 admission gate。
+- `KVFabricLifecycleTracker`：维护 side table、事件日志、retain score、protected 判断、family protect 选择器、hint-aware admission 和 scheduler hook。
 
 ## 策略开关
 
@@ -76,6 +79,9 @@ KVFABRIC_PROTECT_MIN_SHARE_DEGREE=2
 KVFABRIC_PROTECT_MIN_BRANCH_FACTOR=1
 KVFABRIC_ADMISSION_MIN_PROMPT_TOKENS=800
 KVFABRIC_ADMISSION_ANCHOR_BLOCKS=24
+KVFABRIC_HINTS=1
+KVFABRIC_HINT_ADMISSION=1
+KVFABRIC_HINT_SCHEDULER=1
 KVFABRIC_RANK_LOG_CANDIDATES=0|1
 ```
 
@@ -95,6 +101,8 @@ JSONL 事件包括：
 - `block_touched`
 - `ref_count_changed`
 - `cache_admission_limited`
+- `request_hints_observed`
+- `request_deferred`
 - `eviction_candidates_ranked`
 - `block_evicted`
 - `lifecycle_reset`
@@ -187,9 +195,9 @@ bash experiments/prebenchmark_validation/scripts/run_kvfabric_ab_smoke.sh \
 
 ## 当前结论
 
-当前 overlay 已经支持真实 vLLM 控制面的 lifecycle 事件闭环和初步策略验证。更稳妥的阶段性结论是：
+当前 overlay 已经支持真实 vLLM 控制面的 lifecycle 事件闭环和初步策略验证。阶段性结论：
 
 - 普通无共享场景中，KVFabric 能低开销退化。
 - 模板化 prompt、相似多轮和长期 family 回访场景中，`family_protect` 能降低共享主干误驱逐。
 - 当前 prototype 的收益主要体现在 eviction quality、rebuilt-from-eviction、prefix-hit tokens 和部分请求级指标上。
-- 非严格 chunk 级共享、真实 CoW、显式 prefix-family tree 和 scheduler 改调度尚未实现。
+- 完整 chunk 级共享、真实 CoW、跨请求物理 block 去重、深度 scheduler 改调度仍是后续工作。
