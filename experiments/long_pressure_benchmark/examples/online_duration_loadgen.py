@@ -463,6 +463,14 @@ async def post_chat(
     return time.perf_counter() - started, response.json()
 
 
+def serialize_request_error(exc: Exception) -> dict[str, Any]:
+    fields: dict[str, Any] = {"error": repr(exc)}
+    if isinstance(exc, httpx.HTTPStatusError):
+        fields["status_code"] = exc.response.status_code
+        fields["response_text"] = exc.response.text[:1000]
+    return fields
+
+
 async def worker(
     worker_id: int,
     client: httpx.AsyncClient,
@@ -561,7 +569,7 @@ async def worker(
                             "meta": request_meta,
                             "segment": segment_name,
                             "kvfabric_headers": headers or {},
-                            "error": repr(exc),
+                            **serialize_request_error(exc),
                         },
                         ensure_ascii=False,
                     )

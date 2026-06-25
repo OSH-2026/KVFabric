@@ -673,6 +673,9 @@ def expand_saturation_throughput_pressure_requests(scenario: dict) -> list[dict]
     tenant_repeat = int(scenario.get("tenant_repeat", 14))
     family_repeat = int(scenario.get("family_repeat", 24))
     sticky_history_repeat = int(scenario.get("sticky_history_repeat", 28))
+    sticky_history_growth = int(scenario.get("sticky_history_growth", 2))
+    sticky_history_turn_cap = int(scenario.get("sticky_history_turn_cap", 12))
+    sticky_max_tokens = int(scenario.get("sticky_max_tokens", 64))
     cold_repeat = int(scenario.get("cold_repeat", 92))
     burst_cold_repeat = int(scenario.get("burst_cold_repeat", 118))
     transient_repeat = int(scenario.get("transient_repeat", 44))
@@ -732,7 +735,10 @@ def expand_saturation_throughput_pressure_requests(scenario: dict) -> list[dict]
         turn = sticky_turns[session]
         tenant = session % tenant_count
         family = session % hot_family_count
-        history_repeat = sticky_history_repeat + min(turn, 16) * 3
+        history_repeat = (
+            sticky_history_repeat
+            + min(turn, sticky_history_turn_cap) * sticky_history_growth
+        )
         system = (
             tenant_prefix(tenant)
             + f"Sticky support session {session + 1}; durable family {family + 1}. "
@@ -751,7 +757,9 @@ def expand_saturation_throughput_pressure_requests(scenario: dict) -> list[dict]
                 "phase": "high_main",
                 "cache_priority": "high",
                 "expected_reuse": "durable",
-                "max_tokens": 96,
+                "max_tokens": sticky_max_tokens,
+                "history_repeat": history_repeat,
+                "context_budget": "max_model_len_4096",
             },
             "messages": [
                 {"role": "system", "content": system},
