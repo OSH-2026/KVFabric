@@ -14,6 +14,7 @@ REMOTE_PRESET="${REMOTE_PRESET:-qwen3_5_27b}"
 REMOTE_JOB_NAME="${REMOTE_JOB_NAME:-remote_27b_4h_suite}"
 
 KVFABRIC_AB_POLICIES="${KVFABRIC_AB_POLICIES:-lru shared_aware family_protect}"
+KVFABRIC_4H_SUITE_ITEMS="${KVFABRIC_4H_SUITE_ITEMS:-saturation_throughput enterprise_mixed_trace sticky_conversation_trace}"
 KVFABRIC_4H_SUITE_SKIP_EXISTING="${KVFABRIC_4H_SUITE_SKIP_EXISTING:-1}"
 
 LONG_BENCH_DURATION_SECONDS="${LONG_BENCH_DURATION_SECONDS:-4800}"
@@ -80,6 +81,7 @@ cd "$REMOTE_PROJECT"
 export VLLM_VENV_DIR="$REMOTE_VENV"
 export VLLM_SERVER_START_TIMEOUT="\${VLLM_SERVER_START_TIMEOUT:-900}"
 export KVFABRIC_AB_POLICIES="$KVFABRIC_AB_POLICIES"
+export KVFABRIC_4H_SUITE_ITEMS="$KVFABRIC_4H_SUITE_ITEMS"
 export KV_CACHE_METRICS_SAMPLE="$KV_CACHE_METRICS_SAMPLE"
 export KVFABRIC_LOG_BUFFER_SIZE="$KVFABRIC_LOG_BUFFER_SIZE"
 export KVFABRIC_RANK_LOG_CANDIDATES="\${KVFABRIC_RANK_LOG_CANDIDATES:-0}"
@@ -108,69 +110,75 @@ export KVFABRIC_ADMISSION_COLD_DISCOVERY_TOKENS="$KVFABRIC_ADMISSION_COLD_DISCOV
 export KVFABRIC_ADMISSION_REUSE_MIN_HIT_TOKENS="$KVFABRIC_ADMISSION_REUSE_MIN_HIT_TOKENS"
 export KVFABRIC_ADMISSION_HEAD_WINDOW="$KVFABRIC_ADMISSION_HEAD_WINDOW"
 
-if [[ "$KVFABRIC_4H_SUITE_SKIP_EXISTING" == "1" ]] && \
-  find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d \
-    \( -name '*_qwen3_5_27b_saturation_throughput_4h_long' -o -name '*_qwen3_5_27b_saturation_throughput_4h_trace_long' \) \
-    | grep -q .; then
-  echo "Skipping qwen3_5_27b_saturation_throughput_4h: existing run found."
-else
-  echo "Starting qwen3_5_27b_saturation_throughput_4h."
-  LONG_BENCH_DURATION_SECONDS="$LONG_BENCH_DURATION_SECONDS" \
-  LONG_BENCH_WARMUP_SECONDS="$LONG_BENCH_WARMUP_SECONDS" \
-  LONG_BENCH_CONCURRENCY="$LONG_BENCH_CONCURRENCY" \
-  LONG_BENCH_MAX_MODEL_LEN="$LONG_BENCH_MAX_MODEL_LEN" \
-  LONG_BENCH_MAX_NUM_SEQS="$LONG_BENCH_MAX_NUM_SEQS" \
-  LONG_BENCH_MAX_NUM_BATCHED_TOKENS="$LONG_BENCH_MAX_NUM_BATCHED_TOKENS" \
-  LONG_BENCH_TIMEOUT_SECONDS="$LONG_BENCH_TIMEOUT_SECONDS" \
-  LONG_BENCH_RAW_SAMPLE_RATE="$LONG_BENCH_RAW_SAMPLE_RATE" \
-  LONG_BENCH_RAW_SAMPLE_LIMIT="$LONG_BENCH_RAW_SAMPLE_LIMIT" \
-    bash experiments/long_pressure_benchmark/scripts/run_remote_27b_long_benchmark.sh \
-      "$REMOTE_PRESET" \
-      experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_4h.json
+if [[ " $KVFABRIC_4H_SUITE_ITEMS " == *" saturation_throughput "* ]]; then
+  if [[ "$KVFABRIC_4H_SUITE_SKIP_EXISTING" == "1" ]] && \
+    find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d \
+      \( -name '*_qwen3_5_27b_saturation_throughput_4h_long' -o -name '*_qwen3_5_27b_saturation_throughput_4h_trace_long' \) \
+      | grep -q .; then
+    echo "Skipping qwen3_5_27b_saturation_throughput_4h: existing run found."
+  else
+    echo "Starting qwen3_5_27b_saturation_throughput_4h."
+    LONG_BENCH_DURATION_SECONDS="$LONG_BENCH_DURATION_SECONDS" \
+    LONG_BENCH_WARMUP_SECONDS="$LONG_BENCH_WARMUP_SECONDS" \
+    LONG_BENCH_CONCURRENCY="$LONG_BENCH_CONCURRENCY" \
+    LONG_BENCH_MAX_MODEL_LEN="$LONG_BENCH_MAX_MODEL_LEN" \
+    LONG_BENCH_MAX_NUM_SEQS="$LONG_BENCH_MAX_NUM_SEQS" \
+    LONG_BENCH_MAX_NUM_BATCHED_TOKENS="$LONG_BENCH_MAX_NUM_BATCHED_TOKENS" \
+    LONG_BENCH_TIMEOUT_SECONDS="$LONG_BENCH_TIMEOUT_SECONDS" \
+    LONG_BENCH_RAW_SAMPLE_RATE="$LONG_BENCH_RAW_SAMPLE_RATE" \
+    LONG_BENCH_RAW_SAMPLE_LIMIT="$LONG_BENCH_RAW_SAMPLE_LIMIT" \
+      bash experiments/long_pressure_benchmark/scripts/run_remote_27b_long_benchmark.sh \
+        "$REMOTE_PRESET" \
+        experiments/long_pressure_benchmark/configs/qwen3_5_27b_saturation_throughput_4h.json
+  fi
 fi
 
-if [[ "$KVFABRIC_4H_SUITE_SKIP_EXISTING" == "1" ]] && \
-  find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d \
-    \( -name '*_qwen3_5_27b_enterprise_mixed_trace_4h_long' -o -name '*_qwen3_5_27b_enterprise_mixed_trace_4h_trace_long' \) \
-    | grep -q .; then
-  echo "Skipping qwen3_5_27b_enterprise_mixed_trace_4h: existing run found."
-else
-  echo "Starting qwen3_5_27b_enterprise_mixed_trace_4h."
-  TRACE_BENCH_HINT_REGIME="$TRACE_BENCH_HINT_REGIME" \
-  TRACE_BENCH_MAX_MODEL_LEN="$TRACE_BENCH_MAX_MODEL_LEN" \
-  TRACE_BENCH_MAX_NUM_SEQS="$TRACE_BENCH_MAX_NUM_SEQS" \
-  TRACE_BENCH_MAX_NUM_BATCHED_TOKENS="$TRACE_BENCH_MAX_NUM_BATCHED_TOKENS" \
-  TRACE_BENCH_MAX_IN_FLIGHT="$TRACE_BENCH_MAX_IN_FLIGHT" \
-  TRACE_BENCH_WARMUP_SECONDS="$TRACE_BENCH_WARMUP_SECONDS" \
-  TRACE_BENCH_TIMEOUT_SECONDS="$TRACE_BENCH_TIMEOUT_SECONDS" \
-  TRACE_BENCH_METRICS_INTERVAL="$TRACE_BENCH_METRICS_INTERVAL" \
-  TRACE_BENCH_RAW_SAMPLE_RATE="$TRACE_BENCH_RAW_SAMPLE_RATE" \
-  TRACE_BENCH_RAW_SAMPLE_LIMIT="$TRACE_BENCH_RAW_SAMPLE_LIMIT" \
-    bash experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh \
-      "$REMOTE_PRESET" \
-      experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_4h.json
+if [[ " $KVFABRIC_4H_SUITE_ITEMS " == *" enterprise_mixed_trace "* ]]; then
+  if [[ "$KVFABRIC_4H_SUITE_SKIP_EXISTING" == "1" ]] && \
+    find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d \
+      \( -name '*_qwen3_5_27b_enterprise_mixed_trace_4h_long' -o -name '*_qwen3_5_27b_enterprise_mixed_trace_4h_trace_long' \) \
+      | grep -q .; then
+    echo "Skipping qwen3_5_27b_enterprise_mixed_trace_4h: existing run found."
+  else
+    echo "Starting qwen3_5_27b_enterprise_mixed_trace_4h."
+    TRACE_BENCH_HINT_REGIME="$TRACE_BENCH_HINT_REGIME" \
+    TRACE_BENCH_MAX_MODEL_LEN="$TRACE_BENCH_MAX_MODEL_LEN" \
+    TRACE_BENCH_MAX_NUM_SEQS="$TRACE_BENCH_MAX_NUM_SEQS" \
+    TRACE_BENCH_MAX_NUM_BATCHED_TOKENS="$TRACE_BENCH_MAX_NUM_BATCHED_TOKENS" \
+    TRACE_BENCH_MAX_IN_FLIGHT="$TRACE_BENCH_MAX_IN_FLIGHT" \
+    TRACE_BENCH_WARMUP_SECONDS="$TRACE_BENCH_WARMUP_SECONDS" \
+    TRACE_BENCH_TIMEOUT_SECONDS="$TRACE_BENCH_TIMEOUT_SECONDS" \
+    TRACE_BENCH_METRICS_INTERVAL="$TRACE_BENCH_METRICS_INTERVAL" \
+    TRACE_BENCH_RAW_SAMPLE_RATE="$TRACE_BENCH_RAW_SAMPLE_RATE" \
+    TRACE_BENCH_RAW_SAMPLE_LIMIT="$TRACE_BENCH_RAW_SAMPLE_LIMIT" \
+      bash experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh \
+        "$REMOTE_PRESET" \
+        experiments/long_pressure_benchmark/configs/qwen3_5_27b_enterprise_mixed_trace_4h.json
+  fi
 fi
 
-if [[ "$KVFABRIC_4H_SUITE_SKIP_EXISTING" == "1" ]] && \
-  find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d \
-    \( -name '*_qwen3_5_27b_sticky_conversation_trace_4h_long' -o -name '*_qwen3_5_27b_sticky_conversation_trace_4h_trace_long' \) \
-    | grep -q .; then
-  echo "Skipping qwen3_5_27b_sticky_conversation_trace_4h: existing run found."
-else
-  echo "Starting qwen3_5_27b_sticky_conversation_trace_4h."
-  TRACE_BENCH_HINT_REGIME="$TRACE_BENCH_HINT_REGIME" \
-  TRACE_BENCH_MAX_MODEL_LEN="$TRACE_BENCH_MAX_MODEL_LEN" \
-  TRACE_BENCH_MAX_NUM_SEQS="$TRACE_BENCH_MAX_NUM_SEQS" \
-  TRACE_BENCH_MAX_NUM_BATCHED_TOKENS="$TRACE_BENCH_MAX_NUM_BATCHED_TOKENS" \
-  TRACE_BENCH_MAX_IN_FLIGHT="$TRACE_BENCH_MAX_IN_FLIGHT" \
-  TRACE_BENCH_WARMUP_SECONDS="$TRACE_BENCH_WARMUP_SECONDS" \
-  TRACE_BENCH_TIMEOUT_SECONDS="$TRACE_BENCH_TIMEOUT_SECONDS" \
-  TRACE_BENCH_METRICS_INTERVAL="$TRACE_BENCH_METRICS_INTERVAL" \
-  TRACE_BENCH_RAW_SAMPLE_RATE="$TRACE_BENCH_RAW_SAMPLE_RATE" \
-  TRACE_BENCH_RAW_SAMPLE_LIMIT="$TRACE_BENCH_RAW_SAMPLE_LIMIT" \
-    bash experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh \
-      "$REMOTE_PRESET" \
-      experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_4h.json
+if [[ " $KVFABRIC_4H_SUITE_ITEMS " == *" sticky_conversation_trace "* ]]; then
+  if [[ "$KVFABRIC_4H_SUITE_SKIP_EXISTING" == "1" ]] && \
+    find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d \
+      \( -name '*_qwen3_5_27b_sticky_conversation_trace_4h_long' -o -name '*_qwen3_5_27b_sticky_conversation_trace_4h_trace_long' \) \
+      | grep -q .; then
+    echo "Skipping qwen3_5_27b_sticky_conversation_trace_4h: existing run found."
+  else
+    echo "Starting qwen3_5_27b_sticky_conversation_trace_4h."
+    TRACE_BENCH_HINT_REGIME="$TRACE_BENCH_HINT_REGIME" \
+    TRACE_BENCH_MAX_MODEL_LEN="$TRACE_BENCH_MAX_MODEL_LEN" \
+    TRACE_BENCH_MAX_NUM_SEQS="$TRACE_BENCH_MAX_NUM_SEQS" \
+    TRACE_BENCH_MAX_NUM_BATCHED_TOKENS="$TRACE_BENCH_MAX_NUM_BATCHED_TOKENS" \
+    TRACE_BENCH_MAX_IN_FLIGHT="$TRACE_BENCH_MAX_IN_FLIGHT" \
+    TRACE_BENCH_WARMUP_SECONDS="$TRACE_BENCH_WARMUP_SECONDS" \
+    TRACE_BENCH_TIMEOUT_SECONDS="$TRACE_BENCH_TIMEOUT_SECONDS" \
+    TRACE_BENCH_METRICS_INTERVAL="$TRACE_BENCH_METRICS_INTERVAL" \
+    TRACE_BENCH_RAW_SAMPLE_RATE="$TRACE_BENCH_RAW_SAMPLE_RATE" \
+    TRACE_BENCH_RAW_SAMPLE_LIMIT="$TRACE_BENCH_RAW_SAMPLE_LIMIT" \
+      bash experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh \
+        "$REMOTE_PRESET" \
+        experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_4h.json
+  fi
 fi
 
 bash vllm_baseline/scripts/stop_server.sh "$REMOTE_PRESET" || true

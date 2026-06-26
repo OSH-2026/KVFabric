@@ -96,6 +96,9 @@ Run all missing 4h suites in order:
 bash experiments/long_pressure_benchmark/scripts/run_remote_27b_4h_benchmark_suite.sh
 ```
 
+Set `KVFABRIC_4H_SUITE_ITEMS` to run only selected suites, for example
+`enterprise_mixed_trace sticky_conversation_trace`.
+
 Or start one suite directly:
 
 ```bash
