@@ -25,6 +25,9 @@ Main entry points:
   start short acceptance runs. These keep the same workload mix and pressure
   settings as the formal suites, but reduce each policy run to 80 minutes so
   the three-policy A/B finishes in roughly 4 hours.
+- `scripts/run_remote_27b_4h_benchmark_suite.sh`
+  starts the three short suites in order and skips suites that already have a
+  remote run directory by default.
 - `scripts/deploy_remote_27b_long_benchmark.sh`
   syncs the overlay, configs, load generators, and long-benchmark scripts to the
   remote server.

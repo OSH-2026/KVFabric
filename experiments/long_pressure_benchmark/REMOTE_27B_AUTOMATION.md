@@ -90,6 +90,14 @@ bash experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversat
 These launch the same three-policy A/B structure as the formal suites, but each
 policy runs for 80 minutes.
 
+Run all missing 4h suites in order:
+
+```bash
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_4h_benchmark_suite.sh
+```
+
+Or start one suite directly:
+
 ```bash
 bash experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh
 bash experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh

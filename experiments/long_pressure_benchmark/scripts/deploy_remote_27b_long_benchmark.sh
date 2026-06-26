@@ -45,6 +45,7 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_4h_benchmark_suite.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_trace_long_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh"
@@ -85,6 +86,7 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/prebenchmark_validation/scripts/run_remote_27b_hint_pressure_10h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh \
+    experiments/prebenchmark_validation/scripts/run_remote_27b_4h_benchmark_suite.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_trace_long_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh \
     experiments/prebenchmark_validation/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh \
