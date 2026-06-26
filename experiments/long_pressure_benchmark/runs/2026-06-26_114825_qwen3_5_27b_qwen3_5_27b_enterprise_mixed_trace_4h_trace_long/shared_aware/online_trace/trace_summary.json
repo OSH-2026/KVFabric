@@ -1,0 +1,58 @@
+{
+  "trace_sha256": "cec75222d7fe1ad11b079596b77f8e15a569249d828bcb99c27165ef2f21037f",
+  "settings": {
+    "profile": "enterprise_mixed",
+    "duration_seconds": 4800,
+    "request_rate": 0.18,
+    "seed": 20260624,
+    "max_model_len": 4096,
+    "load_mode": "stress_90",
+    "hint_regime": "partial_hints",
+    "config_name": "qwen3_5_27b_enterprise_mixed_trace_4h"
+  },
+  "requests": 1055,
+  "duration_seconds": 4800.0,
+  "request_rate": 0.18,
+  "actual_request_rate": 0.21979166666666666,
+  "class_counts": {
+    "agent_tool_loop": 270,
+    "decode_heavy_report": 34,
+    "extraction_classification": 35,
+    "multi_turn_support": 317,
+    "rag_qa_cold_docs": 155,
+    "rag_qa_hot_docs": 106,
+    "tenant_workflow_hot": 138
+  },
+  "expected_reuse_counts": {
+    "durable": 865,
+    "none": 155,
+    "unknown": 35
+  },
+  "cache_priority_counts": {
+    "high": 865,
+    "low": 155,
+    "normal": 35
+  },
+  "session_turn_counts": {
+    "1": 207,
+    "2": 116,
+    "3": 96,
+    "4": 63,
+    "5": 30,
+    "6": 25,
+    "7": 16,
+    "8": 12,
+    "9": 6,
+    "10": 5,
+    "11": 2,
+    "12": 2,
+    "13": 2,
+    "14": 2,
+    "15": 2,
+    "16": 1
+  },
+  "session_requests": 587,
+  "unique_sessions": 207,
+  "unique_families": 345,
+  "unique_tenants": 12
+}
