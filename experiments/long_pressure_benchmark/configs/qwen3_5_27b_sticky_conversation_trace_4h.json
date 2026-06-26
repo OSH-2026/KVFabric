@@ -1,6 +1,6 @@
 {
   "name": "qwen3_5_27b_sticky_conversation_trace_4h",
-  "description": "Short 4h version of qwen3_5_27b_sticky_conversation_trace_12h. It keeps the same sticky conversation trace profile, pressure, seed, and hint regime, with each policy replaying an 80 minute trace.",
+  "description": "Short 4h version of qwen3_5_27b_sticky_conversation_trace_12h. It keeps the same sticky conversation profile, pressure, seed, and hint regime, while using the sticky scheduler fairness profile from the remote launcher.",
   "trace": {
     "profile": "conversation_sticky",
     "duration_seconds": 4800,
@@ -11,11 +11,11 @@
     "hint_regime": "partial_hints"
   },
   "loadgen": {
-    "max_in_flight": 32,
+    "max_in_flight": 40,
     "metrics_interval": 30,
     "raw_sample_rate": 0.02,
     "raw_sample_limit": 2000,
     "warmup_seconds": 100,
-    "timeout_seconds": 900
+    "timeout_seconds": 1200
   }
 }

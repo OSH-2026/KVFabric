@@ -8,6 +8,7 @@ import platform
 import random
 import statistics
 import time
+from collections import Counter
 from collections import defaultdict
 from collections import deque
 from pathlib import Path
@@ -138,11 +139,13 @@ class RunStats:
         self.queue_delays: list[float] = []
         self.recent_latencies: deque[float] = deque(maxlen=4096)
         self.sampled_outputs = 0
+        self.error_types: Counter[str] = Counter()
         self.class_stats: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "offered": 0,
                 "completed": 0,
                 "errors": 0,
+                "error_types": Counter(),
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
                 "total_tokens": 0,
@@ -160,6 +163,7 @@ class RunStats:
             "total_tokens": 0,
             "latencies": [],
             "send_delays": [],
+            "error_types": Counter(),
         }
 
     def record_offered(self, request_class: str, measured: bool) -> None:
@@ -207,14 +211,18 @@ class RunStats:
     def record_error(
         self,
         request_class: str,
+        error_type: str,
         send_delay: float,
         measured: bool,
     ) -> None:
         self.errors += 1
+        self.error_types[error_type] += 1
         self.class_stats[request_class]["errors"] += 1
+        self.class_stats[request_class]["error_types"][error_type] += 1
         self.send_delays.append(send_delay)
         if measured:
             self.measured["errors"] += 1
+            self.measured["error_types"][error_type] += 1
             self.measured["send_delays"].append(send_delay)
 
     def _base_snapshot(
@@ -291,6 +299,7 @@ class RunStats:
                     list(stats["send_delays"]),
                 ),
                 "offered": int(stats["offered"]),
+                "error_types": dict(sorted(stats["error_types"].items())),
             }
         return {
             **measured,
@@ -300,6 +309,8 @@ class RunStats:
             "measured_elapsed_seconds": measured_elapsed,
             "offered": self.offered,
             "measured_offered": int(self.measured["offered"]),
+            "error_types": dict(sorted(self.measured["error_types"].items())),
+            "full_run_error_types": dict(sorted(self.error_types.items())),
             "offered_requests_per_second": (
                 self.offered / elapsed if elapsed > 0 else 0.0
             ),
@@ -543,8 +554,14 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                 raw_file.flush()
                                 stats.sampled_outputs += 1
                     except Exception as exc:  # noqa: BLE001
+                        error_type = type(exc).__name__
                         async with stats_lock:
-                            stats.record_error(request_class, send_delay, measured)
+                            stats.record_error(
+                                request_class,
+                                error_type,
+                                send_delay,
+                                measured,
+                            )
                             raw_file.write(
                                 json.dumps(
                                     {
@@ -554,6 +571,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                         "hint_regime": hint_regime,
                                         "headers": headers or {},
                                         "send_delay_seconds": send_delay,
+                                        "error_type": error_type,
                                         "error": repr(exc),
                                     },
                                     ensure_ascii=False,

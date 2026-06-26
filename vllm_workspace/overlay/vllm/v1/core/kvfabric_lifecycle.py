@@ -243,6 +243,18 @@ class KVFabricLifecycleTracker:
         self.scheduler_defer_max_per_step = int(
             os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP", "4")
         )
+        self.scheduler_defer_max_count = int(
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_COUNT", "0")
+        )
+        self.scheduler_defer_low_reuse_max_count = int(
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT", "0")
+        )
+        self.scheduler_defer_max_age_ms = int(
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS", "0")
+        )
+        self.scheduler_defer_low_reuse_max_age_ms = int(
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS", "0")
+        )
         self.scheduler_positive_scan_window = int(
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW", "0")
         )
@@ -385,6 +397,14 @@ class KVFabricLifecycleTracker:
             ),
             scheduler_positive_session_turn_bonus=(
                 self.scheduler_positive_session_turn_bonus
+            ),
+            scheduler_defer_max_count=self.scheduler_defer_max_count,
+            scheduler_defer_low_reuse_max_count=(
+                self.scheduler_defer_low_reuse_max_count
+            ),
+            scheduler_defer_max_age_ms=self.scheduler_defer_max_age_ms,
+            scheduler_defer_low_reuse_max_age_ms=(
+                self.scheduler_defer_low_reuse_max_age_ms
             ),
         )
 
@@ -705,6 +725,51 @@ class KVFabricLifecycleTracker:
         if hints.is_transient:
             return "hint_transient_cold_miss", threshold
         return f"hint_{hints.request_class}_cold_miss", threshold
+
+    def _emit_defer_skipped(
+        self,
+        request_id: str,
+        prompt_tokens: int,
+        hit_tokens: int,
+        waiting_queue_size: int,
+        token_budget: int,
+        eviction_risk_ratio: float,
+        defer_reason: str,
+        skip_reason: str,
+        threshold: float,
+        request_age_ms: float,
+        deferred_count: int,
+    ) -> None:
+        if not self.scheduler_trace:
+            return
+        hints = self._get_request_hints(request_id)
+        runtime = self.hint_family_index.get(hints)
+        payload = {
+            "request_id": request_id,
+            "prompt_tokens": prompt_tokens,
+            "hit_tokens": hit_tokens,
+            "waiting_queue_size": waiting_queue_size,
+            "token_budget": token_budget,
+            "eviction_risk_ratio": eviction_risk_ratio,
+            "scheduler_affinity": self.scheduler_affinity,
+            "defer_reason": defer_reason,
+            "skip_reason": skip_reason,
+            "defer_threshold": threshold,
+            "request_age_ms": request_age_ms,
+            "deferred_count": deferred_count,
+            "scheduler_defer_max_count": self.scheduler_defer_max_count,
+            "scheduler_defer_low_reuse_max_count": (
+                self.scheduler_defer_low_reuse_max_count
+            ),
+            "scheduler_defer_max_age_ms": self.scheduler_defer_max_age_ms,
+            "scheduler_defer_low_reuse_max_age_ms": (
+                self.scheduler_defer_low_reuse_max_age_ms
+            ),
+            **self._hint_event_fields(request_id),
+        }
+        if runtime is not None:
+            payload.update(runtime.event_fields())
+        self._emit("request_defer_skipped", **payload)
 
     def on_block_allocated(self, block: "KVCacheBlock") -> None:
         if not self.enabled or block.is_null:
@@ -1163,24 +1228,117 @@ class KVFabricLifecycleTracker:
         if token_budget <= 0:
             return False
 
-        request_meta = self.requests.get(request_id)
-        request_class = (
-            request_meta.request_class
-            if request_meta is not None
-            else self._classify_request(prompt_tokens, hit_tokens)
-        )
+        now_ns = time.monotonic_ns()
+        request_meta = self._get_or_create_request(request_id, now_ns=now_ns)
+        request_meta.prompt_tokens = max(request_meta.prompt_tokens, prompt_tokens)
+        request_meta.last_update_time_ns = now_ns
+        request_class = request_meta.request_class
+        if request_class == "unknown":
+            request_class = self._classify_request(prompt_tokens, hit_tokens)
+            request_meta.request_class = request_class
         hints = self._get_request_hints(request_id)
+        if hints is not None:
+            self._apply_hints_to_request_meta(request_meta, hints)
         if self._hint_should_protect_from_defer(hints):
             self.request_defer_reasons.pop(request_id, None)
             return False
 
         reason, threshold = self._hint_defer_reason(hints, request_class)
         should_defer = eviction_risk_ratio >= threshold
-        if should_defer:
-            self.request_defer_reasons[request_id] = reason
-        else:
+        if not should_defer:
             self.request_defer_reasons.pop(request_id, None)
-        return should_defer
+            return False
+
+        deferred_count = request_meta.deferred_count
+        request_age_ms = (
+            (now_ns - request_meta.arrival_time_ns) / 1_000_000.0
+            if request_meta.arrival_time_ns
+            else 0.0
+        )
+        low_reuse = bool(
+            hints is not None and hints.has_hints and hints.is_low_reuse
+        )
+        if (
+            low_reuse
+            and self.scheduler_defer_low_reuse_max_count > 0
+            and deferred_count >= self.scheduler_defer_low_reuse_max_count
+        ):
+            self.request_defer_reasons.pop(request_id, None)
+            self._emit_defer_skipped(
+                request_id=request_id,
+                prompt_tokens=prompt_tokens,
+                hit_tokens=hit_tokens,
+                waiting_queue_size=waiting_queue_size,
+                token_budget=token_budget,
+                eviction_risk_ratio=eviction_risk_ratio,
+                defer_reason=reason,
+                skip_reason="low_reuse_defer_count_cap",
+                threshold=threshold,
+                request_age_ms=request_age_ms,
+                deferred_count=deferred_count,
+            )
+            return False
+        if (
+            low_reuse
+            and self.scheduler_defer_low_reuse_max_age_ms > 0
+            and request_age_ms >= self.scheduler_defer_low_reuse_max_age_ms
+        ):
+            self.request_defer_reasons.pop(request_id, None)
+            self._emit_defer_skipped(
+                request_id=request_id,
+                prompt_tokens=prompt_tokens,
+                hit_tokens=hit_tokens,
+                waiting_queue_size=waiting_queue_size,
+                token_budget=token_budget,
+                eviction_risk_ratio=eviction_risk_ratio,
+                defer_reason=reason,
+                skip_reason="low_reuse_defer_age_cap",
+                threshold=threshold,
+                request_age_ms=request_age_ms,
+                deferred_count=deferred_count,
+            )
+            return False
+        if (
+            self.scheduler_defer_max_count > 0
+            and deferred_count >= self.scheduler_defer_max_count
+        ):
+            self.request_defer_reasons.pop(request_id, None)
+            self._emit_defer_skipped(
+                request_id=request_id,
+                prompt_tokens=prompt_tokens,
+                hit_tokens=hit_tokens,
+                waiting_queue_size=waiting_queue_size,
+                token_budget=token_budget,
+                eviction_risk_ratio=eviction_risk_ratio,
+                defer_reason=reason,
+                skip_reason="defer_count_cap",
+                threshold=threshold,
+                request_age_ms=request_age_ms,
+                deferred_count=deferred_count,
+            )
+            return False
+        if (
+            self.scheduler_defer_max_age_ms > 0
+            and request_age_ms >= self.scheduler_defer_max_age_ms
+        ):
+            self.request_defer_reasons.pop(request_id, None)
+            self._emit_defer_skipped(
+                request_id=request_id,
+                prompt_tokens=prompt_tokens,
+                hit_tokens=hit_tokens,
+                waiting_queue_size=waiting_queue_size,
+                token_budget=token_budget,
+                eviction_risk_ratio=eviction_risk_ratio,
+                defer_reason=reason,
+                skip_reason="defer_age_cap",
+                threshold=threshold,
+                request_age_ms=request_age_ms,
+                deferred_count=deferred_count,
+            )
+            return False
+
+        self.request_defer_reasons[request_id] = reason
+        return True
 
     def should_scan_positive_requests(
         self,

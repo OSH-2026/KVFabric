@@ -45,6 +45,9 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     request_finishes = [e for e in events if e.get("event") == "request_finished"]
     request_schedules = [e for e in events if e.get("event") == "request_scheduled"]
     request_deferrals = [e for e in events if e.get("event") == "request_deferred"]
+    request_defer_skips = [
+        e for e in events if e.get("event") == "request_defer_skipped"
+    ]
     request_promotions = [e for e in events if e.get("event") == "request_promoted"]
     request_hints = [e for e in events if e.get("event") == "request_hints_observed"]
 
@@ -111,6 +114,14 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     deferral_risks = [
         float(e.get("eviction_risk_ratio", 0.0) or 0.0)
         for e in request_deferrals
+    ]
+    defer_skip_risks = [
+        float(e.get("eviction_risk_ratio", 0.0) or 0.0)
+        for e in request_defer_skips
+    ]
+    defer_skip_ages = [
+        float(e.get("request_age_ms", 0.0) or 0.0)
+        for e in request_defer_skips
     ]
     promotion_risks = [
         float(e.get("eviction_risk_ratio", 0.0) or 0.0)
@@ -194,6 +205,7 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         "request_finished_events": len(request_finishes),
         "request_scheduled_events": len(request_schedules),
         "request_deferred_events": len(request_deferrals),
+        "request_defer_skipped_events": len(request_defer_skips),
         "request_promoted_events": len(request_promotions),
         "request_hints_observed_events": len(request_hints),
         "request_hint_coverage_vs_finished": (
@@ -319,6 +331,46 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "scheduler_defer_max_eviction_risk_ratio": (
             max(deferral_risks) if deferral_risks else 0.0
+        ),
+        "scheduler_defer_skipped_reasons": dict(
+            sorted(
+                Counter(
+                    str(e.get("skip_reason", "unknown"))
+                    for e in request_defer_skips
+                ).items()
+            )
+        ),
+        "scheduler_defer_skipped_defer_reasons": dict(
+            sorted(
+                Counter(
+                    str(e.get("defer_reason", "unknown"))
+                    for e in request_defer_skips
+                ).items()
+            )
+        ),
+        "scheduler_defer_skipped_hint_classes": dict(
+            sorted(
+                Counter(
+                    str(e.get("hint_request_class", "unknown"))
+                    for e in request_defer_skips
+                ).items()
+            )
+        ),
+        "scheduler_defer_skipped_avg_eviction_risk_ratio": (
+            sum(defer_skip_risks) / len(defer_skip_risks)
+            if defer_skip_risks
+            else 0.0
+        ),
+        "scheduler_defer_skipped_max_eviction_risk_ratio": (
+            max(defer_skip_risks) if defer_skip_risks else 0.0
+        ),
+        "scheduler_defer_skipped_avg_age_ms": (
+            sum(defer_skip_ages) / len(defer_skip_ages)
+            if defer_skip_ages
+            else 0.0
+        ),
+        "scheduler_defer_skipped_max_age_ms": (
+            max(defer_skip_ages) if defer_skip_ages else 0.0
         ),
         "scheduler_promote_hint_classes": dict(
             sorted(

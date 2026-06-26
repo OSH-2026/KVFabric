@@ -21,6 +21,7 @@ sync_paths=(
   "vllm_workspace/upstream_manifest.txt"
   "vllm_workspace/patches/vllm_overlay.patch"
   "vllm_workspace/scripts/"
+  "docs/current/kvfabric_sticky_conversation_fairness_refactor_2026-06-26.md"
   "experiments/long_pressure_benchmark/README.md"
   "experiments/long_pressure_benchmark/REMOTE_27B_AUTOMATION.md"
   "experiments/long_pressure_benchmark/examples/online_batch.py"
@@ -61,6 +62,7 @@ sync_paths=(
 echo "Syncing KVFabric overlay and long benchmark scripts to ${REMOTE_HOST}:${REMOTE_PROJECT}"
 ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
   mkdir -p \
+    docs/current \
     experiments/long_pressure_benchmark/configs \
     experiments/long_pressure_benchmark/examples \
     experiments/long_pressure_benchmark/scripts \
@@ -122,6 +124,7 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/long_pressure_benchmark/examples/generate_realistic_trace.py \
     experiments/long_pressure_benchmark/examples/online_batch.py \
     experiments/long_pressure_benchmark/examples/summarize_kvfabric_lifecycle.py \
+    experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py \
     experiments/long_pressure_benchmark/scripts/analyze_acceptance_run.py \
     experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py"
 

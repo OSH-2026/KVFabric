@@ -171,6 +171,20 @@ def build_summary(run_root: Path) -> str:
             rows,
         )
     )
+    error_rows = []
+    for item in policies:
+        metrics = item["metrics"] or {}
+        error_types = metrics.get("error_types") or metrics.get("full_run_error_types")
+        if error_types:
+            error_rows.append(
+                [
+                    item["policy"],
+                    json.dumps(error_types, ensure_ascii=False, sort_keys=True),
+                ]
+            )
+    if error_rows:
+        lines.extend(["", "## Error Types", ""])
+        lines.extend(table(["Policy", "Errors"], error_rows))
 
     lines.extend(["", "## Lifecycle", ""])
     rows = []
@@ -213,7 +227,7 @@ def build_summary(run_root: Path) -> str:
     for item in policies:
         lifecycle = item["lifecycle"]
         if not lifecycle:
-            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", ""])
             continue
         rows.append(
             [
@@ -225,6 +239,7 @@ def build_summary(run_root: Path) -> str:
                     lifecycle.get("cache_admission_avg_eviction_risk_ratio"), 2
                 ),
                 number(lifecycle.get("request_deferred_events"), 0),
+                number(lifecycle.get("request_defer_skipped_events"), 0),
                 number(lifecycle.get("request_promoted_events"), 0),
                 number(lifecycle.get("scheduler_promote_estimated_hit_tokens"), 0),
                 number(lifecycle.get("scheduler_promote_avg_estimated_hit_tokens"), 1),
@@ -242,6 +257,7 @@ def build_summary(run_root: Path) -> str:
                 "Saved ratio",
                 "Admission risk avg",
                 "Scheduler defers",
+                "Defer skips",
                 "Scheduler promotes",
                 "Promote hit tokens",
                 "Promote avg hit tokens",
@@ -256,7 +272,7 @@ def build_summary(run_root: Path) -> str:
     for item in policies:
         lifecycle = item["lifecycle"]
         if not lifecycle:
-            rows.append([item["policy"], "pending", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", ""])
             continue
         rows.append(
             [
@@ -279,6 +295,11 @@ def build_summary(run_root: Path) -> str:
                     ensure_ascii=False,
                     sort_keys=True,
                 ),
+                json.dumps(
+                    lifecycle.get("scheduler_defer_skipped_reasons") or {},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
             ]
         )
     lines.extend(
@@ -291,6 +312,7 @@ def build_summary(run_root: Path) -> str:
                 "Priorities",
                 "Expected reuse",
                 "Defer reasons",
+                "Defer skip reasons",
             ],
             rows,
         )
