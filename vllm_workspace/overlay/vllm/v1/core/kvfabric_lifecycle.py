@@ -31,6 +31,17 @@ def _env_enabled(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_tokens(name: str, default: str = "") -> tuple[str, ...]:
+    text = os.environ.get(name, default).strip().lower()
+    if not text:
+        return ()
+    return tuple(
+        item.strip()
+        for item in text.replace(",", " ").split()
+        if item.strip()
+    )
+
+
 def _hash_to_hex(block_hash: "BlockHashWithGroupId | None") -> str | None:
     if block_hash is None:
         return None
@@ -117,6 +128,7 @@ class RequestMeta:
     finish_time_ns: int = 0
     computed_tokens: int = 0
     output_tokens: int = 0
+    max_output_tokens: int = 0
     state: str = "LOOKUP"
     hint_request_class: str = "unknown"
     hint_tenant_id: str | None = None
@@ -291,6 +303,33 @@ class KVFabricLifecycleTracker:
         self.scheduler_low_reuse_head_age_guard_ms = int(
             os.environ.get("KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS", "0")
         )
+        self.scheduler_latency_protected_classes = _env_tokens(
+            "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_CLASSES"
+        )
+        self.scheduler_latency_protected_min_output_tokens = int(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_OUTPUT_TOKENS",
+                "512",
+            )
+        )
+        self.scheduler_latency_protected_head_guard_ms = int(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_HEAD_GUARD_MS",
+                "0",
+            )
+        )
+        self.scheduler_latency_protected_promote_age_ms = int(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_PROMOTE_AGE_MS",
+                "0",
+            )
+        )
+        self.scheduler_latency_protected_min_risk_ratio = float(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_RISK_RATIO",
+                "0.0",
+            )
+        )
         self.protect_min_hit_count = int(
             os.environ.get("KVFABRIC_PROTECT_MIN_HIT_COUNT", "1")
         )
@@ -407,6 +446,21 @@ class KVFabricLifecycleTracker:
             scheduler_head_age_guard_ms=self.scheduler_head_age_guard_ms,
             scheduler_low_reuse_head_age_guard_ms=(
                 self.scheduler_low_reuse_head_age_guard_ms
+            ),
+            scheduler_latency_protected_classes=(
+                list(self.scheduler_latency_protected_classes)
+            ),
+            scheduler_latency_protected_min_output_tokens=(
+                self.scheduler_latency_protected_min_output_tokens
+            ),
+            scheduler_latency_protected_head_guard_ms=(
+                self.scheduler_latency_protected_head_guard_ms
+            ),
+            scheduler_latency_protected_promote_age_ms=(
+                self.scheduler_latency_protected_promote_age_ms
+            ),
+            scheduler_latency_protected_min_risk_ratio=(
+                self.scheduler_latency_protected_min_risk_ratio
             ),
             scheduler_defer_max_count=self.scheduler_defer_max_count,
             scheduler_defer_low_reuse_max_count=(
@@ -735,6 +789,47 @@ class KVFabricLifecycleTracker:
         if hints.is_transient:
             return "hint_transient_cold_miss", threshold
         return f"hint_{hints.request_class}_cold_miss", threshold
+
+    def _is_latency_protected_request(
+        self,
+        hints: KVFabricRequestHints | None,
+        max_output_tokens: int = 0,
+    ) -> bool:
+        if (
+            not self.scheduler_latency_protected_classes
+            or hints is None
+            or not hints.has_hints
+        ):
+            return False
+        if (
+            self.scheduler_latency_protected_min_output_tokens > 0
+            and max_output_tokens
+            < self.scheduler_latency_protected_min_output_tokens
+        ):
+            return False
+
+        request_class = hints.request_class
+        for token in self.scheduler_latency_protected_classes:
+            if token == "low_reuse_long" and hints.is_low_reuse:
+                return True
+            if token == "long_output":
+                return True
+            if token and token in request_class:
+                return True
+        return False
+
+    @staticmethod
+    def _request_age_ms(
+        request_meta: RequestMeta,
+        now_ns: int,
+        arrival_time: float = 0.0,
+    ) -> float:
+        now_wall = time.time()
+        if arrival_time > 0 and now_wall >= arrival_time:
+            return (now_wall - arrival_time) * 1000.0
+        if request_meta.arrival_time_ns:
+            return (now_ns - request_meta.arrival_time_ns) / 1_000_000.0
+        return 0.0
 
     def _emit_defer_skipped(
         self,
@@ -1215,6 +1310,7 @@ class KVFabricLifecycleTracker:
         request_id: str,
         prompt_tokens: int,
         hit_tokens: int,
+        max_output_tokens: int,
         waiting_queue_size: int,
         token_budget: int,
         already_deferred: bool,
@@ -1241,6 +1337,10 @@ class KVFabricLifecycleTracker:
         now_ns = time.monotonic_ns()
         request_meta = self._get_or_create_request(request_id, now_ns=now_ns)
         request_meta.prompt_tokens = max(request_meta.prompt_tokens, prompt_tokens)
+        request_meta.max_output_tokens = max(
+            request_meta.max_output_tokens,
+            max_output_tokens,
+        )
         request_meta.last_update_time_ns = now_ns
         request_class = request_meta.request_class
         if request_class == "unknown":
@@ -1254,17 +1354,30 @@ class KVFabricLifecycleTracker:
             return False
 
         reason, threshold = self._hint_defer_reason(hints, request_class)
+        request_age_ms = self._request_age_ms(request_meta, now_ns)
+        if self._is_latency_protected_request(hints, max_output_tokens):
+            self.request_defer_reasons.pop(request_id, None)
+            self._emit_defer_skipped(
+                request_id=request_id,
+                prompt_tokens=prompt_tokens,
+                hit_tokens=hit_tokens,
+                waiting_queue_size=waiting_queue_size,
+                token_budget=token_budget,
+                eviction_risk_ratio=eviction_risk_ratio,
+                defer_reason=reason,
+                skip_reason="latency_protected_defer_bypass",
+                threshold=threshold,
+                request_age_ms=request_age_ms,
+                deferred_count=request_meta.deferred_count,
+            )
+            return False
+
         should_defer = eviction_risk_ratio >= threshold
         if not should_defer:
             self.request_defer_reasons.pop(request_id, None)
             return False
 
         deferred_count = request_meta.deferred_count
-        request_age_ms = (
-            (now_ns - request_meta.arrival_time_ns) / 1_000_000.0
-            if request_meta.arrival_time_ns
-            else 0.0
-        )
         low_reuse = bool(
             hints is not None and hints.has_hints and hints.is_low_reuse
         )
@@ -1370,12 +1483,70 @@ class KVFabricLifecycleTracker:
             return False
         return eviction_risk_ratio >= self.scheduler_positive_min_risk_ratio
 
+    def should_scan_latency_protected_requests(
+        self,
+        waiting_queue_size: int,
+        promotions_this_step: int,
+        eviction_risk_ratio: float,
+    ) -> bool:
+        if not self.scheduler_latency_protected_classes:
+            return False
+        if self.scheduler_latency_protected_promote_age_ms <= 0:
+            return False
+        if self.scheduler_affinity not in {"positive", "hybrid"}:
+            return False
+        if self.eviction_policy == "lru":
+            return False
+        if not self.enable_hints or not self.hint_scheduler:
+            return False
+        if self.scheduler_positive_scan_window <= 1:
+            return False
+        if waiting_queue_size < self.scheduler_defer_min_waiting:
+            return False
+        if promotions_this_step >= self.scheduler_positive_max_per_step:
+            return False
+        return eviction_risk_ratio >= self.scheduler_latency_protected_min_risk_ratio
+
+    def should_promote_latency_protected_request(
+        self,
+        request_id: str,
+        prompt_tokens: int,
+        max_output_tokens: int,
+        arrival_time: float,
+        queue_index: int,
+    ) -> tuple[bool, float]:
+        if queue_index <= 0:
+            return False, 0.0
+        now_ns = time.monotonic_ns()
+        request_meta = self._get_or_create_request(request_id, now_ns=now_ns)
+        request_meta.prompt_tokens = max(request_meta.prompt_tokens, prompt_tokens)
+        request_meta.max_output_tokens = max(
+            request_meta.max_output_tokens,
+            max_output_tokens,
+        )
+        request_meta.last_update_time_ns = now_ns
+        hints = self._get_request_hints(request_id)
+        if hints is not None:
+            self._apply_hints_to_request_meta(request_meta, hints)
+        if not self._is_latency_protected_request(hints, max_output_tokens):
+            return False, 0.0
+        request_age_ms = self._request_age_ms(
+            request_meta,
+            now_ns,
+            arrival_time=arrival_time,
+        )
+        return (
+            request_age_ms >= self.scheduler_latency_protected_promote_age_ms,
+            request_age_ms,
+        )
+
     def positive_request_score(
         self,
         request_id: str,
         prompt_tokens: int,
         queue_index: int,
         estimated_hit_tokens: int = 0,
+        max_output_tokens: int = 0,
     ) -> float:
         hints = self._get_request_hints(request_id)
         if hints is None or not hints.has_hints:
@@ -1414,6 +1585,8 @@ class KVFabricLifecycleTracker:
             score -= 8.0
         if "decode" in request_class:
             score -= 4.0
+        if self._is_latency_protected_request(hints, max_output_tokens):
+            score -= 6.0
         score += self.positive_hit_bonus(estimated_hit_tokens)
         return score
 
@@ -1436,6 +1609,7 @@ class KVFabricLifecycleTracker:
         self,
         head_request_id: str,
         head_prompt_tokens: int,
+        head_max_output_tokens: int,
         head_arrival_time: float,
         best_request_id: str,
         best_score: float,
@@ -1446,6 +1620,7 @@ class KVFabricLifecycleTracker:
         if (
             self.scheduler_head_age_guard_ms <= 0
             and self.scheduler_low_reuse_head_age_guard_ms <= 0
+            and self.scheduler_latency_protected_head_guard_ms <= 0
         ):
             return False
         if head_request_id == best_request_id:
@@ -1457,20 +1632,20 @@ class KVFabricLifecycleTracker:
             request_meta.prompt_tokens,
             head_prompt_tokens,
         )
+        request_meta.max_output_tokens = max(
+            request_meta.max_output_tokens,
+            head_max_output_tokens,
+        )
         request_meta.last_update_time_ns = now_ns
         hints = self._get_request_hints(head_request_id)
         if hints is not None:
             self._apply_hints_to_request_meta(request_meta, hints)
 
-        now_wall = time.time()
-        if head_arrival_time > 0 and now_wall >= head_arrival_time:
-            head_age_ms = (now_wall - head_arrival_time) * 1000.0
-        elif request_meta.arrival_time_ns:
-            head_age_ms = (
-                now_ns - request_meta.arrival_time_ns
-            ) / 1_000_000.0
-        else:
-            head_age_ms = 0.0
+        head_age_ms = self._request_age_ms(
+            request_meta,
+            now_ns,
+            arrival_time=head_arrival_time,
+        )
 
         low_reuse = bool(
             hints is not None
@@ -1481,9 +1656,19 @@ class KVFabricLifecycleTracker:
                 or hints.expected_reuse == "none"
             )
         )
+        latency_protected = self._is_latency_protected_request(
+            hints,
+            head_max_output_tokens,
+        )
         threshold_ms = self.scheduler_head_age_guard_ms
         skip_reason = "head_age_guard"
-        if low_reuse and self.scheduler_low_reuse_head_age_guard_ms > 0:
+        if (
+            latency_protected
+            and self.scheduler_latency_protected_head_guard_ms > 0
+        ):
+            threshold_ms = self.scheduler_latency_protected_head_guard_ms
+            skip_reason = "latency_protected_head_age_guard"
+        elif low_reuse and self.scheduler_low_reuse_head_age_guard_ms > 0:
             threshold_ms = self.scheduler_low_reuse_head_age_guard_ms
             skip_reason = "low_reuse_head_age_guard"
         if threshold_ms <= 0 or head_age_ms < threshold_ms:
@@ -1505,6 +1690,11 @@ class KVFabricLifecycleTracker:
                 "head_age_guard_ms": self.scheduler_head_age_guard_ms,
                 "low_reuse_head_age_guard_ms": (
                     self.scheduler_low_reuse_head_age_guard_ms
+                ),
+                "latency_protected": latency_protected,
+                "head_max_output_tokens": head_max_output_tokens,
+                "latency_protected_head_guard_ms": (
+                    self.scheduler_latency_protected_head_guard_ms
                 ),
                 **self._hint_event_fields(head_request_id),
             }
@@ -1555,6 +1745,42 @@ class KVFabricLifecycleTracker:
         if runtime is not None:
             payload.update(runtime.event_fields())
         self._emit("request_promoted", **payload)
+
+    def on_request_latency_promoted(
+        self,
+        request_id: str,
+        prompt_tokens: int,
+        max_output_tokens: int,
+        queue_index: int,
+        request_age_ms: float,
+        waiting_queue_size: int,
+        eviction_risk_ratio: float,
+    ) -> None:
+        if not self.enabled or not self.scheduler_trace:
+            return
+        hints = self._get_request_hints(request_id)
+        runtime = self.hint_family_index.get(hints)
+        payload = {
+            "request_id": request_id,
+            "prompt_tokens": prompt_tokens,
+            "max_output_tokens": max_output_tokens,
+            "queue_index": queue_index,
+            "request_age_ms": request_age_ms,
+            "waiting_queue_size": waiting_queue_size,
+            "eviction_risk_ratio": eviction_risk_ratio,
+            "scheduler_affinity": self.scheduler_affinity,
+            "promote_reason": "latency_protected_age",
+            "latency_protected_promote_age_ms": (
+                self.scheduler_latency_protected_promote_age_ms
+            ),
+            "latency_protected_min_output_tokens": (
+                self.scheduler_latency_protected_min_output_tokens
+            ),
+            **self._hint_event_fields(request_id),
+        }
+        if runtime is not None:
+            payload.update(runtime.event_fields())
+        self._emit("request_latency_promoted", **payload)
 
     def on_request_deferred(
         self,

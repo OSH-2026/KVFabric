@@ -1,6 +1,6 @@
 {
   "name": "qwen3_5_27b_sticky_conversation_trace_4h",
-  "description": "Short 4h version of qwen3_5_27b_sticky_conversation_trace_12h. It uses a higher-pressure sticky conversation profile and the age-guarded scheduler fairness profile from the remote launcher.",
+  "description": "Short 4h version of qwen3_5_27b_sticky_conversation_trace_12h. The remote launcher applies the sticky scheduler profile with age guards and latency protection for long-output low-reuse requests.",
   "trace": {
     "profile": "conversation_sticky",
     "duration_seconds": 4800,

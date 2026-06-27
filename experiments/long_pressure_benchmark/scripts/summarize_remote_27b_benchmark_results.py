@@ -227,7 +227,7 @@ def build_summary(run_root: Path) -> str:
     for item in policies:
         lifecycle = item["lifecycle"]
         if not lifecycle:
-            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", "", "", ""])
             continue
         rows.append(
             [
@@ -241,6 +241,7 @@ def build_summary(run_root: Path) -> str:
                 number(lifecycle.get("request_deferred_events"), 0),
                 number(lifecycle.get("request_defer_skipped_events"), 0),
                 number(lifecycle.get("request_promoted_events"), 0),
+                number(lifecycle.get("request_latency_promoted_events"), 0),
                 number(lifecycle.get("request_promotion_skipped_events"), 0),
                 number(lifecycle.get("scheduler_promote_estimated_hit_tokens"), 0),
                 number(lifecycle.get("scheduler_promote_avg_estimated_hit_tokens"), 1),
@@ -260,6 +261,7 @@ def build_summary(run_root: Path) -> str:
                 "Scheduler defers",
                 "Defer skips",
                 "Scheduler promotes",
+                "Latency promotes",
                 "Promotion skips",
                 "Promote hit tokens",
                 "Promote avg hit tokens",

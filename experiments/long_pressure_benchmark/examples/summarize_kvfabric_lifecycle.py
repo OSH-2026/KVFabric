@@ -49,6 +49,9 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         e for e in events if e.get("event") == "request_defer_skipped"
     ]
     request_promotions = [e for e in events if e.get("event") == "request_promoted"]
+    request_latency_promotions = [
+        e for e in events if e.get("event") == "request_latency_promoted"
+    ]
     request_promotion_skips = [
         e for e in events if e.get("event") == "request_promotion_skipped"
     ]
@@ -145,6 +148,10 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         float(e.get("head_age_ms", 0.0) or 0.0)
         for e in request_promotion_skips
     ]
+    latency_promotion_ages = [
+        float(e.get("request_age_ms", 0.0) or 0.0)
+        for e in request_latency_promotions
+    ]
     scheduled_tokens = sum(
         int(e.get("scheduled_tokens", 0) or 0) for e in request_schedules
     )
@@ -214,6 +221,7 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         "request_deferred_events": len(request_deferrals),
         "request_defer_skipped_events": len(request_defer_skips),
         "request_promoted_events": len(request_promotions),
+        "request_latency_promoted_events": len(request_latency_promotions),
         "request_promotion_skipped_events": len(request_promotion_skips),
         "request_hints_observed_events": len(request_hints),
         "request_hint_coverage_vs_finished": (
@@ -410,6 +418,30 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
             sum(promotion_hit_bonuses) / len(promotion_hit_bonuses)
             if promotion_hit_bonuses
             else 0.0
+        ),
+        "scheduler_latency_promote_hint_classes": dict(
+            sorted(
+                Counter(
+                    str(e.get("hint_request_class", "unknown"))
+                    for e in request_latency_promotions
+                ).items()
+            )
+        ),
+        "scheduler_latency_promote_reasons": dict(
+            sorted(
+                Counter(
+                    str(e.get("promote_reason", "unknown"))
+                    for e in request_latency_promotions
+                ).items()
+            )
+        ),
+        "scheduler_latency_promote_avg_age_ms": (
+            sum(latency_promotion_ages) / len(latency_promotion_ages)
+            if latency_promotion_ages
+            else 0.0
+        ),
+        "scheduler_latency_promote_max_age_ms": (
+            max(latency_promotion_ages) if latency_promotion_ages else 0.0
         ),
         "scheduler_promotion_skipped_reasons": dict(
             sorted(

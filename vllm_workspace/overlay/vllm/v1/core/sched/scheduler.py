@@ -571,12 +571,67 @@ class Scheduler(SchedulerInterface):
                         tracker.admission_head_window
                     )
                     waiting_queue_size = len(self.waiting) + len(self.skipped_waiting)
-                    if tracker.should_scan_positive_requests(
+                    latency_promoted = False
+                    if tracker.should_scan_latency_protected_requests(
                         waiting_queue_size=waiting_queue_size,
                         promotions_this_step=kvfabric_promotions_this_step,
                         eviction_risk_ratio=float(
                             pressure["eviction_risk_ratio"]
                         ),
+                    ):
+                        scan_window = min(
+                            tracker.scheduler_positive_scan_window,
+                            len(request_queue),
+                        )
+                        candidates = list(itertools.islice(request_queue, scan_window))
+                        for queue_index, candidate in enumerate(candidates):
+                            tracker.on_request_hints(
+                                request_id=candidate.request_id,
+                                trace_headers=getattr(
+                                    candidate, "trace_headers", None
+                                ),
+                                prompt_tokens=candidate.num_tokens,
+                            )
+                            should_promote, request_age_ms = (
+                                tracker.should_promote_latency_protected_request(
+                                    request_id=candidate.request_id,
+                                    prompt_tokens=candidate.num_tokens,
+                                    max_output_tokens=candidate.max_tokens,
+                                    arrival_time=float(
+                                        getattr(candidate, "arrival_time", 0.0)
+                                        or 0.0
+                                    ),
+                                    queue_index=queue_index,
+                                )
+                            )
+                            if not should_promote:
+                                continue
+                            request_queue.remove_request(candidate)
+                            request_queue.prepend_request(candidate)
+                            kvfabric_promotions_this_step += 1
+                            tracker.on_request_latency_promoted(
+                                request_id=candidate.request_id,
+                                prompt_tokens=candidate.num_tokens,
+                                max_output_tokens=candidate.max_tokens,
+                                queue_index=queue_index,
+                                request_age_ms=request_age_ms,
+                                waiting_queue_size=waiting_queue_size,
+                                eviction_risk_ratio=float(
+                                    pressure["eviction_risk_ratio"]
+                                ),
+                            )
+                            latency_promoted = True
+                            break
+
+                    if (
+                        not latency_promoted
+                        and tracker.should_scan_positive_requests(
+                            waiting_queue_size=waiting_queue_size,
+                            promotions_this_step=kvfabric_promotions_this_step,
+                            eviction_risk_ratio=float(
+                                pressure["eviction_risk_ratio"]
+                            ),
+                        )
                     ):
                         scan_window = min(
                             tracker.scheduler_positive_scan_window,
@@ -598,6 +653,7 @@ class Scheduler(SchedulerInterface):
                                 request_id=candidate.request_id,
                                 prompt_tokens=candidate.num_tokens,
                                 queue_index=queue_index,
+                                max_output_tokens=candidate.max_tokens,
                             )
                             scored_candidates.append(
                                 (candidate, queue_index, score, 0.0, 0)
@@ -653,6 +709,7 @@ class Scheduler(SchedulerInterface):
                             request_id=head_request.request_id,
                             prompt_tokens=head_request.num_tokens,
                             queue_index=0,
+                            max_output_tokens=head_request.max_tokens,
                         )
                         (
                             best_request,
@@ -671,6 +728,7 @@ class Scheduler(SchedulerInterface):
                             and not tracker.should_guard_positive_promotion(
                                 head_request_id=head_request.request_id,
                                 head_prompt_tokens=head_request.num_tokens,
+                                head_max_output_tokens=head_request.max_tokens,
                                 head_arrival_time=float(
                                     getattr(head_request, "arrival_time", 0.0)
                                     or 0.0
@@ -808,6 +866,7 @@ class Scheduler(SchedulerInterface):
                         request_id=request_id,
                         prompt_tokens=request.num_tokens,
                         hit_tokens=num_computed_tokens,
+                        max_output_tokens=request.max_tokens,
                         waiting_queue_size=(
                             len(self.waiting) + len(self.skipped_waiting)
                         ),
