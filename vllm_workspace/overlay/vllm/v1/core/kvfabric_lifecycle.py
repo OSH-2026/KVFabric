@@ -285,6 +285,12 @@ class KVFabricLifecycleTracker:
         self.scheduler_positive_session_turn_bonus = float(
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SESSION_TURN_BONUS", "1.5")
         )
+        self.scheduler_head_age_guard_ms = int(
+            os.environ.get("KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS", "0")
+        )
+        self.scheduler_low_reuse_head_age_guard_ms = int(
+            os.environ.get("KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS", "0")
+        )
         self.protect_min_hit_count = int(
             os.environ.get("KVFABRIC_PROTECT_MIN_HIT_COUNT", "1")
         )
@@ -397,6 +403,10 @@ class KVFabricLifecycleTracker:
             ),
             scheduler_positive_session_turn_bonus=(
                 self.scheduler_positive_session_turn_bonus
+            ),
+            scheduler_head_age_guard_ms=self.scheduler_head_age_guard_ms,
+            scheduler_low_reuse_head_age_guard_ms=(
+                self.scheduler_low_reuse_head_age_guard_ms
             ),
             scheduler_defer_max_count=self.scheduler_defer_max_count,
             scheduler_defer_low_reuse_max_count=(
@@ -1421,6 +1431,87 @@ class KVFabricLifecycleTracker:
         head_score: float,
     ) -> bool:
         return best_score >= max(1.0, head_score + self.scheduler_positive_score_margin)
+
+    def should_guard_positive_promotion(
+        self,
+        head_request_id: str,
+        head_prompt_tokens: int,
+        head_arrival_time: float,
+        best_request_id: str,
+        best_score: float,
+        head_score: float,
+        waiting_queue_size: int,
+        eviction_risk_ratio: float,
+    ) -> bool:
+        if (
+            self.scheduler_head_age_guard_ms <= 0
+            and self.scheduler_low_reuse_head_age_guard_ms <= 0
+        ):
+            return False
+        if head_request_id == best_request_id:
+            return False
+
+        now_ns = time.monotonic_ns()
+        request_meta = self._get_or_create_request(head_request_id, now_ns=now_ns)
+        request_meta.prompt_tokens = max(
+            request_meta.prompt_tokens,
+            head_prompt_tokens,
+        )
+        request_meta.last_update_time_ns = now_ns
+        hints = self._get_request_hints(head_request_id)
+        if hints is not None:
+            self._apply_hints_to_request_meta(request_meta, hints)
+
+        now_wall = time.time()
+        if head_arrival_time > 0 and now_wall >= head_arrival_time:
+            head_age_ms = (now_wall - head_arrival_time) * 1000.0
+        elif request_meta.arrival_time_ns:
+            head_age_ms = (
+                now_ns - request_meta.arrival_time_ns
+            ) / 1_000_000.0
+        else:
+            head_age_ms = 0.0
+
+        low_reuse = bool(
+            hints is not None
+            and hints.has_hints
+            and (
+                hints.is_low_reuse
+                or hints.cache_priority in {"low", "bypass"}
+                or hints.expected_reuse == "none"
+            )
+        )
+        threshold_ms = self.scheduler_head_age_guard_ms
+        skip_reason = "head_age_guard"
+        if low_reuse and self.scheduler_low_reuse_head_age_guard_ms > 0:
+            threshold_ms = self.scheduler_low_reuse_head_age_guard_ms
+            skip_reason = "low_reuse_head_age_guard"
+        if threshold_ms <= 0 or head_age_ms < threshold_ms:
+            return False
+
+        if self.scheduler_trace:
+            runtime = self.hint_family_index.get(hints)
+            payload = {
+                "request_id": head_request_id,
+                "prompt_tokens": head_prompt_tokens,
+                "best_request_id": best_request_id,
+                "head_score": head_score,
+                "best_score": best_score,
+                "waiting_queue_size": waiting_queue_size,
+                "eviction_risk_ratio": eviction_risk_ratio,
+                "scheduler_affinity": self.scheduler_affinity,
+                "skip_reason": skip_reason,
+                "head_age_ms": head_age_ms,
+                "head_age_guard_ms": self.scheduler_head_age_guard_ms,
+                "low_reuse_head_age_guard_ms": (
+                    self.scheduler_low_reuse_head_age_guard_ms
+                ),
+                **self._hint_event_fields(head_request_id),
+            }
+            if runtime is not None:
+                payload.update(runtime.event_fields())
+            self._emit("request_promotion_skipped", **payload)
+        return True
 
     def on_request_promoted(
         self,

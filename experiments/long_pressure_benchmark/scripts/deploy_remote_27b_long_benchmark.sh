@@ -22,6 +22,7 @@ sync_paths=(
   "vllm_workspace/patches/vllm_overlay.patch"
   "vllm_workspace/scripts/"
   "docs/current/kvfabric_sticky_conversation_fairness_refactor_2026-06-26.md"
+  "docs/current/kvfabric_sticky_latency_throughput_refactor_2026-06-27.md"
   "experiments/long_pressure_benchmark/README.md"
   "experiments/long_pressure_benchmark/REMOTE_27B_AUTOMATION.md"
   "experiments/long_pressure_benchmark/examples/online_batch.py"

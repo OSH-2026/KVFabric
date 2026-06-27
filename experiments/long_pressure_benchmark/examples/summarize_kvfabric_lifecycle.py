@@ -49,6 +49,9 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         e for e in events if e.get("event") == "request_defer_skipped"
     ]
     request_promotions = [e for e in events if e.get("event") == "request_promoted"]
+    request_promotion_skips = [
+        e for e in events if e.get("event") == "request_promotion_skipped"
+    ]
     request_hints = [e for e in events if e.get("event") == "request_hints_observed"]
 
     prefix_query_tokens = sum(int(e.get("prompt_tokens", 0)) for e in prefix_lookups)
@@ -138,6 +141,10 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     promotion_hit_aware_events = [
         e for e in request_promotions if bool(e.get("hit_aware", False))
     ]
+    promotion_skip_head_ages = [
+        float(e.get("head_age_ms", 0.0) or 0.0)
+        for e in request_promotion_skips
+    ]
     scheduled_tokens = sum(
         int(e.get("scheduled_tokens", 0) or 0) for e in request_schedules
     )
@@ -207,6 +214,7 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         "request_deferred_events": len(request_deferrals),
         "request_defer_skipped_events": len(request_defer_skips),
         "request_promoted_events": len(request_promotions),
+        "request_promotion_skipped_events": len(request_promotion_skips),
         "request_hints_observed_events": len(request_hints),
         "request_hint_coverage_vs_finished": (
             len(request_hints) / len(request_finishes) if request_finishes else 0.0
@@ -402,6 +410,30 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
             sum(promotion_hit_bonuses) / len(promotion_hit_bonuses)
             if promotion_hit_bonuses
             else 0.0
+        ),
+        "scheduler_promotion_skipped_reasons": dict(
+            sorted(
+                Counter(
+                    str(e.get("skip_reason", "unknown"))
+                    for e in request_promotion_skips
+                ).items()
+            )
+        ),
+        "scheduler_promotion_skipped_hint_classes": dict(
+            sorted(
+                Counter(
+                    str(e.get("hint_request_class", "unknown"))
+                    for e in request_promotion_skips
+                ).items()
+            )
+        ),
+        "scheduler_promotion_skipped_avg_head_age_ms": (
+            sum(promotion_skip_head_ages) / len(promotion_skip_head_ages)
+            if promotion_skip_head_ages
+            else 0.0
+        ),
+        "scheduler_promotion_skipped_max_head_age_ms": (
+            max(promotion_skip_head_ages) if promotion_skip_head_ages else 0.0
         ),
         "eviction_policies": sorted(
             {

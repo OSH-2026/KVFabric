@@ -662,9 +662,27 @@ class Scheduler(SchedulerInterface):
                             best_estimated_hit_tokens,
                         ) = max(scored_candidates, key=lambda item: item[2])
                         best_base_score = best_score - best_hit_bonus
-                        if best_index > 0 and tracker.should_promote_positive_request(
-                            best_score=best_score,
-                            head_score=head_score,
+                        if (
+                            best_index > 0
+                            and tracker.should_promote_positive_request(
+                                best_score=best_score,
+                                head_score=head_score,
+                            )
+                            and not tracker.should_guard_positive_promotion(
+                                head_request_id=head_request.request_id,
+                                head_prompt_tokens=head_request.num_tokens,
+                                head_arrival_time=float(
+                                    getattr(head_request, "arrival_time", 0.0)
+                                    or 0.0
+                                ),
+                                best_request_id=best_request.request_id,
+                                best_score=best_score,
+                                head_score=head_score,
+                                waiting_queue_size=waiting_queue_size,
+                                eviction_risk_ratio=float(
+                                    pressure["eviction_risk_ratio"]
+                                ),
+                            )
                         ):
                             request_queue.remove_request(best_request)
                             request_queue.prepend_request(best_request)

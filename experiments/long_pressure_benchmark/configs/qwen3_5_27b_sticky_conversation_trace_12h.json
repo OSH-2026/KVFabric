@@ -1,21 +1,22 @@
 {
   "name": "qwen3_5_27b_sticky_conversation_trace_12h",
-  "description": "Trace-replay 27B benchmark focused on sticky multi-turn and long-document follow-up reuse. Three policies x 14400 seconds gives at least a 12 hour formal run; the remote launcher applies the sticky scheduler fairness profile.",
+  "description": "Trace-replay 27B benchmark focused on sticky multi-turn and long-document follow-up reuse. Three policies x 14400 seconds gives at least a 12 hour formal run; the remote launcher applies the age-guarded sticky scheduler fairness profile.",
   "trace": {
     "profile": "conversation_sticky",
     "duration_seconds": 14400,
-    "request_rate": 0.45,
+    "request_rate": 0.62,
     "seed": 20260624,
     "max_model_len": 4096,
     "load_mode": "stress_90",
     "hint_regime": "partial_hints"
   },
   "loadgen": {
-    "max_in_flight": 40,
+    "max_in_flight": 64,
     "metrics_interval": 30,
     "raw_sample_rate": 0.02,
     "raw_sample_limit": 2000,
     "warmup_seconds": 300,
-    "timeout_seconds": 1200
+    "timeout_seconds": 1500,
+    "slo_seconds": 240
   }
 }

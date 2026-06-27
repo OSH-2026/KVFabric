@@ -39,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--warmup-seconds", type=float, default=300.0)
     parser.add_argument("--max-in-flight", type=int, default=32)
     parser.add_argument("--timeout", type=float, default=900.0)
+    parser.add_argument("--slo-seconds", type=float, default=0.0)
     parser.add_argument("--metrics-interval", type=float, default=30.0)
     parser.add_argument("--raw-sample-rate", type=float, default=0.02)
     parser.add_argument("--raw-sample-limit", type=int, default=2000)
@@ -134,6 +135,11 @@ class RunStats:
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.total_tokens = 0
+        self.goodput_prompt_tokens = 0
+        self.goodput_completion_tokens = 0
+        self.goodput_total_tokens = 0
+        self.slo_pass = 0
+        self.slo_miss = 0
         self.latencies: list[float] = []
         self.send_delays: list[float] = []
         self.queue_delays: list[float] = []
@@ -149,6 +155,11 @@ class RunStats:
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
                 "total_tokens": 0,
+                "goodput_prompt_tokens": 0,
+                "goodput_completion_tokens": 0,
+                "goodput_total_tokens": 0,
+                "slo_pass": 0,
+                "slo_miss": 0,
                 "latencies": [],
                 "send_delays": [],
                 "recent_latencies": deque(maxlen=1024),
@@ -161,6 +172,11 @@ class RunStats:
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,
+            "goodput_prompt_tokens": 0,
+            "goodput_completion_tokens": 0,
+            "goodput_total_tokens": 0,
+            "slo_pass": 0,
+            "slo_miss": 0,
             "latencies": [],
             "send_delays": [],
             "error_types": Counter(),
@@ -179,6 +195,7 @@ class RunStats:
         latency: float,
         send_delay: float,
         measured: bool,
+        slo_seconds: float,
     ) -> None:
         self.completed += 1
         self.latencies.append(latency)
@@ -190,12 +207,27 @@ class RunStats:
         self.prompt_tokens += prompt_tokens
         self.completion_tokens += completion_tokens
         self.total_tokens += total_tokens
+        slo_pass = slo_seconds <= 0 or latency <= slo_seconds
+        if slo_pass:
+            self.goodput_prompt_tokens += prompt_tokens
+            self.goodput_completion_tokens += completion_tokens
+            self.goodput_total_tokens += total_tokens
+            self.slo_pass += 1
+        else:
+            self.slo_miss += 1
 
         stats = self.class_stats[request_class]
         stats["completed"] += 1
         stats["prompt_tokens"] += prompt_tokens
         stats["completion_tokens"] += completion_tokens
         stats["total_tokens"] += total_tokens
+        if slo_pass:
+            stats["goodput_prompt_tokens"] += prompt_tokens
+            stats["goodput_completion_tokens"] += completion_tokens
+            stats["goodput_total_tokens"] += total_tokens
+            stats["slo_pass"] += 1
+        else:
+            stats["slo_miss"] += 1
         stats["latencies"].append(latency)
         stats["send_delays"].append(send_delay)
         stats["recent_latencies"].append(latency)
@@ -205,6 +237,13 @@ class RunStats:
             self.measured["prompt_tokens"] += prompt_tokens
             self.measured["completion_tokens"] += completion_tokens
             self.measured["total_tokens"] += total_tokens
+            if slo_pass:
+                self.measured["goodput_prompt_tokens"] += prompt_tokens
+                self.measured["goodput_completion_tokens"] += completion_tokens
+                self.measured["goodput_total_tokens"] += total_tokens
+                self.measured["slo_pass"] += 1
+            else:
+                self.measured["slo_miss"] += 1
             self.measured["latencies"].append(latency)
             self.measured["send_delays"].append(send_delay)
 
@@ -233,6 +272,11 @@ class RunStats:
         prompt_tokens: int,
         completion_tokens: int,
         total_tokens: int,
+        goodput_prompt_tokens: int,
+        goodput_completion_tokens: int,
+        goodput_total_tokens: int,
+        slo_pass: int,
+        slo_miss: int,
         latencies: list[float],
         send_delays: list[float],
     ) -> dict[str, Any]:
@@ -252,6 +296,15 @@ class RunStats:
             "total_tokens_per_second": (
                 total_tokens / elapsed if elapsed > 0 else 0.0
             ),
+            "goodput_prompt_tokens": goodput_prompt_tokens,
+            "goodput_completion_tokens": goodput_completion_tokens,
+            "goodput_total_tokens": goodput_total_tokens,
+            "goodput_total_tokens_per_second": (
+                goodput_total_tokens / elapsed if elapsed > 0 else 0.0
+            ),
+            "slo_pass": slo_pass,
+            "slo_miss": slo_miss,
+            "slo_miss_rate": slo_miss / completed if completed else 0.0,
             "latency_avg_seconds": statistics.mean(latencies)
             if latencies
             else 0.0,
@@ -272,6 +325,11 @@ class RunStats:
             int(self.measured["prompt_tokens"]),
             int(self.measured["completion_tokens"]),
             int(self.measured["total_tokens"]),
+            int(self.measured["goodput_prompt_tokens"]),
+            int(self.measured["goodput_completion_tokens"]),
+            int(self.measured["goodput_total_tokens"]),
+            int(self.measured["slo_pass"]),
+            int(self.measured["slo_miss"]),
             list(self.measured["latencies"]),
             list(self.measured["send_delays"]),
         )
@@ -282,6 +340,11 @@ class RunStats:
             self.prompt_tokens,
             self.completion_tokens,
             self.total_tokens,
+            self.goodput_prompt_tokens,
+            self.goodput_completion_tokens,
+            self.goodput_total_tokens,
+            self.slo_pass,
+            self.slo_miss,
             self.latencies,
             self.send_delays,
         )
@@ -295,6 +358,11 @@ class RunStats:
                     int(stats["prompt_tokens"]),
                     int(stats["completion_tokens"]),
                     int(stats["total_tokens"]),
+                    int(stats["goodput_prompt_tokens"]),
+                    int(stats["goodput_completion_tokens"]),
+                    int(stats["goodput_total_tokens"]),
+                    int(stats["slo_pass"]),
+                    int(stats["slo_miss"]),
                     list(stats["latencies"]),
                     list(stats["send_delays"]),
                 ),
@@ -444,6 +512,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                 "hint_regime": hint_regime,
                 "warmup_seconds": args.warmup_seconds,
                 "max_in_flight": args.max_in_flight,
+                "slo_seconds": args.slo_seconds,
                 "requests": len(entries),
                 "trace_duration_seconds": (
                     max(float(e["scheduled_at_seconds"]) for e in entries)
@@ -524,6 +593,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                 latency,
                                 send_delay,
                                 measured,
+                                args.slo_seconds,
                             )
                             if (
                                 should_sample
@@ -631,6 +701,9 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Measured offered req/s: {metrics['measured_offered_requests_per_second']:.4f}",
                 f"- Measured completed req/s: {metrics['requests_per_second']:.4f}",
                 f"- Measured total tok/s: {metrics['total_tokens_per_second']:.2f}",
+                f"- SLO seconds: {args.slo_seconds:.1f}",
+                f"- Goodput tokens/s: {metrics['goodput_total_tokens_per_second']:.2f}",
+                f"- SLO miss rate: {metrics['slo_miss_rate']:.4f}",
                 f"- Latency avg seconds: {metrics['latency_avg_seconds']:.3f}",
                 f"- Latency p95 seconds: {metrics['latency_p95_seconds']:.3f}",
                 f"- Send delay p95 seconds: {metrics['send_delay_p95_seconds']:.3f}",
