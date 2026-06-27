@@ -1,0 +1,53 @@
+{
+  "trace_sha256": "9f0f14da89336197d744545acfd9bfdba4b98984dc45697cd05638865e1a25f5",
+  "settings": {
+    "profile": "conversation_sticky",
+    "duration_seconds": 4800,
+    "request_rate": 0.62,
+    "seed": 20260624,
+    "max_model_len": 4096,
+    "load_mode": "stress_90",
+    "hint_regime": "partial_hints",
+    "config_name": "qwen3_5_27b_sticky_conversation_trace_4h"
+  },
+  "requests": 3614,
+  "duration_seconds": 4800.0,
+  "request_rate": 0.62,
+  "actual_request_rate": 0.7529166666666667,
+  "class_counts": {
+    "agent_tool_loop": 550,
+    "cold_rag_noise": 133,
+    "decode_heavy_noise": 50,
+    "deep_multi_turn_chat": 1868,
+    "long_doc_followup_qa": 1013
+  },
+  "expected_reuse_counts": {
+    "durable": 3431,
+    "none": 183
+  },
+  "cache_priority_counts": {
+    "high": 3431,
+    "low": 183
+  },
+  "session_turn_counts": {
+    "1": 1108,
+    "2": 771,
+    "3": 547,
+    "4": 366,
+    "5": 238,
+    "6": 148,
+    "7": 89,
+    "8": 59,
+    "9": 32,
+    "10": 24,
+    "11": 18,
+    "12": 15,
+    "13": 11,
+    "14": 4,
+    "15": 1
+  },
+  "session_requests": 3431,
+  "unique_sessions": 1108,
+  "unique_families": 350,
+  "unique_tenants": 12
+}
