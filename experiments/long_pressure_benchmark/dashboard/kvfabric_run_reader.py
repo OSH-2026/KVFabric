@@ -27,9 +27,18 @@ def read_jsonl(path: Path, limit: int | None = None) -> tuple[list[dict[str, Any
     rows: list[dict[str, Any]] = []
     bad_lines = 0
     with path.open("rb") as handle:
-        raw_lines = handle.read().splitlines()
-    if limit is not None and limit > 0:
-        raw_lines = raw_lines[-limit:]
+        if limit is not None and limit > 0:
+            handle.seek(0, 2)
+            size = handle.tell()
+            window = max(1 << 20, min(64 << 20, limit * 1024))
+            offset = max(size - window, 0)
+            handle.seek(offset)
+            raw_lines = handle.read().splitlines()
+            if offset > 0 and raw_lines:
+                raw_lines = raw_lines[1:]
+            raw_lines = raw_lines[-limit:]
+        else:
+            raw_lines = handle.read().splitlines()
     for raw in raw_lines:
         if not raw.strip(b"\x00 \t\r\n"):
             continue
@@ -274,4 +283,3 @@ class KVFabricRunReader:
             return running[-1].policy
         existing = [snapshot for snapshot in snapshots if snapshot.exists]
         return existing[-1].policy if existing else POLICIES[0]
-

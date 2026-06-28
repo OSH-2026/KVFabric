@@ -393,6 +393,15 @@ class Handler(BaseHTTPRequestHandler):
                 json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             )
 
+    def do_HEAD(self) -> None:  # noqa: N802
+        if urlparse(self.path).path in {"/", "/index.html", "/api/snapshot"}:
+            self.send_response(200)
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.end_headers()
+
 
 def main() -> None:
     args = parse_args()
