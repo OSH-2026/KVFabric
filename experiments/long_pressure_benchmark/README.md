@@ -35,6 +35,15 @@ Main entry points:
   checks remote process, GPU, job log, rolling metrics, and per-policy status.
 - `scripts/sync_remote_27b_benchmark_results.sh`
   pulls summary, sampled outputs, Prometheus samples, and lifecycle metrics.
+- `scripts/run_remote_27b_dashboard.sh`
+  starts the Streamlit dashboard on the remote server. Use
+  `ssh -L 8501:127.0.0.1:8501 robowalker` and open
+  `http://127.0.0.1:8501` locally. It installs
+  `dashboard/requirements.txt` into the remote benchmark venv by default.
+- `scripts/start_remote_27b_sticky_with_dashboard.sh`
+  starts the Sticky 4h benchmark and then opens the dashboard for the new run.
+- `scripts/export_kv_cache_replay.sh`
+  renders a GIF from a policy's `kvfabric_lifecycle.jsonl` for report demos.
 
 Planned formal 12h experiments:
 

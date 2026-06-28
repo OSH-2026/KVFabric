@@ -30,6 +30,7 @@ sync_paths=(
   "experiments/long_pressure_benchmark/examples/online_trace_loadgen.py"
   "experiments/long_pressure_benchmark/examples/generate_realistic_trace.py"
   "experiments/long_pressure_benchmark/examples/summarize_kvfabric_lifecycle.py"
+  "experiments/long_pressure_benchmark/dashboard/"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_mixed_long_pressure.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_realistic_10h_pressure.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_hint_pressure_10h.json"
@@ -54,6 +55,9 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_27b_dashboard.sh"
+  "experiments/long_pressure_benchmark/scripts/start_remote_27b_sticky_with_dashboard.sh"
+  "experiments/long_pressure_benchmark/scripts/export_kv_cache_replay.sh"
   "experiments/long_pressure_benchmark/scripts/sync_remote_27b_benchmark_results.sh"
   "experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py"
   "experiments/long_pressure_benchmark/scripts/analyze_acceptance_run.py"
@@ -127,7 +131,11 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/long_pressure_benchmark/examples/summarize_kvfabric_lifecycle.py \
     experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py \
     experiments/long_pressure_benchmark/scripts/analyze_acceptance_run.py \
-    experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py"
+    experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py \
+    experiments/long_pressure_benchmark/dashboard/kvfabric_run_reader.py \
+    experiments/long_pressure_benchmark/dashboard/kv_cache_replay.py \
+    experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py \
+    experiments/long_pressure_benchmark/dashboard/render_replay_gif.py"
 
 if [[ "$REMOTE_MODE" == "sync" ]]; then
   echo "Remote sync and compile completed."

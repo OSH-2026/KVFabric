@@ -131,6 +131,7 @@ class RequestMeta:
     max_output_tokens: int = 0
     state: str = "LOOKUP"
     hint_request_class: str = "unknown"
+    hint_trace_request_id: str | None = None
     hint_tenant_id: str | None = None
     hint_family_id: str | None = None
     hint_family_key: str | None = None
@@ -624,6 +625,7 @@ class KVFabricLifecycleTracker:
         hints: KVFabricRequestHints,
     ) -> None:
         request_meta.hint_request_class = hints.request_class
+        request_meta.hint_trace_request_id = hints.trace_request_id
         request_meta.hint_tenant_id = hints.tenant_id
         request_meta.hint_family_id = hints.family_id
         request_meta.hint_family_key = hints.family_key

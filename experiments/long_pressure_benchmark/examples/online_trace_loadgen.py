@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metrics-interval", type=float, default=30.0)
     parser.add_argument("--raw-sample-rate", type=float, default=0.02)
     parser.add_argument("--raw-sample-limit", type=int, default=2000)
+    parser.add_argument("--prompt-excerpt-chars", type=int, default=1200)
     parser.add_argument("--random-seed", type=int, default=20260624)
     return parser.parse_args()
 
@@ -73,6 +74,21 @@ def read_prompt(trace_dir: Path, prompt_ref: str) -> list[dict[str, str]]:
     return data["messages"]
 
 
+def prompt_summary(
+    messages: list[dict[str, str]],
+    excerpt_chars: int,
+) -> dict[str, Any]:
+    text = "\n".join(
+        f"{message.get('role', 'unknown')}: {message.get('content', '')}"
+        for message in messages
+    )
+    return {
+        "prompt_message_count": len(messages),
+        "prompt_chars": len(text),
+        "prompt_excerpt": text[:max(excerpt_chars, 0)],
+    }
+
+
 def derive_headers(
     entry: dict[str, Any],
     hint_regime: str,
@@ -98,6 +114,7 @@ def derive_headers(
 
     headers = {
         "x-kvfabric-request-class": request_class,
+        "x-kvfabric-trace-request-id": str(entry.get("request_id", "")),
         "x-kvfabric-burst": "true" if entry.get("burst") else "false",
     }
     tenant_id = entry.get("tenant_id")
@@ -430,8 +447,11 @@ async def metrics_sampler(
     stop_event: asyncio.Event,
 ) -> None:
     rolling_path = output_dir / "rolling_metrics.jsonl"
+    class_rolling_path = output_dir / "rolling_class_metrics.jsonl"
     prometheus_path = output_dir / "prometheus_cache_samples.jsonl"
     with rolling_path.open("w", encoding="utf-8") as rolling_file, (
+        class_rolling_path.open("w", encoding="utf-8")
+    ) as class_rolling_file, (
         prometheus_path.open("w", encoding="utf-8")
     ) as prometheus_file:
         while not stop_event.is_set():
@@ -440,14 +460,57 @@ async def metrics_sampler(
             async with stats_lock:
                 elapsed = max(now - stats.started, 1e-9)
                 recent = list(stats.recent_latencies)
+                class_snapshot = {}
+                for request_class, class_stats in sorted(stats.class_stats.items()):
+                    class_recent = list(class_stats["recent_latencies"])
+                    class_snapshot[request_class] = {
+                        "offered": int(class_stats["offered"]),
+                        "completed": int(class_stats["completed"]),
+                        "errors": int(class_stats["errors"]),
+                        "total_tokens": int(class_stats["total_tokens"]),
+                        "goodput_total_tokens": int(
+                            class_stats["goodput_total_tokens"]
+                        ),
+                        "requests_per_second": (
+                            int(class_stats["completed"]) / elapsed
+                        ),
+                        "total_tokens_per_second": (
+                            int(class_stats["total_tokens"]) / elapsed
+                        ),
+                        "goodput_total_tokens_per_second": (
+                            int(class_stats["goodput_total_tokens"]) / elapsed
+                        ),
+                        "latency_avg_seconds": (
+                            statistics.mean(class_recent) if class_recent else 0.0
+                        ),
+                        "latency_p95_seconds": percentile(class_recent, 0.95),
+                        "slo_miss": int(class_stats["slo_miss"]),
+                        "slo_miss_rate": (
+                            int(class_stats["slo_miss"])
+                            / int(class_stats["completed"])
+                            if int(class_stats["completed"])
+                            else 0.0
+                        ),
+                    }
                 snapshot = {
+                    "snapshot_time_seconds": time.time(),
                     "elapsed_seconds": elapsed,
                     "offered": stats.offered,
                     "completed": stats.completed,
                     "errors": stats.errors,
                     "requests_per_second": stats.completed / elapsed,
                     "offered_requests_per_second": stats.offered / elapsed,
+                    "prompt_tokens_per_second": stats.prompt_tokens / elapsed,
+                    "completion_tokens_per_second": (
+                        stats.completion_tokens / elapsed
+                    ),
                     "total_tokens_per_second": stats.total_tokens / elapsed,
+                    "goodput_total_tokens_per_second": (
+                        stats.goodput_total_tokens / elapsed
+                    ),
+                    "slo_miss_rate": (
+                        stats.slo_miss / stats.completed if stats.completed else 0.0
+                    ),
                     "latency_avg_seconds": statistics.mean(recent)
                     if recent
                     else 0.0,
@@ -456,6 +519,18 @@ async def metrics_sampler(
                 }
             rolling_file.write(json.dumps(snapshot, sort_keys=True) + "\n")
             rolling_file.flush()
+            class_rolling_file.write(
+                json.dumps(
+                    {
+                        "snapshot_time_seconds": snapshot["snapshot_time_seconds"],
+                        "elapsed_seconds": elapsed,
+                        "classes": class_snapshot,
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+            class_rolling_file.flush()
             try:
                 response = await client.get(metrics_url, timeout=10.0)
                 response.raise_for_status()
@@ -566,6 +641,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                     async with stats_lock:
                         stats.record_offered(request_class, measured)
                     messages = read_prompt(trace_dir, str(entry["prompt_ref"]))
+                    prompt_info = prompt_summary(messages, args.prompt_excerpt_chars)
                     payload = {
                         "model": args.model,
                         "messages": messages,
@@ -607,9 +683,20 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                             "request_id": entry.get("request_id"),
                                             "scheduled_at_seconds": scheduled_at,
                                             "request_class": request_class,
+                                            "tenant_id": entry.get("tenant_id"),
                                             "session_id": entry.get("session_id"),
                                             "family_id": entry.get("family_id"),
                                             "turn_index": entry.get("turn_index"),
+                                            "expected_reuse": entry.get(
+                                                "expected_reuse"
+                                            ),
+                                            "cache_priority": entry.get(
+                                                "cache_priority"
+                                            ),
+                                            "phase": entry.get("phase"),
+                                            "max_tokens": entry.get("max_tokens"),
+                                            "prompt_ref": entry.get("prompt_ref"),
+                                            **prompt_info,
                                             "hint_regime": hint_regime,
                                             "headers": headers or {},
                                             "send_delay_seconds": send_delay,
@@ -638,6 +725,16 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                         "request_id": entry.get("request_id"),
                                         "scheduled_at_seconds": scheduled_at,
                                         "request_class": request_class,
+                                        "tenant_id": entry.get("tenant_id"),
+                                        "session_id": entry.get("session_id"),
+                                        "family_id": entry.get("family_id"),
+                                        "turn_index": entry.get("turn_index"),
+                                        "expected_reuse": entry.get("expected_reuse"),
+                                        "cache_priority": entry.get("cache_priority"),
+                                        "phase": entry.get("phase"),
+                                        "max_tokens": entry.get("max_tokens"),
+                                        "prompt_ref": entry.get("prompt_ref"),
+                                        **prompt_info,
                                         "hint_regime": hint_regime,
                                         "headers": headers or {},
                                         "send_delay_seconds": send_delay,

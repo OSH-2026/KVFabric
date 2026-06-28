@@ -568,3 +568,33 @@ Live Overview | KV Cache Replay | Requests | Policy Compare | Logs
 - 一个 20 秒 GIF 展示 KV cache 生命周期。
 - 一张三策略对比表展示最终指标。
 - 一段结论说明：吞吐证明实验看 tok/s；Sticky Conversation 看延迟和 tail；KV replay 证明生命周期管理确实改变了 cache 行为。
+
+## 2026-06-28 实现更新
+
+本轮已经把上面的主要入口落到代码中：
+
+- `dashboard/run_kvfabric_dashboard.py`：Streamlit 实时面板，包含总览、KV Cache Replay、请求样本、策略对比、日志五个 tab。
+- `dashboard/kvfabric_run_reader.py`：统一读取 run 目录、rolling metrics、Prometheus 采样、final metrics、raw sample、job log 和 trace prompt。
+- `dashboard/kv_cache_replay.py`：按 lifecycle event 重建 block 状态，输出 block grid 和 event timeline。
+- `dashboard/render_replay_gif.py`：离线导出单策略 replay GIF。
+- `scripts/run_remote_27b_dashboard.sh`：在 robowalker 上启动 dashboard，默认检查并安装 `dashboard/requirements.txt`。
+- `scripts/start_remote_27b_sticky_with_dashboard.sh`：启动 Sticky 4h 实验后自动打开 dashboard。
+- `scripts/export_kv_cache_replay.sh`：从远程 run 导出 replay GIF。
+
+日志字段也补了一轮：
+
+- loadgen 请求头新增 `x-kvfabric-trace-request-id`，并传到 vLLM tracing。
+- `KVFabricRequestHints` 新增 `trace_request_id`，lifecycle request meta 记录 `hint_trace_request_id`。
+- `rolling_metrics.jsonl` 增加 prompt tok/s、completion tok/s、goodput tok/s、SLO miss rate。
+- 新增 `rolling_class_metrics.jsonl`，实时记录各 request class 的 completed、tok/s、goodput、avg/p95 latency、SLO miss。
+- `raw_outputs_sample.jsonl` 增加 tenant、session、family、turn、expected reuse、cache priority、phase、max tokens、prompt ref、prompt chars、message count、prompt excerpt。
+- 长测 runner 新增 `run_state.json`、`policy_state.json`、`heartbeat.json`。server 启动失败、loadgen 失败、lifecycle 缺失都会明确落盘为 failed。
+
+这次还修了一个脚本可靠性问题：`run_policy` 被 `if ! run_policy` 包住时，Bash 不应依赖 `set -e` 传播内部命令失败。现在 vLLM server 启动和 loadgen 退出码都显式捕获，失败后不会继续进入 metrics 阶段伪装成正常运行。
+
+昨天 20:56 左右的 Sticky 4h run 说明了为什么需要这些状态文件。远程目录里只有 lru 的早期 rolling 和 lifecycle 文件，没有 final `metrics.json`，没有 shared-aware/family-protect 结果，job log 停在 server ready 附近。按新的 reader 规则，这类 run 应显示为 partial/stalled，而不能算作 4h 完整结果。
+
+还有两个后续项没有放进本轮代码：
+
+- `kvfabric_block_snapshot.jsonl`：现在 replay 可以读 lifecycle JSONL，但 dashboard 中途打开大文件时仍可能慢。后续可以在生命周期 logger 里周期性写 block snapshot。
+- 三策略并排 MP4：当前先支持单策略 GIF。报告需要更强对比时，再把三个 policy 的 frame 合成一个 MP4。

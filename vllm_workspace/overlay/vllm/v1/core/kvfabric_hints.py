@@ -15,6 +15,10 @@ KVFABRIC_HINT_HEADERS = {
         "x-kvfabric-request-class",
         "x-kvfabric-class",
     ),
+    "trace_request_id": (
+        "x-kvfabric-trace-request-id",
+        "x-kvfabric-trace-id",
+    ),
     "tenant_id": (
         "x-kvfabric-tenant-id",
         "x-kvfabric-tenant",
@@ -140,6 +144,7 @@ def _derive_expected_reuse(request_class: str, phase: str | None) -> str:
 @dataclass(frozen=True)
 class KVFabricRequestHints:
     request_class: str = "unknown"
+    trace_request_id: str | None = None
     tenant_id: str | None = None
     family_id: str | None = None
     cache_priority: str = "normal"
@@ -187,6 +192,7 @@ class KVFabricRequestHints:
             )
 
         tenant_id = _clean(values.get("tenant_id"))
+        trace_request_id = _clean(values.get("trace_request_id"))
         family_id = _clean(values.get("family_id"))
         session_id = _clean(values.get("session_id"))
         try:
@@ -206,6 +212,7 @@ class KVFabricRequestHints:
 
         return cls(
             request_class=request_class,
+            trace_request_id=trace_request_id,
             tenant_id=tenant_id,
             family_id=family_id,
             cache_priority=cache_priority,
@@ -244,6 +251,7 @@ class KVFabricRequestHints:
     def event_fields(self) -> dict[str, str | bool | None]:
         return {
             "hint_request_class": self.request_class,
+            "hint_trace_request_id": self.trace_request_id,
             "hint_tenant_id": self.tenant_id,
             "hint_family_id": self.family_id,
             "hint_family_key": self.family_key,

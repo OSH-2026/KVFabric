@@ -18,6 +18,8 @@ TRACE_HEADERS = ["traceparent", "tracestate"]
 KVFABRIC_HINT_HEADERS = [
     "x-kvfabric-request-class",
     "x-kvfabric-class",
+    "x-kvfabric-trace-request-id",
+    "x-kvfabric-trace-id",
     "x-kvfabric-tenant-id",
     "x-kvfabric-tenant",
     "x-kvfabric-family-id",

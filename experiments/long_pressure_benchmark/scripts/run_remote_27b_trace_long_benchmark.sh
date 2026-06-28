@@ -10,6 +10,7 @@ export KVFABRIC_AB_POLICIES="${KVFABRIC_AB_POLICIES:-lru shared_aware family_pro
 export TRACE_BENCH_METRICS_INTERVAL="${TRACE_BENCH_METRICS_INTERVAL:-30}"
 export TRACE_BENCH_RAW_SAMPLE_RATE="${TRACE_BENCH_RAW_SAMPLE_RATE:-0.02}"
 export TRACE_BENCH_RAW_SAMPLE_LIMIT="${TRACE_BENCH_RAW_SAMPLE_LIMIT:-2000}"
+export TRACE_BENCH_PROMPT_EXCERPT_CHARS="${TRACE_BENCH_PROMPT_EXCERPT_CHARS:-1200}"
 export TRACE_BENCH_MAX_IN_FLIGHT="${TRACE_BENCH_MAX_IN_FLIGHT:-32}"
 export TRACE_BENCH_TIMEOUT_SECONDS="${TRACE_BENCH_TIMEOUT_SECONDS:-900}"
 export TRACE_BENCH_SLO_SECONDS="${TRACE_BENCH_SLO_SECONDS:-0}"
@@ -32,6 +33,7 @@ cleanup_trace_loadgens() {
 }
 
 cleanup_benchmark_processes() {
+  stop_policy_heartbeat 2>/dev/null || true
   cleanup_trace_loadgens
   bash "$PROJECT_ROOT/vllm_baseline/scripts/stop_server.sh" "$MODEL_PRESET" >/dev/null 2>&1 || true
 }
@@ -43,9 +45,90 @@ run_root="$LONG_BENCH_ROOT/runs/$(date +'%Y-%m-%d_%H%M%S')_${MODEL_PRESET}_${sui
 trace_dir="$run_root/trace"
 mkdir -p "$trace_dir"
 
+json_escape() {
+  local value="$1"
+  python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$value"
+}
+
+write_run_state() {
+  local phase="$1"
+  local status="$2"
+  local current_policy="${3:-}"
+  local message="${4:-}"
+  cat > "$run_root/run_state.json" <<JSON
+{
+  "run_root": $(json_escape "$run_root"),
+  "model_preset": $(json_escape "$MODEL_PRESET"),
+  "suite_name": $(json_escape "$suite_name"),
+  "config_path": $(json_escape "$config_path"),
+  "phase": $(json_escape "$phase"),
+  "status": $(json_escape "$status"),
+  "current_policy": $(json_escape "$current_policy"),
+  "message": $(json_escape "$message"),
+  "updated_at_epoch_seconds": $(date +%s),
+  "updated_at": $(json_escape "$(date --iso-8601=seconds)")
+}
+JSON
+}
+
+write_policy_state() {
+  local policy_dir="$1"
+  local policy="$2"
+  local phase="$3"
+  local status="$4"
+  local exit_code="${5:-0}"
+  local message="${6:-}"
+  cat > "$policy_dir/policy_state.json" <<JSON
+{
+  "policy": $(json_escape "$policy"),
+  "phase": $(json_escape "$phase"),
+  "status": $(json_escape "$status"),
+  "exit_code": ${exit_code},
+  "message": $(json_escape "$message"),
+  "run_root": $(json_escape "$run_root"),
+  "policy_dir": $(json_escape "$policy_dir"),
+  "updated_at_epoch_seconds": $(date +%s),
+  "updated_at": $(json_escape "$(date --iso-8601=seconds)")
+}
+JSON
+}
+
+start_policy_heartbeat() {
+  local policy_dir="$1"
+  local policy="$2"
+  local phase="$3"
+  (
+    while true; do
+      cat > "$policy_dir/heartbeat.json" <<JSON
+{
+  "policy": $(json_escape "$policy"),
+  "phase": $(json_escape "$phase"),
+  "pid": $$,
+  "updated_at_epoch_seconds": $(date +%s),
+  "updated_at": $(json_escape "$(date --iso-8601=seconds)")
+}
+JSON
+      sleep "${TRACE_BENCH_HEARTBEAT_INTERVAL_SECONDS:-15}"
+    done
+  ) &
+  POLICY_HEARTBEAT_PID=$!
+}
+
+stop_policy_heartbeat() {
+  if [[ -n "${POLICY_HEARTBEAT_PID:-}" ]]; then
+    kill "$POLICY_HEARTBEAT_PID" 2>/dev/null || true
+    wait "$POLICY_HEARTBEAT_PID" 2>/dev/null || true
+    unset POLICY_HEARTBEAT_PID
+  fi
+}
+
+write_run_state "trace" "running" "" "generating trace"
+
 "$(python_bin)" "$LONG_BENCH_ROOT/examples/generate_realistic_trace.py" \
   --config "$config_path" \
   --output-dir "$trace_dir"
+
+write_run_state "trace" "completed" "" "trace generated"
 
 run_policy() {
   local policy="$1"
@@ -57,6 +140,8 @@ run_policy() {
   mkdir -p "$policy_dir"
   echo "=== Trace KVFabric policy: ${policy} ==="
   echo "Output: ${policy_dir}"
+  write_run_state "policy" "running" "$policy" "starting policy"
+  write_policy_state "$policy_dir" "$policy" "server_start" "running" 0 "starting vLLM server"
 
   cleanup_trace_loadgens
   bash "$PROJECT_ROOT/vllm_baseline/scripts/stop_server.sh" "$MODEL_PRESET" || true
@@ -68,7 +153,7 @@ run_policy() {
     admission_policy="${KVFABRIC_ADMISSION_POLICY:-auto}"
   fi
 
-  KVFABRIC_LIFECYCLE=1 \
+  if ! KVFABRIC_LIFECYCLE=1 \
   KVFABRIC_EVICTION_POLICY="$policy" \
   KVFABRIC_ADMISSION_POLICY="$admission_policy" \
   KVFABRIC_LIFECYCLE_LOG_PATH="$lifecycle_log" \
@@ -131,8 +216,14 @@ run_policy() {
   VLLM_SERVE_MAX_MODEL_LEN="${TRACE_BENCH_MAX_MODEL_LEN:-${MAX_MODEL_LEN:-4096}}" \
   VLLM_SERVE_MAX_NUM_SEQS="${TRACE_BENCH_MAX_NUM_SEQS:-${MAX_NUM_SEQS:-10}}" \
   VLLM_SERVE_MAX_NUM_BATCHED_TOKENS="${TRACE_BENCH_MAX_NUM_BATCHED_TOKENS:-${MAX_NUM_BATCHED_TOKENS:-8192}}" \
-    bash "$PROJECT_ROOT/vllm_baseline/scripts/serve_local.sh" "$MODEL_PRESET"
+    bash "$PROJECT_ROOT/vllm_baseline/scripts/serve_local.sh" "$MODEL_PRESET"; then
+    write_policy_state "$policy_dir" "$policy" "server_start" "failed" 1 "vLLM server failed to start"
+    return 1
+  fi
 
+  write_policy_state "$policy_dir" "$policy" "loadgen" "running" 0 "replaying trace"
+  start_policy_heartbeat "$policy_dir" "$policy" "loadgen"
+  local loadgen_exit=0
   "$(python_bin)" "$LONG_BENCH_ROOT/examples/online_trace_loadgen.py" \
     --trace-dir "$trace_dir" \
     --output-dir "$policy_dir/online_trace" \
@@ -145,9 +236,16 @@ run_policy() {
     --metrics-interval "$TRACE_BENCH_METRICS_INTERVAL" \
     --raw-sample-rate "$TRACE_BENCH_RAW_SAMPLE_RATE" \
     --raw-sample-limit "$TRACE_BENCH_RAW_SAMPLE_LIMIT" \
+    --prompt-excerpt-chars "$TRACE_BENCH_PROMPT_EXCERPT_CHARS" \
     --slo-seconds "$TRACE_BENCH_SLO_SECONDS" \
-    --timeout "$TRACE_BENCH_TIMEOUT_SECONDS"
+    --timeout "$TRACE_BENCH_TIMEOUT_SECONDS" || loadgen_exit=$?
+  stop_policy_heartbeat
+  if [[ "$loadgen_exit" -ne 0 ]]; then
+    write_policy_state "$policy_dir" "$policy" "loadgen" "failed" "$loadgen_exit" "trace replay failed"
+    return "$loadgen_exit"
+  fi
 
+  write_policy_state "$policy_dir" "$policy" "metrics" "running" 0 "reading prometheus and lifecycle metrics"
   bash "$PROJECT_ROOT/vllm_baseline/scripts/read_metrics.sh" \
     --url "http://${VLLM_HOST}:${VLLM_PORT}/metrics" \
     --json > "$policy_dir/prometheus_metrics_summary.json" || true
@@ -162,21 +260,29 @@ run_policy() {
       --input "$lifecycle_log" \
       --output "$lifecycle_metrics"
   else
+    write_policy_state "$policy_dir" "$policy" "lifecycle" "failed" 1 "lifecycle log was not created"
     echo "Lifecycle log was not created: ${lifecycle_log}" >&2
     return 1
   fi
 
   completed=1
+  write_policy_state "$policy_dir" "$policy" "completed" "completed" 0 "policy completed"
+  write_run_state "policy" "completed" "$policy" "policy completed"
   trap - RETURN
 }
 
 read -r -a policies <<<"$KVFABRIC_AB_POLICIES"
 for policy in "${policies[@]}"; do
-  run_policy "$policy"
+  if ! run_policy "$policy"; then
+    write_run_state "policy" "failed" "$policy" "policy failed"
+    exit 1
+  fi
 done
 
+write_run_state "summary" "running" "" "building summary"
 "$PROJECT_ROOT/experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py" \
   --run-root "$run_root" \
   --output "$run_root/remote_27b_benchmark_summary.md" || true
 
+write_run_state "completed" "completed" "" "run completed"
 echo "Remote 27B trace benchmark output: ${run_root}"
