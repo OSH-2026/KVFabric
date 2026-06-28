@@ -136,6 +136,7 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/long_pressure_benchmark/dashboard/kvfabric_run_reader.py \
     experiments/long_pressure_benchmark/dashboard/kv_cache_replay.py \
     experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py \
+    experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard_static.py \
     experiments/long_pressure_benchmark/dashboard/render_replay_gif.py"
 
 if [[ "$REMOTE_MODE" == "sync" ]]; then

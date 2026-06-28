@@ -39,7 +39,9 @@ Main entry points:
   starts the Streamlit dashboard on the remote server. Use
   `ssh -L 8501:127.0.0.1:8501 robowalker` and open
   `http://127.0.0.1:8501` locally. It installs
-  `dashboard/requirements.txt` into the remote benchmark venv by default.
+  `dashboard/requirements.txt` into the remote benchmark venv by default. If the
+  remote host cannot install Python packages, it falls back to a dependency-free
+  HTML dashboard backed by `run_kvfabric_dashboard_static.py`.
 - `scripts/start_remote_27b_sticky_with_dashboard.sh`
   starts the Sticky 4h benchmark and then opens the dashboard for the new run.
 - `scripts/start_remote_27b_4h_suite_with_dashboard.sh`

@@ -25,6 +25,7 @@ if [[ -z "$REMOTE_RUN_ROOT" && "$DASHBOARD_FOLLOW_LATEST" != "1" ]]; then
   REMOTE_RUN_ROOT=\$(find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d | sort | tail -n 1)
 fi
 python_bin="$REMOTE_VENV/bin/python"
+dashboard_backend="streamlit"
 if ! "\$python_bin" - <<'PY'
 import importlib
 for name in ("streamlit", "plotly", "pandas", "matplotlib", "imageio"):
@@ -32,10 +33,21 @@ for name in ("streamlit", "plotly", "pandas", "matplotlib", "imageio"):
 PY
 then
   if [[ "$INSTALL_DASHBOARD_DEPS" == "1" ]]; then
-    "\$python_bin" -m pip install -r experiments/long_pressure_benchmark/dashboard/requirements.txt
+    if ! "\$python_bin" -m pip install -r experiments/long_pressure_benchmark/dashboard/requirements.txt; then
+      dashboard_backend="static"
+    fi
   else
-    echo "Dashboard dependencies are missing. Run with INSTALL_DASHBOARD_DEPS=1 or install dashboard/requirements.txt." >&2
-    exit 1
+    dashboard_backend="static"
+  fi
+fi
+if [[ "\$dashboard_backend" == "streamlit" ]]; then
+  if ! "\$python_bin" - <<'PY'
+import importlib
+for name in ("streamlit", "plotly", "pandas"):
+    importlib.import_module(name)
+PY
+  then
+    dashboard_backend="static"
   fi
 fi
 mkdir -p vllm_baseline/runtime_kvfabric_0221/jobs
@@ -52,24 +64,34 @@ if [[ -n "\${REMOTE_RUN_ROOT:-}" ]]; then
 else
   args+=(--runs-dir experiments/long_pressure_benchmark/runs)
 fi
-exec "\${REMOTE_VENV:-.venv_kvfabric_0221}/bin/python" -m streamlit run \
-  experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py \
-  --server.address 127.0.0.1 \
-  --server.port "\${DASHBOARD_PORT:-8501}" \
-  -- "\${args[@]}"
+if [[ "\${DASHBOARD_BACKEND:-streamlit}" == "streamlit" ]]; then
+  exec "\${REMOTE_VENV:-.venv_kvfabric_0221}/bin/python" -m streamlit run \
+    experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py \
+    --server.address 127.0.0.1 \
+    --server.port "\${DASHBOARD_PORT:-8501}" \
+    -- "\${args[@]}"
+fi
+exec "\${REMOTE_VENV:-.venv_kvfabric_0221}/bin/python" \
+  experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard_static.py \
+  --host 127.0.0.1 \
+  --port "\${DASHBOARD_PORT:-8501}" \
+  "\${args[@]}"
 RUN
 chmod +x vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.sh
 pkill -f "streamlit run experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py" 2>/dev/null || true
+pkill -f "run_kvfabric_dashboard_static.py" 2>/dev/null || true
 REMOTE_PROJECT="$REMOTE_PROJECT" \
 REMOTE_VENV="$REMOTE_VENV" \
-REMOTE_RUN_ROOT="\$REMOTE_RUN_ROOT" \
+REMOTE_RUN_ROOT="\${REMOTE_RUN_ROOT:-}" \
 REMOTE_JOB_LOG="$REMOTE_JOB_LOG" \
 DASHBOARD_PORT="$DASHBOARD_PORT" \
+DASHBOARD_BACKEND="\$dashboard_backend" \
 nohup bash vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.sh \
   > vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.log 2>&1 &
 echo \$! > vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.pid
 echo "dashboard_pid=\$(cat vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.pid)"
 echo "remote_url=http://127.0.0.1:$DASHBOARD_PORT"
+echo "dashboard_backend=\$dashboard_backend"
 echo "ssh_forward=ssh -L $DASHBOARD_PORT:127.0.0.1:$DASHBOARD_PORT $REMOTE_SSH_TARGET"
-echo "run_root=\$REMOTE_RUN_ROOT"
+echo "run_root=\${REMOTE_RUN_ROOT:-latest}"
 REMOTE
