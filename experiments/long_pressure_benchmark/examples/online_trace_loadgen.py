@@ -641,7 +641,6 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                     async with stats_lock:
                         stats.record_offered(request_class, measured)
                     messages = read_prompt(trace_dir, str(entry["prompt_ref"]))
-                    prompt_info = prompt_summary(messages, args.prompt_excerpt_chars)
                     payload = {
                         "model": args.model,
                         "messages": messages,
@@ -662,6 +661,34 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                             args.raw_sample_rate >= 1.0
                             or sample_rng.random() < args.raw_sample_rate
                         )
+                        sample_record = None
+                        if should_sample and stats.sampled_outputs < args.raw_sample_limit:
+                            choice = data.get("choices", [{}])[0]
+                            message = choice.get("message", {})
+                            sample_record = {
+                                "request_id": entry.get("request_id"),
+                                "scheduled_at_seconds": scheduled_at,
+                                "request_class": request_class,
+                                "tenant_id": entry.get("tenant_id"),
+                                "session_id": entry.get("session_id"),
+                                "family_id": entry.get("family_id"),
+                                "turn_index": entry.get("turn_index"),
+                                "expected_reuse": entry.get("expected_reuse"),
+                                "cache_priority": entry.get("cache_priority"),
+                                "phase": entry.get("phase"),
+                                "max_tokens": entry.get("max_tokens"),
+                                "prompt_ref": entry.get("prompt_ref"),
+                                **prompt_summary(
+                                    messages,
+                                    args.prompt_excerpt_chars,
+                                ),
+                                "hint_regime": hint_regime,
+                                "headers": headers or {},
+                                "send_delay_seconds": send_delay,
+                                "latency_seconds": latency,
+                                "usage": usage,
+                                "output": message.get("content", ""),
+                            }
                         async with stats_lock:
                             stats.record_success(
                                 request_class,
@@ -672,38 +699,12 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                 args.slo_seconds,
                             )
                             if (
-                                should_sample
+                                sample_record is not None
                                 and stats.sampled_outputs < args.raw_sample_limit
                             ):
-                                choice = data.get("choices", [{}])[0]
-                                message = choice.get("message", {})
                                 raw_file.write(
                                     json.dumps(
-                                        {
-                                            "request_id": entry.get("request_id"),
-                                            "scheduled_at_seconds": scheduled_at,
-                                            "request_class": request_class,
-                                            "tenant_id": entry.get("tenant_id"),
-                                            "session_id": entry.get("session_id"),
-                                            "family_id": entry.get("family_id"),
-                                            "turn_index": entry.get("turn_index"),
-                                            "expected_reuse": entry.get(
-                                                "expected_reuse"
-                                            ),
-                                            "cache_priority": entry.get(
-                                                "cache_priority"
-                                            ),
-                                            "phase": entry.get("phase"),
-                                            "max_tokens": entry.get("max_tokens"),
-                                            "prompt_ref": entry.get("prompt_ref"),
-                                            **prompt_info,
-                                            "hint_regime": hint_regime,
-                                            "headers": headers or {},
-                                            "send_delay_seconds": send_delay,
-                                            "latency_seconds": latency,
-                                            "usage": usage,
-                                            "output": message.get("content", ""),
-                                        },
+                                        sample_record,
                                         ensure_ascii=False,
                                     )
                                     + "\n"
@@ -718,6 +719,10 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                 error_type,
                                 send_delay,
                                 measured,
+                            )
+                            prompt_info = prompt_summary(
+                                messages,
+                                args.prompt_excerpt_chars,
                             )
                             raw_file.write(
                                 json.dumps(

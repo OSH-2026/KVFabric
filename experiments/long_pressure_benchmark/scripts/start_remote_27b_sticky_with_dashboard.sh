@@ -13,13 +13,14 @@ DASHBOARD_PORT="${DASHBOARD_PORT:-8501}"
 
 load_common_env
 
+suite_started_epoch=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "date +%s")
 bash "$SCRIPT_DIR/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh"
 
 remote_run_root=""
 for _ in $(seq 1 "${DASHBOARD_RUN_WAIT_ATTEMPTS:-60}"); do
   sleep "${DASHBOARD_START_DELAY_SECONDS:-5}"
   remote_run_root=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
-    "cd '$REMOTE_PROJECT' && find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d -name '*sticky_conversation_trace_4h*' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-")
+    "cd '$REMOTE_PROJECT' && find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d -name '*sticky_conversation_trace_4h*' -printf '%T@ %p\n' | awk -v start='$suite_started_epoch' '\$1 >= start - 5 {print}' | sort -nr | head -n 1 | cut -d' ' -f2-")
   if [[ -n "$remote_run_root" ]]; then
     break
   fi
