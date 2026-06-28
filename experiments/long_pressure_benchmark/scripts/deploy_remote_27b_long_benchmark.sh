@@ -56,6 +56,7 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_dashboard.sh"
+  "experiments/long_pressure_benchmark/scripts/start_remote_27b_4h_suite_with_dashboard.sh"
   "experiments/long_pressure_benchmark/scripts/start_remote_27b_sticky_with_dashboard.sh"
   "experiments/long_pressure_benchmark/scripts/export_kv_cache_replay.sh"
   "experiments/long_pressure_benchmark/scripts/sync_remote_27b_benchmark_results.sh"

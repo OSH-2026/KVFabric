@@ -14,13 +14,14 @@ REMOTE_RUN_ROOT="${REMOTE_RUN_ROOT:-}"
 REMOTE_JOB_LOG="${REMOTE_JOB_LOG:-vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_sticky_conversation_trace_4h.log}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-8501}"
 INSTALL_DASHBOARD_DEPS="${INSTALL_DASHBOARD_DEPS:-1}"
+DASHBOARD_FOLLOW_LATEST="${DASHBOARD_FOLLOW_LATEST:-0}"
 
 load_common_env
 
 ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "bash -s" <<REMOTE
 set -euo pipefail
 cd "$REMOTE_PROJECT"
-if [[ -z "$REMOTE_RUN_ROOT" ]]; then
+if [[ -z "$REMOTE_RUN_ROOT" && "$DASHBOARD_FOLLOW_LATEST" != "1" ]]; then
   REMOTE_RUN_ROOT=\$(find experiments/long_pressure_benchmark/runs -maxdepth 1 -type d | sort | tail -n 1)
 fi
 python_bin="$REMOTE_VENV/bin/python"
@@ -42,14 +43,20 @@ cat > vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.sh <<'RUN'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "\${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
+args=(
+  --job-log "\${REMOTE_JOB_LOG:-}"
+  --refresh-seconds "\${DASHBOARD_REFRESH_SECONDS:-5}"
+)
+if [[ -n "\${REMOTE_RUN_ROOT:-}" ]]; then
+  args+=(--run-root "\${REMOTE_RUN_ROOT}")
+else
+  args+=(--runs-dir experiments/long_pressure_benchmark/runs)
+fi
 exec "\${REMOTE_VENV:-.venv_kvfabric_0221}/bin/python" -m streamlit run \
   experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py \
   --server.address 127.0.0.1 \
   --server.port "\${DASHBOARD_PORT:-8501}" \
-  -- \
-  --run-root "\${REMOTE_RUN_ROOT}" \
-  --job-log "\${REMOTE_JOB_LOG:-}" \
-  --refresh-seconds "\${DASHBOARD_REFRESH_SECONDS:-5}"
+  -- "\${args[@]}"
 RUN
 chmod +x vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_dashboard.sh
 pkill -f "streamlit run experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py" 2>/dev/null || true

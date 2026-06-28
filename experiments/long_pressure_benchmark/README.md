@@ -42,6 +42,9 @@ Main entry points:
   `dashboard/requirements.txt` into the remote benchmark venv by default.
 - `scripts/start_remote_27b_sticky_with_dashboard.sh`
   starts the Sticky 4h benchmark and then opens the dashboard for the new run.
+- `scripts/start_remote_27b_4h_suite_with_dashboard.sh`
+  starts the three 4h experiments in sequence with `KVFABRIC_4H_SUITE_SKIP_EXISTING=0`
+  by default and opens a dashboard that follows the newest run directory.
 - `scripts/export_kv_cache_replay.sh`
   renders a GIF from a policy's `kvfabric_lifecycle.jsonl` for report demos.
 
