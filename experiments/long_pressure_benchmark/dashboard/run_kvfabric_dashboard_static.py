@@ -38,6 +38,14 @@ def metric(snapshot: Any, key: str, default: Any = None) -> Any:
     return snapshot.latest_rolling.get(key, default)
 
 
+def metric_first(snapshot: Any, keys: tuple[str, ...], default: Any = None) -> Any:
+    for key in keys:
+        value = metric(snapshot, key, None)
+        if value is not None:
+            return value
+    return default
+
+
 def newest_run(runs_dir: Path) -> Path:
     candidates = [path for path in runs_dir.expanduser().glob("*") if path.is_dir()]
     if not candidates:
@@ -73,6 +81,7 @@ def compact_blocks(run_root: Path, policy: str, limit_events: int) -> dict[str, 
         "elapsed_seconds": state.elapsed_seconds,
         "prefix_hit_rate": state.prefix_hit_rate,
         "bad_lines": state.bad_lines,
+        "block_count": len(blocks),
         "blocks": blocks,
         "counters": dict(state.counters),
         "current_request": state.current_request,
@@ -91,12 +100,18 @@ def build_snapshot(args: argparse.Namespace, query: dict[str, list[str]]) -> dic
     snapshots = reader.policy_snapshots()
     policy_rows = []
     for item in snapshots:
+        completed = metric_first(item, ("completed", "requests"), 0)
+        offered = metric_first(
+            item,
+            ("offered", "offered_requests", "measured_offered"),
+            completed,
+        )
         policy_rows.append(
             {
                 "policy": item.policy,
                 "status": item.inferred_status,
-                "completed": metric(item, "completed", metric(item, "requests", 0)),
-                "offered": metric(item, "offered", 0),
+                "completed": completed,
+                "offered": offered,
                 "tok_s": metric(item, "total_tokens_per_second", 0.0),
                 "goodput_tok_s": metric(item, "goodput_total_tokens_per_second", 0.0),
                 "avg_latency_s": metric(item, "latency_avg_seconds", 0.0),
@@ -116,6 +131,7 @@ def build_snapshot(args: argparse.Namespace, query: dict[str, list[str]]) -> dic
     )
     return {
         "generated_at": time.time(),
+        "dashboard_backend": "static",
         "run_root": str(run_root.resolve()),
         "run_name": run_root.name,
         "run_state": reader.run_state(),
