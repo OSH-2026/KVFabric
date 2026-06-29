@@ -63,8 +63,20 @@ def parse_args() -> argparse.Namespace:
 
 
 class RunStats:
-    def __init__(self, started: float) -> None:
+    def __init__(
+        self,
+        started: float,
+        slo_probe_seconds: list[float] | None = None,
+        class_slo_seconds: dict[str, float] | None = None,
+    ) -> None:
         self.started = started
+        self.slo_probe_seconds = sorted(
+            {float(value) for value in (slo_probe_seconds or [])}
+        )
+        self.class_slo_seconds = dict(class_slo_seconds or {})
+        self.slo_probe_labels = {
+            value: f"{value:g}s" for value in self.slo_probe_seconds
+        }
         self.completed = 0
         self.errors = 0
         self.prompt_tokens = 0
@@ -85,6 +97,15 @@ class RunStats:
         self.class_segment_stats: dict[str, dict[str, dict[str, Any]]] = (
             defaultdict(lambda: defaultdict(self._new_bucket))
         )
+        self.slo_probe_stats: dict[str, dict[str, Any]] = defaultdict(
+            self._new_probe_bucket
+        )
+        self.slo_probe_class_stats: dict[str, dict[str, dict[str, Any]]] = (
+            defaultdict(lambda: defaultdict(self._new_probe_bucket))
+        )
+        self.slo_probe_segment_stats: dict[str, dict[str, dict[str, Any]]] = (
+            defaultdict(lambda: defaultdict(self._new_probe_bucket))
+        )
 
     @staticmethod
     def _new_bucket() -> dict[str, Any]:
@@ -102,6 +123,17 @@ class RunStats:
             "error_kinds": defaultdict(int),
             "latencies": [],
             "recent_latencies": deque(maxlen=1024),
+        }
+
+    @staticmethod
+    def _new_probe_bucket() -> dict[str, Any]:
+        return {
+            "completed": 0,
+            "goodput_prompt_tokens": 0,
+            "goodput_completion_tokens": 0,
+            "goodput_total_tokens": 0,
+            "slo_pass": 0,
+            "slo_miss": 0,
         }
 
     @staticmethod
@@ -126,6 +158,23 @@ class RunStats:
             bucket["slo_miss"] += 1
         bucket["latencies"].append(latency)
         bucket["recent_latencies"].append(latency)
+
+    @staticmethod
+    def _record_probe_bucket(
+        bucket: dict[str, Any],
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        slo_pass: bool,
+    ) -> None:
+        bucket["completed"] += 1
+        if slo_pass:
+            bucket["goodput_prompt_tokens"] += prompt_tokens
+            bucket["goodput_completion_tokens"] += completion_tokens
+            bucket["goodput_total_tokens"] += total_tokens
+            bucket["slo_pass"] += 1
+        else:
+            bucket["slo_miss"] += 1
 
     def record_success(
         self,
@@ -158,6 +207,26 @@ class RunStats:
             total_tokens,
             slo_pass,
         )
+
+        for probe_seconds in self.slo_probe_seconds:
+            label = self.slo_probe_labels[probe_seconds]
+            effective_probe_slo = self.class_slo_seconds.get(
+                request_class,
+                probe_seconds,
+            )
+            probe_pass = effective_probe_slo <= 0 or latency <= effective_probe_slo
+            for bucket in (
+                self.slo_probe_stats[label],
+                self.slo_probe_class_stats[label][request_class],
+                self.slo_probe_segment_stats[label][segment],
+            ):
+                self._record_probe_bucket(
+                    bucket,
+                    prompt_tokens,
+                    completion_tokens,
+                    total_tokens,
+                    probe_pass,
+                )
         self._record_bucket(
             self.segment_stats[segment],
             latency,
@@ -209,6 +278,7 @@ class RunStats:
             "latency_p50_seconds": percentile(recent, 0.50),
             "latency_p95_seconds": percentile(recent, 0.95),
             "class_metrics": self.class_snapshot(elapsed),
+            "slo_probe_metrics": self.probe_snapshot(elapsed),
         }
 
     def class_snapshot(self, elapsed: float) -> dict[str, Any]:
@@ -293,6 +363,62 @@ class RunStats:
         for segment_name, buckets in sorted(self.class_segment_stats.items()):
             elapsed = max(segment_elapsed.get(segment_name, 0.0), 1e-9)
             output[segment_name] = self._bucket_snapshot(buckets, elapsed)
+        return output
+
+    @staticmethod
+    def _probe_bucket_snapshot(
+        bucket: dict[str, Any],
+        elapsed: float,
+    ) -> dict[str, Any]:
+        completed = int(bucket["completed"])
+        miss = int(bucket["slo_miss"])
+        return {
+            "completed": completed,
+            "goodput_prompt_tokens": int(bucket["goodput_prompt_tokens"]),
+            "goodput_completion_tokens": int(
+                bucket["goodput_completion_tokens"]
+            ),
+            "goodput_total_tokens": int(bucket["goodput_total_tokens"]),
+            "goodput_total_tokens_per_second": (
+                int(bucket["goodput_total_tokens"]) / elapsed
+            ),
+            "slo_pass": int(bucket["slo_pass"]),
+            "slo_miss": miss,
+            "slo_miss_rate": miss / completed if completed else 0.0,
+        }
+
+    def probe_snapshot(
+        self,
+        elapsed: float,
+        *,
+        include_breakdowns: bool = False,
+        segment_elapsed: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for label in sorted(self.slo_probe_stats):
+            probe = self._probe_bucket_snapshot(
+                self.slo_probe_stats[label],
+                elapsed,
+            )
+            if include_breakdowns:
+                probe["class_metrics"] = {
+                    name: self._probe_bucket_snapshot(bucket, elapsed)
+                    for name, bucket in sorted(
+                        self.slo_probe_class_stats[label].items()
+                    )
+                }
+                probe["segment_metrics"] = {}
+                for name, bucket in sorted(
+                    self.slo_probe_segment_stats[label].items()
+                ):
+                    segment_seconds = max(
+                        (segment_elapsed or {}).get(name, elapsed),
+                        1e-9,
+                    )
+                    probe["segment_metrics"][name] = (
+                        self._probe_bucket_snapshot(bucket, segment_seconds)
+                    )
+            output[label] = probe
         return output
 
 
@@ -420,6 +546,36 @@ def build_payloads(config: dict[str, Any], model: str) -> list[dict[str, Any]]:
     return payloads
 
 
+def parse_class_slo_seconds(loadgen_config: dict[str, Any]) -> dict[str, float]:
+    raw = loadgen_config.get("class_slo_seconds") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("loadgen.class_slo_seconds must be an object when set.")
+    parsed: dict[str, float] = {}
+    for request_class, value in raw.items():
+        parsed[str(request_class)] = float(value)
+    return parsed
+
+
+def parse_slo_probe_seconds(loadgen_config: dict[str, Any]) -> list[float]:
+    raw = loadgen_config.get("slo_probe_seconds") or []
+    if not isinstance(raw, list):
+        raise ValueError("loadgen.slo_probe_seconds must be a list when set.")
+    return sorted({float(value) for value in raw if float(value) >= 0})
+
+
+def effective_slo_seconds(
+    meta: dict[str, Any],
+    request_class: str,
+    default_slo_seconds: float,
+    class_slo_seconds: dict[str, float],
+) -> float:
+    if meta.get("slo_seconds") is not None:
+        return float(meta["slo_seconds"])
+    if meta.get("slo_ms") is not None:
+        return float(meta["slo_ms"]) / 1000.0
+    return class_slo_seconds.get(request_class, default_slo_seconds)
+
+
 def _meta_value(meta: dict[str, Any], *keys: str) -> str | None:
     for key in keys:
         value = meta.get(key)
@@ -489,6 +645,7 @@ def build_kvfabric_headers(meta: dict[str, Any]) -> dict[str, str]:
         headers["x-kvfabric-turn-index"] = turn
     if slo_ms is not None:
         headers["x-kvfabric-slo-ms"] = slo_ms
+        headers["x-kvfabric-slo"] = slo_ms
     return headers
 
 
@@ -554,6 +711,7 @@ async def worker(
     segments: list[dict[str, Any]],
     run_started: float,
     slo_seconds: float,
+    class_slo_seconds: dict[str, float],
 ) -> None:
     while time.perf_counter() < stop_time:
         now = time.perf_counter()
@@ -572,6 +730,14 @@ async def worker(
         request_meta = dict(item.get("meta", {}))
         request_meta["segment"] = segment_name
         request_class = str(request_meta.get("class", "unclassified"))
+        request_slo_seconds = effective_slo_seconds(
+            request_meta,
+            request_class,
+            slo_seconds,
+            class_slo_seconds,
+        )
+        if request_slo_seconds > 0 and "slo_ms" not in request_meta:
+            request_meta["slo_ms"] = int(request_slo_seconds * 1000)
         headers = (
             build_kvfabric_headers(request_meta)
             if kvfabric_headers_enabled
@@ -596,7 +762,7 @@ async def worker(
                     usage,
                     request_class,
                     segment_name,
-                    slo_seconds,
+                    request_slo_seconds,
                 )
                 if should_sample and stats.sampled_outputs < raw_sample_limit:
                     choice = data.get("choices", [{}])[0]
@@ -609,6 +775,7 @@ async def worker(
                                 "source_index": item["index"],
                                 "meta": request_meta,
                                 "segment": segment_name,
+                                "slo_seconds": request_slo_seconds,
                                 "kvfabric_headers": headers or {},
                                 "latency_seconds": latency,
                                 "usage": usage,
@@ -634,6 +801,7 @@ async def worker(
                             "source_index": item["index"],
                             "meta": request_meta,
                             "segment": segment_name,
+                            "slo_seconds": request_slo_seconds,
                             "kvfabric_headers": headers or {},
                             **serialize_request_error(exc),
                         },
@@ -739,11 +907,17 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     effective_duration = min(args.duration_seconds, total_segment_duration)
     concurrency = max(int(segment["concurrency"]) for segment in segments)
     slo_seconds = float(loadgen_config.get("slo_seconds", 0.0))
+    class_slo_seconds = parse_class_slo_seconds(loadgen_config)
+    slo_probe_seconds = parse_slo_probe_seconds(loadgen_config)
     url = f"http://{args.host}:{args.port}/v1/chat/completions"
     metrics_url = f"http://{args.host}:{args.port}/metrics"
     started = time.perf_counter()
     stop_time = started + effective_duration
-    stats = RunStats(started=started)
+    stats = RunStats(
+        started=started,
+        slo_probe_seconds=slo_probe_seconds,
+        class_slo_seconds=class_slo_seconds,
+    )
     stats_lock = asyncio.Lock()
     index_lock = asyncio.Lock()
     counter = {"issued": 0}
@@ -766,6 +940,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "warmup_seconds": args.warmup_seconds,
                 "segments": segments,
                 "slo_seconds": slo_seconds,
+                "class_slo_seconds": class_slo_seconds,
+                "slo_probe_seconds": slo_probe_seconds,
                 "payload_pool_size": len(payloads),
                 "max_requests": args.max_requests,
                 "request_selection": request_selection,
@@ -813,6 +989,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         segments=segments,
                         run_started=started,
                         slo_seconds=slo_seconds,
+                        class_slo_seconds=class_slo_seconds,
                     )
                 )
                 for worker_id in range(concurrency)
@@ -844,6 +1021,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "warmup_seconds": args.warmup_seconds,
             "segments": segments,
             "slo_seconds": slo_seconds,
+            "class_slo_seconds": class_slo_seconds,
+            "slo_probe_seconds": slo_probe_seconds,
             "errors": stats.errors,
             "goodput_prompt_tokens": stats.goodput_prompt_tokens,
             "goodput_completion_tokens": stats.goodput_completion_tokens,
@@ -860,6 +1039,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "class_metrics": stats.final_class_metrics(total_seconds),
             "segment_metrics": stats.final_segment_metrics(
                 segment_elapsed_map(segments, total_seconds)
+            ),
+            "slo_probe_metrics": stats.probe_snapshot(
+                total_seconds,
+                include_breakdowns=True,
+                segment_elapsed=segment_elapsed_map(segments, total_seconds),
             ),
             "class_segment_metrics": stats.final_class_segment_metrics(
                 segment_elapsed_map(segments, total_seconds)
@@ -897,6 +1081,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Concurrency: {metrics['concurrency']}",
                 f"- Segments: {json.dumps(segments, ensure_ascii=False)}",
                 f"- SLO seconds: {metrics['slo_seconds']:.2f}",
+                f"- Class SLO seconds: {json.dumps(class_slo_seconds, ensure_ascii=False, sort_keys=True)}",
+                f"- SLO probe seconds: {json.dumps(slo_probe_seconds, ensure_ascii=False)}",
                 f"- Request selection: {metrics['request_selection']}",
                 f"- Random seed: {metrics['random_seed']}",
                 f"- KVFabric headers: {kvfabric_headers_enabled}",

@@ -421,6 +421,10 @@ class BlockPool:
             block.block_hash is not None for block in lru_victims
         )
         should_rank = needs_cached_eviction and use_shared_aware
+        if should_rank and self.kvfabric_lifecycle is not None:
+            should_rank = self.kvfabric_lifecycle.should_rank_lru_victims(
+                lru_victims
+            )
         if not use_shared_aware or not should_rank:
             ret = self.free_block_queue.popleft_n(num_blocks)
         elif self.kvfabric_lifecycle.use_family_protect_eviction():
@@ -431,7 +435,7 @@ class BlockPool:
             for block in ret:
                 self.free_block_queue.remove(block)
         else:
-            ret = self.kvfabric_lifecycle.rank_eviction_candidates(
+            ret = self.kvfabric_lifecycle.select_shared_aware_candidates(
                 lru_candidates,
                 num_blocks=num_blocks,
             )

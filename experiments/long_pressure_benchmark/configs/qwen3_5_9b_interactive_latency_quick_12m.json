@@ -1,0 +1,33 @@
+{
+  "name": "qwen3_5_9b_interactive_latency_quick_12m",
+  "description": "Short tuning proxy for qwen3_5_9b_interactive_latency_reuse_45m. Use it to tune scheduler_strength and SLO protection before the full matrix.",
+  "trace": {
+    "profile": "daily_dedicated_reuse",
+    "duration_seconds": 720,
+    "request_rate": 0.72,
+    "seed": 20260712,
+    "max_model_len": 4096,
+    "load_mode": "interactive_reuse_latency_quick",
+    "hint_regime": "partial_hints",
+    "tenant_count": 3,
+    "client_count": 8,
+    "hot_family_count": 14,
+    "session_family_count": 18,
+    "session_reuse_probability": 0.90,
+    "session_interval_min_seconds": 8,
+    "session_interval_max_seconds": 120,
+    "burst_probability": 0.04,
+    "burst_multiplier_min": 1.6,
+    "burst_multiplier_max": 3.2,
+    "wave_amplitude": 0.10
+  },
+  "loadgen": {
+    "max_in_flight": 56,
+    "metrics_interval": 20,
+    "raw_sample_rate": 0.05,
+    "raw_sample_limit": 900,
+    "warmup_seconds": 60,
+    "timeout_seconds": 900,
+    "slo_seconds": 60
+  }
+}

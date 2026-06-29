@@ -56,9 +56,97 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         e for e in events if e.get("event") == "request_promotion_skipped"
     ]
     request_hints = [e for e in events if e.get("event") == "request_hints_observed"]
+    tracker_initializers = [
+        e for e in events if e.get("event") == "tracker_initialized"
+    ]
+    tracker_initializer = tracker_initializers[-1] if tracker_initializers else {}
 
     prefix_query_tokens = sum(int(e.get("prompt_tokens", 0)) for e in prefix_lookups)
     prefix_hit_tokens = sum(int(e.get("hit_tokens", 0)) for e in prefix_lookups)
+    eligible_lookup_tokens = {
+        "project",
+        "code",
+        "doc",
+        "research",
+        "agent",
+        "workflow",
+        "hot",
+        "followup",
+        "sticky",
+        "support",
+        "chat",
+    }
+
+    def lookup_tokens(rows: list[dict[str, Any]]) -> tuple[int, int]:
+        return (
+            sum(int(e.get("prompt_tokens", 0) or 0) for e in rows),
+            sum(int(e.get("hit_tokens", 0) or 0) for e in rows),
+        )
+
+    def hit_rate(rows: list[dict[str, Any]]) -> float:
+        prompt_tokens, hit_tokens = lookup_tokens(rows)
+        return hit_tokens / prompt_tokens if prompt_tokens else 0.0
+
+    def is_eligible_lookup(event: dict[str, Any]) -> bool:
+        request_class = str(event.get("hint_request_class", "")).lower()
+        expected_reuse = str(event.get("hint_expected_reuse", "")).lower()
+        cache_priority = str(event.get("hint_cache_priority", "")).lower()
+        if expected_reuse == "durable" or cache_priority == "high":
+            return True
+        if event.get("hint_session_id"):
+            return True
+        if int(event.get("hint_turn_index", 0) or 0) > 0:
+            return True
+        return any(token in request_class for token in eligible_lookup_tokens)
+
+    eligible_prefix_lookups = [
+        event for event in prefix_lookups if is_eligible_lookup(event)
+    ]
+    low_reuse_prefix_lookups = [
+        event
+        for event in prefix_lookups
+        if str(event.get("hint_expected_reuse", "")).lower() == "none"
+        or str(event.get("hint_cache_priority", "")).lower() in {"low", "bypass"}
+    ]
+    warm_family_prefix_lookups = [
+        event
+        for event in prefix_lookups
+        if event.get("hint_family_key")
+        and int(event.get("hint_family_request_count", 0) or 0) >= 2
+    ]
+    eligible_prompt_tokens, eligible_hit_tokens = lookup_tokens(
+        eligible_prefix_lookups
+    )
+    warm_family_prompt_tokens, warm_family_hit_tokens = lookup_tokens(
+        warm_family_prefix_lookups
+    )
+    low_reuse_prompt_tokens, low_reuse_hit_tokens = lookup_tokens(
+        low_reuse_prefix_lookups
+    )
+    hit_tokens_by_hint_class = {
+        key: {
+            "lookups": len(rows),
+            "prompt_tokens": lookup_tokens(rows)[0],
+            "hit_tokens": lookup_tokens(rows)[1],
+            "hit_rate": hit_rate(rows),
+        }
+        for key, rows in (
+            (
+                class_name,
+                [
+                    event
+                    for event in prefix_lookups
+                    if str(event.get("hint_request_class", "unknown")) == class_name
+                ],
+            )
+            for class_name in sorted(
+                {
+                    str(event.get("hint_request_class", "unknown"))
+                    for event in prefix_lookups
+                }
+            )
+        )
+    }
     rebuilt_blocks = [e for e in seals if e.get("rebuilt_from_eviction")]
     family_ids = {
         int(e["family_id"])
@@ -105,6 +193,17 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     )
     selected_protected_count = sum(
         int(e.get("selected_protected_count", 0)) for e in rankings
+    )
+    soft_budget_rankings = [
+        e for e in rankings if "family_protect_soft_budget_enabled" in e
+    ]
+    family_protect_protected_budget_overflows = sum(
+        int(e.get("family_protect_protected_budget_overflow_count", 0) or 0)
+        for e in soft_budget_rankings
+    )
+    family_protect_family_budget_overflows = sum(
+        int(e.get("family_protect_family_budget_overflow_count", 0) or 0)
+        for e in soft_budget_rankings
     )
     admission_original_blocks = sum(
         int(e.get("original_full_blocks", 0)) for e in admission_limits
@@ -210,12 +309,38 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "events": dict(sorted(event_counts.items())),
         "total_events": len(events),
+        "controller": tracker_initializer.get("controller") or {},
         "prefix_lookups": len(prefix_lookups),
         "prefix_query_tokens": prefix_query_tokens,
         "prefix_hit_tokens": prefix_hit_tokens,
         "prefix_hit_rate": (
             prefix_hit_tokens / prefix_query_tokens if prefix_query_tokens else 0.0
         ),
+        "eligible_prefix_lookups": len(eligible_prefix_lookups),
+        "eligible_prefix_query_tokens": eligible_prompt_tokens,
+        "eligible_prefix_hit_tokens": eligible_hit_tokens,
+        "eligible_prefix_hit_rate": (
+            eligible_hit_tokens / eligible_prompt_tokens
+            if eligible_prompt_tokens
+            else 0.0
+        ),
+        "warm_family_prefix_lookups": len(warm_family_prefix_lookups),
+        "warm_family_prefix_query_tokens": warm_family_prompt_tokens,
+        "warm_family_prefix_hit_tokens": warm_family_hit_tokens,
+        "warm_family_prefix_hit_rate": (
+            warm_family_hit_tokens / warm_family_prompt_tokens
+            if warm_family_prompt_tokens
+            else 0.0
+        ),
+        "low_reuse_prefix_lookups": len(low_reuse_prefix_lookups),
+        "low_reuse_prefix_query_tokens": low_reuse_prompt_tokens,
+        "low_reuse_prefix_hit_tokens": low_reuse_hit_tokens,
+        "low_reuse_prefix_hit_rate": (
+            low_reuse_hit_tokens / low_reuse_prompt_tokens
+            if low_reuse_prompt_tokens
+            else 0.0
+        ),
+        "prefix_hit_tokens_by_hint_class": hit_tokens_by_hint_class,
         "request_finished_events": len(request_finishes),
         "request_scheduled_events": len(request_schedules),
         "request_deferred_events": len(request_deferrals),
@@ -506,6 +631,13 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
             selected_protected_count / selected_hashed_count
             if selected_hashed_count
             else 0.0
+        ),
+        "family_protect_soft_budget_ranking_events": len(soft_budget_rankings),
+        "family_protect_protected_budget_overflow_count": (
+            family_protect_protected_budget_overflows
+        ),
+        "family_protect_family_budget_overflow_count": (
+            family_protect_family_budget_overflows
         ),
         "avg_selected_retain_score": (
             sum(float(e.get("selected_avg_retain_score", 0.0)) for e in rankings)

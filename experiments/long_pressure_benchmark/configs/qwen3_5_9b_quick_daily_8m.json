@@ -1,0 +1,30 @@
+{
+  "name": "qwen3_5_9b_quick_daily_8m",
+  "description": "Fast tuning loop for daily dedicated reuse on Qwen3.5-9B.",
+  "trace": {
+    "profile": "daily_dedicated_reuse",
+    "duration_seconds": 480,
+    "request_rate": 0.45,
+    "seed": 20260705,
+    "max_model_len": 4096,
+    "load_mode": "quick_tuning",
+    "hint_regime": "partial_hints",
+    "tenant_count": 3,
+    "client_count": 8,
+    "hot_family_count": 18,
+    "session_family_count": 24,
+    "session_reuse_probability": 0.86,
+    "session_interval_min_seconds": 10,
+    "session_interval_max_seconds": 100,
+    "burst_probability": 0.03
+  },
+  "loadgen": {
+    "max_in_flight": 40,
+    "metrics_interval": 20,
+    "raw_sample_rate": 0.04,
+    "raw_sample_limit": 800,
+    "warmup_seconds": 60,
+    "timeout_seconds": 600,
+    "slo_seconds": 90
+  }
+}

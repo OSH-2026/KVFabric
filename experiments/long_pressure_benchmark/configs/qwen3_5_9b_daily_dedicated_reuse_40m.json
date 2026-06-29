@@ -1,0 +1,30 @@
+{
+  "name": "qwen3_5_9b_daily_dedicated_reuse_40m",
+  "description": "Daily work/study/research style trace for Qwen3.5-9B: a small number of stable users repeatedly query long-lived project, document, code, and agent contexts.",
+  "trace": {
+    "profile": "daily_dedicated_reuse",
+    "duration_seconds": 2400,
+    "request_rate": 0.42,
+    "seed": 20260630,
+    "max_model_len": 4096,
+    "load_mode": "steady_medium_capacity",
+    "hint_regime": "partial_hints",
+    "tenant_count": 3,
+    "client_count": 8,
+    "hot_family_count": 18,
+    "session_family_count": 24,
+    "session_reuse_probability": 0.86,
+    "session_interval_min_seconds": 20,
+    "session_interval_max_seconds": 240,
+    "burst_probability": 0.025
+  },
+  "loadgen": {
+    "max_in_flight": 40,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.02,
+    "raw_sample_limit": 1600,
+    "warmup_seconds": 120,
+    "timeout_seconds": 900,
+    "slo_seconds": 90
+  }
+}

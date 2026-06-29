@@ -92,6 +92,31 @@ PROFILE_WEIGHTS = {
         "cold_rag_noise": 0.10,
         "decode_heavy_noise": 0.05,
     },
+    "daily_dedicated_reuse": {
+        "project_code_followup": 0.28,
+        "long_doc_research_followup": 0.24,
+        "deep_multi_turn_chat": 0.18,
+        "agent_tool_loop": 0.10,
+        "tenant_workflow_hot": 0.08,
+        "background_cold_lookup": 0.06,
+        "decode_heavy_background": 0.04,
+        "short_chat_qa": 0.02,
+    },
+    "sticky_burst": {
+        "deep_multi_turn_chat": 0.32,
+        "long_doc_followup_qa": 0.28,
+        "agent_tool_loop": 0.15,
+        "project_code_followup": 0.10,
+        "cold_rag_noise": 0.08,
+        "decode_heavy_noise": 0.07,
+    },
+    "low_reuse_low_frequency": {
+        "rag_qa_cold_docs": 0.26,
+        "decode_heavy_background": 0.22,
+        "extraction_classification": 0.18,
+        "single_turn_api_task": 0.18,
+        "short_chat_qa": 0.16,
+    },
 }
 
 
@@ -114,6 +139,10 @@ CLASS_LENGTHS = {
     "long_doc_followup_qa": (3000, (64, 768)),
     "cold_rag_noise": (3000, (32, 512)),
     "decode_heavy_noise": (1500, (512, 1536)),
+    "project_code_followup": (3200, (64, 768)),
+    "long_doc_research_followup": (3600, (64, 768)),
+    "background_cold_lookup": (2600, (32, 512)),
+    "decode_heavy_background": (1400, (512, 1536)),
 }
 
 
@@ -122,7 +151,91 @@ SESSION_CLASSES = {
     "multi_turn_support",
     "deep_multi_turn_chat",
     "long_doc_followup_qa",
+    "long_doc_research_followup",
+    "project_code_followup",
     "agent_tool_loop",
+}
+
+
+PROFILE_DEFAULTS = {
+    "enterprise_mixed": {
+        "tenant_count": 12,
+        "client_count": 96,
+        "hot_family_count": 48,
+        "session_family_count": 64,
+        "session_reuse_probability": 0.65,
+        "session_interval_min_seconds": 10.0,
+        "session_interval_max_seconds": 180.0,
+        "burst_probability": 0.04,
+        "burst_multiplier_min": 1.8,
+        "burst_multiplier_max": 3.2,
+        "wave_amplitude": 0.25,
+    },
+    "general_gateway": {
+        "tenant_count": 16,
+        "client_count": 128,
+        "hot_family_count": 64,
+        "session_family_count": 96,
+        "session_reuse_probability": 0.50,
+        "session_interval_min_seconds": 20.0,
+        "session_interval_max_seconds": 240.0,
+        "burst_probability": 0.03,
+        "burst_multiplier_min": 1.5,
+        "burst_multiplier_max": 2.5,
+        "wave_amplitude": 0.20,
+    },
+    "conversation_sticky": {
+        "tenant_count": 8,
+        "client_count": 48,
+        "hot_family_count": 48,
+        "session_family_count": 64,
+        "session_reuse_probability": 0.70,
+        "session_interval_min_seconds": 10.0,
+        "session_interval_max_seconds": 180.0,
+        "burst_probability": 0.04,
+        "burst_multiplier_min": 1.8,
+        "burst_multiplier_max": 3.2,
+        "wave_amplitude": 0.25,
+    },
+    "daily_dedicated_reuse": {
+        "tenant_count": 3,
+        "client_count": 8,
+        "hot_family_count": 18,
+        "session_family_count": 24,
+        "session_reuse_probability": 0.86,
+        "session_interval_min_seconds": 20.0,
+        "session_interval_max_seconds": 240.0,
+        "burst_probability": 0.025,
+        "burst_multiplier_min": 1.6,
+        "burst_multiplier_max": 3.0,
+        "wave_amplitude": 0.12,
+    },
+    "sticky_burst": {
+        "tenant_count": 4,
+        "client_count": 12,
+        "hot_family_count": 24,
+        "session_family_count": 32,
+        "session_reuse_probability": 0.78,
+        "session_interval_min_seconds": 8.0,
+        "session_interval_max_seconds": 90.0,
+        "burst_probability": 0.10,
+        "burst_multiplier_min": 2.2,
+        "burst_multiplier_max": 5.0,
+        "wave_amplitude": 0.18,
+    },
+    "low_reuse_low_frequency": {
+        "tenant_count": 12,
+        "client_count": 96,
+        "hot_family_count": 96,
+        "session_family_count": 96,
+        "session_reuse_probability": 0.10,
+        "session_interval_min_seconds": 60.0,
+        "session_interval_max_seconds": 300.0,
+        "burst_probability": 0.01,
+        "burst_multiplier_min": 1.2,
+        "burst_multiplier_max": 2.0,
+        "wave_amplitude": 0.08,
+    },
 }
 
 
@@ -130,6 +243,7 @@ SESSION_CLASSES = {
 class ActiveSession:
     session_id: str
     tenant_id: str
+    client_id: str
     family_id: str
     request_class: str
     max_turns: int
@@ -205,8 +319,22 @@ def choose_weighted(rng: random.Random, weights: dict[str, float]) -> str:
     return next(reversed(weights))
 
 
+def setting_int(settings: dict[str, Any], key: str, default: int) -> int:
+    return max(1, int(settings.get(key, default)))
+
+
+def setting_float(settings: dict[str, Any], key: str, default: float) -> float:
+    return float(settings.get(key, default))
+
+
 def session_depth(rng: random.Random, profile: str) -> int:
-    if profile == "conversation_sticky":
+    if profile == "daily_dedicated_reuse":
+        buckets = [(4, 0.10), (8, 0.35), (12, 0.35), (20, 0.20)]
+    elif profile == "sticky_burst":
+        buckets = [(2, 0.10), (4, 0.20), (8, 0.35), (16, 0.25), (24, 0.10)]
+    elif profile == "low_reuse_low_frequency":
+        buckets = [(1, 0.75), (2, 0.20), (4, 0.05)]
+    elif profile == "conversation_sticky":
         buckets = [(1, 0.10), (2, 0.15), (4, 0.30), (8, 0.30), (16, 0.15)]
     elif profile == "enterprise_mixed":
         buckets = [(1, 0.25), (2, 0.25), (4, 0.30), (8, 0.15), (16, 0.05)]
@@ -254,17 +382,33 @@ def make_single_request(
     request_class: str,
     scheduled_at: float,
     profile: str,
+    settings: dict[str, Any],
 ) -> dict[str, Any]:
-    tenant = f"tenant-{rng.randint(1, 12):02d}"
-    hot = any(token in request_class for token in ("hot", "workflow", "code"))
-    cold = "cold" in request_class or "noise" in request_class
+    tenant_count = setting_int(settings, "tenant_count", 12)
+    client_count = setting_int(settings, "client_count", 96)
+    hot_family_count = setting_int(settings, "hot_family_count", 48)
+    cold_family_count = setting_int(settings, "cold_family_count", 256)
+    cold_family_reuse_probability = setting_float(
+        settings, "cold_family_reuse_probability", 0.0
+    )
+    tenant = f"tenant-{rng.randint(1, tenant_count):02d}"
+    hot = any(
+        token in request_class
+        for token in ("hot", "workflow", "code", "project", "followup")
+    )
+    cold = (
+        "cold" in request_class
+        or "noise" in request_class
+        or "background" in request_class
+    )
     transient = "near" in request_class
     family_prefix = "hot" if hot else "cold" if cold else "general"
-    family_id = (
-        f"{family_prefix}-{rng.randint(1, 48):02d}"
-        if hot
-        else f"{family_prefix}-{request_no:06d}"
-    )
+    if hot:
+        family_id = f"{family_prefix}-{rng.randint(1, hot_family_count):02d}"
+    elif cold and rng.random() < cold_family_reuse_probability:
+        family_id = f"{family_prefix}-{rng.randint(1, cold_family_count):03d}"
+    else:
+        family_id = f"{family_prefix}-{request_no:06d}"
     # The target is a character budget for repeated context units, not an exact
     # tokenizer budget. The full prompt also includes the shared system stem.
     target_chars = int(CLASS_LENGTHS[request_class][0] * rng.uniform(2.4, 3.0))
@@ -295,7 +439,7 @@ def make_single_request(
         "request_id": f"req-{request_no:06d}",
         "scheduled_at_seconds": round(scheduled_at, 3),
         "tenant_id": tenant,
-        "client_id": f"client-{rng.randint(1, 96):03d}",
+        "client_id": f"client-{rng.randint(1, client_count):03d}",
         "session_id": None,
         "family_id": family_id,
         "turn_index": None,
@@ -317,14 +461,21 @@ def new_session(
     request_class: str,
     scheduled_at: float,
     profile: str,
+    settings: dict[str, Any],
 ) -> ActiveSession:
-    tenant = f"tenant-{rng.randint(1, 12):02d}"
+    tenant_count = setting_int(settings, "tenant_count", 12)
+    client_count = setting_int(settings, "client_count", 96)
+    session_family_count = setting_int(settings, "session_family_count", 64)
+    tenant = f"tenant-{rng.randint(1, tenant_count):02d}"
+    client = f"client-{rng.randint(1, client_count):03d}"
     session_id = f"sess-{request_no:06d}"
-    family_id = f"{request_class}-{rng.randint(1, 64):02d}"
+    family_id = f"{request_class}-{rng.randint(1, session_family_count):02d}"
     target_chars = int(CLASS_LENGTHS[request_class][0] * rng.uniform(2.2, 2.8))
     system = base_system(tenant, family_id, request_class, target_chars, rng)
-    if "doc" in request_class:
+    if "doc" in request_class or "research" in request_class:
         system += repeat_to_budget(TEXT_UNITS["rag_hot"], target_chars)
+    elif "code" in request_class or "project" in request_class:
+        system += repeat_to_budget(TEXT_UNITS["code"], target_chars)
     elif "agent" in request_class:
         system += repeat_to_budget(TEXT_UNITS["tool"], target_chars)
     else:
@@ -332,6 +483,7 @@ def new_session(
     return ActiveSession(
         session_id=session_id,
         tenant_id=tenant,
+        client_id=client,
         family_id=family_id,
         request_class=request_class,
         max_turns=session_depth(rng, profile),
@@ -352,6 +504,7 @@ def materialize_session_request(
     session: ActiveSession,
     scheduled_at: float,
     profile: str,
+    settings: dict[str, Any],
 ) -> dict[str, Any]:
     turn = session.next_turn
     messages = list(session.messages)
@@ -368,7 +521,7 @@ def materialize_session_request(
         "request_id": f"req-{request_no:06d}",
         "scheduled_at_seconds": round(scheduled_at, 3),
         "tenant_id": session.tenant_id,
-        "client_id": f"client-{session.tenant_id[-2:]}",
+        "client_id": session.client_id,
         "session_id": session.session_id,
         "family_id": session.family_id,
         "turn_index": turn,
@@ -393,17 +546,31 @@ def materialize_session_request(
         }
     )
     session.next_turn += 1
-    session.next_time = scheduled_at + rng.uniform(10.0, 180.0)
+    session.next_time = scheduled_at + rng.uniform(
+        setting_float(settings, "session_interval_min_seconds", 10.0),
+        setting_float(settings, "session_interval_max_seconds", 180.0),
+    )
     return entry
 
 
-def next_arrival_delta(rng: random.Random, request_rate: float, now: float) -> float:
+def next_arrival_delta(
+    rng: random.Random,
+    request_rate: float,
+    now: float,
+    settings: dict[str, Any],
+) -> tuple[float, bool]:
     # Mild diurnal wave plus local burstiness; no external dependencies.
-    wave = 1.0 + 0.25 * math.sin(now / 1800.0)
-    if rng.random() < 0.04:
-        wave *= rng.uniform(1.8, 3.2)
+    wave = 1.0 + setting_float(settings, "wave_amplitude", 0.25) * math.sin(
+        now / 1800.0
+    )
+    burst = rng.random() < setting_float(settings, "burst_probability", 0.04)
+    if burst:
+        wave *= rng.uniform(
+            setting_float(settings, "burst_multiplier_min", 1.8),
+            setting_float(settings, "burst_multiplier_max", 3.2),
+        )
     effective_rate = max(request_rate * wave, 1e-6)
-    return rng.expovariate(effective_rate)
+    return rng.expovariate(effective_rate), burst
 
 
 def write_prompt(prompt_dir: Path, entry: dict[str, Any]) -> str:
@@ -418,8 +585,11 @@ def write_prompt(prompt_dir: Path, entry: dict[str, Any]) -> str:
 
 
 def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
-    rng = random.Random(int(settings["seed"]))
     profile = str(settings["profile"])
+    effective_settings = dict(PROFILE_DEFAULTS.get(profile, {}))
+    effective_settings.update(settings)
+    settings = effective_settings
+    rng = random.Random(int(settings["seed"]))
     weights = PROFILE_WEIGHTS[profile]
     duration = float(settings["duration_seconds"])
     request_rate = float(settings["request_rate"])
@@ -433,26 +603,38 @@ def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
     request_no = 0
 
     while now < duration:
-        now += next_arrival_delta(rng, request_rate, now)
+        delta, burst = next_arrival_delta(rng, request_rate, now, settings)
+        now += delta
         if now > duration:
             break
         request_no += 1
 
         due_sessions = [s for s in active_sessions if s.next_time <= now]
-        if due_sessions and rng.random() < 0.65:
+        if due_sessions and rng.random() < setting_float(
+            settings, "session_reuse_probability", 0.65
+        ):
             session = min(due_sessions, key=lambda item: item.next_time)
-            entry = materialize_session_request(rng, request_no, session, now, profile)
+            entry = materialize_session_request(
+                rng, request_no, session, now, profile, settings
+            )
             if session.next_turn > session.max_turns:
                 active_sessions.remove(session)
         else:
             request_class = choose_weighted(rng, weights)
             if request_class in SESSION_CLASSES:
-                session = new_session(rng, request_no, request_class, now, profile)
-                entry = materialize_session_request(rng, request_no, session, now, profile)
+                session = new_session(
+                    rng, request_no, request_class, now, profile, settings
+                )
+                entry = materialize_session_request(
+                    rng, request_no, session, now, profile, settings
+                )
                 if session.next_turn <= session.max_turns:
                     active_sessions.append(session)
             else:
-                entry = make_single_request(rng, request_no, request_class, now, profile)
+                entry = make_single_request(
+                    rng, request_no, request_class, now, profile, settings
+                )
+        entry["burst"] = bool(burst)
 
         prompt_ref = write_prompt(prompt_dir, entry)
         entry["prompt_ref"] = prompt_ref
@@ -466,6 +648,8 @@ def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
     class_counts = Counter(entry["request_class"] for entry in entries)
     reuse_counts = Counter(entry["expected_reuse"] for entry in entries)
     priority_counts = Counter(entry["cache_priority"] for entry in entries)
+    burst_count = sum(1 for entry in entries if entry.get("burst"))
+    session_request_count = sum(1 for e in entries if e.get("session_id"))
     session_turns = Counter(
         str(entry["turn_index"])
         for entry in entries
@@ -482,10 +666,16 @@ def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
         "expected_reuse_counts": dict(sorted(reuse_counts.items())),
         "cache_priority_counts": dict(sorted(priority_counts.items())),
         "session_turn_counts": dict(sorted(session_turns.items(), key=lambda x: int(x[0]))),
-        "session_requests": sum(1 for e in entries if e.get("session_id")),
+        "session_requests": session_request_count,
+        "session_request_ratio": (
+            session_request_count / len(entries) if entries else 0.0
+        ),
+        "burst_requests": burst_count,
+        "burst_request_ratio": burst_count / len(entries) if entries else 0.0,
         "unique_sessions": len({e["session_id"] for e in entries if e.get("session_id")}),
         "unique_families": len({e["family_id"] for e in entries if e.get("family_id")}),
         "unique_tenants": len({e["tenant_id"] for e in entries if e.get("tenant_id")}),
+        "unique_clients": len({e["client_id"] for e in entries if e.get("client_id")}),
     }
     (output_dir / "trace_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
@@ -501,6 +691,11 @@ def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
         f"- Actual request rate: {summary['actual_request_rate']:.4f}",
         f"- Hint regime: {settings.get('hint_regime')}",
         f"- Load mode: {settings.get('load_mode')}",
+        f"- Session request ratio: {summary['session_request_ratio']:.4f}",
+        f"- Burst request ratio: {summary['burst_request_ratio']:.4f}",
+        f"- Unique tenants: {summary['unique_tenants']}",
+        f"- Unique clients: {summary['unique_clients']}",
+        f"- Unique families: {summary['unique_families']}",
         "",
         "## Classes",
         "",

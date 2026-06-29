@@ -12,7 +12,7 @@ POLICIES = ("lru", "shared_aware", "family_protect")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Summarize remote 27B long benchmark results."
+        description="Summarize KVFabric long benchmark results."
     )
     parser.add_argument("--run-root", required=True, help="Local run root.")
     parser.add_argument("--output", help="Markdown output path.")
@@ -84,6 +84,22 @@ def collect_policy(run_root: Path, policy: str) -> dict[str, Any]:
     }
 
 
+def discover_policies(run_root: Path) -> list[str]:
+    if not run_root.exists():
+        return list(POLICIES)
+    existing = {
+        path.name
+        for path in run_root.iterdir()
+        if path.is_dir()
+        and ((path / "online_trace").exists() or (path / "online_duration").exists())
+    }
+    if not existing:
+        return list(POLICIES)
+    ordered = [policy for policy in POLICIES if policy in existing]
+    ordered.extend(sorted(existing - set(ordered)))
+    return ordered
+
+
 def table(headers: list[str], rows: list[list[str]]) -> list[str]:
     output = [
         "| " + " | ".join(headers) + " |",
@@ -94,12 +110,12 @@ def table(headers: list[str], rows: list[list[str]]) -> list[str]:
 
 
 def build_summary(run_root: Path) -> str:
-    policies = [collect_policy(run_root, policy) for policy in POLICIES]
+    policies = [collect_policy(run_root, policy) for policy in discover_policies(run_root)]
     lru_metrics = policies[0]["metrics"] or {}
     lru_lifecycle = policies[0]["lifecycle"] or {}
 
     lines: list[str] = [
-        "# Remote qwen3_5_27b Benchmark Summary",
+        "# KVFabric Benchmark Summary",
         "",
         f"Run root: `{run_root}`",
         "",
@@ -123,15 +139,60 @@ def build_summary(run_root: Path) -> str:
                 f"- Target request rate: {number(trace_summary.get('request_rate'), 4)}",
                 f"- Actual request rate: {number(trace_summary.get('actual_request_rate'), 4)}",
                 f"- Hint regime: `{settings.get('hint_regime', 'unknown')}`",
+                f"- Session request ratio: {percent(trace_summary.get('session_request_ratio'), 2)}",
+                f"- Burst request ratio: {percent(trace_summary.get('burst_request_ratio'), 2)}",
+                f"- Unique tenants: {number(trace_summary.get('unique_tenants'), 0)}",
+                f"- Unique clients: {number(trace_summary.get('unique_clients'), 0)}",
+                f"- Unique families: {number(trace_summary.get('unique_families'), 0)}",
                 "",
             ]
         )
+    controller_rows = []
+    for item in policies:
+        controller = (item["lifecycle"] or {}).get("controller") or {}
+        if controller:
+            controller_rows.append(
+                [
+                    item["policy"],
+                    str(controller.get("profile", "unknown")),
+                    number(controller.get("admission_strength"), 2),
+                    number(controller.get("eviction_strength"), 2),
+                    number(controller.get("scheduler_strength"), 2),
+                    number(controller.get("slo_protection_strength"), 2),
+                    number(controller.get("hint_trust"), 2),
+                    number(controller.get("low_reuse_cache_fraction"), 2),
+                    number(controller.get("transient_cache_fraction"), 2),
+                    number(controller.get("bypass_cache_fraction"), 2),
+                    number(controller.get("durable_cache_fraction"), 2),
+                ]
+            )
+    if controller_rows:
+        lines.extend(["## Controller Parameters", ""])
+        lines.extend(
+            table(
+                [
+                    "Policy",
+                    "Profile",
+                    "Admission",
+                    "Eviction",
+                    "Scheduler",
+                    "SLO protect",
+                    "Hint trust",
+                    "Low reuse frac",
+                    "Transient frac",
+                    "Bypass frac",
+                    "Durable frac",
+                ],
+                controller_rows,
+            )
+        )
+        lines.append("")
 
     rows = []
     for item in policies:
         metrics = item["metrics"]
         if not metrics:
-            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", "", "", "", ""])
             continue
         rows.append(
             [
@@ -141,6 +202,7 @@ def build_summary(run_root: Path) -> str:
                 number(metrics.get("offered_requests_per_second"), 4),
                 number(metrics.get("requests_per_second"), 4),
                 number(metrics.get("goodput_total_tokens_per_second"), 2),
+                number(metrics.get("e2e_goodput_total_tokens_per_second"), 2),
                 number(metrics.get("total_tokens_per_second"), 2),
                 pct_delta(
                     metrics.get("goodput_total_tokens_per_second")
@@ -148,8 +210,13 @@ def build_summary(run_root: Path) -> str:
                     lru_metrics.get("goodput_total_tokens_per_second")
                     or lru_metrics.get("total_tokens_per_second"),
                 ),
+                pct_delta(
+                    metrics.get("e2e_goodput_total_tokens_per_second"),
+                    lru_metrics.get("e2e_goodput_total_tokens_per_second"),
+                ),
                 number(metrics.get("latency_avg_seconds"), 3),
                 number(metrics.get("latency_p95_seconds"), 3),
+                number(metrics.get("e2e_latency_p95_seconds"), 3),
                 item["metric_source"],
             ]
         )
@@ -162,10 +229,13 @@ def build_summary(run_root: Path) -> str:
                 "Offered req/s",
                 "Req/s",
                 "Goodput tok/s",
+                "E2E goodput tok/s",
                 "Total tok/s",
                 "Goodput vs LRU",
+                "E2E goodput vs LRU",
                 "Avg latency s",
                 "P95 latency s",
+                "E2E P95 latency s",
                 "Source",
             ],
             rows,
@@ -186,17 +256,90 @@ def build_summary(run_root: Path) -> str:
         lines.extend(["", "## Error Types", ""])
         lines.extend(table(["Policy", "Errors"], error_rows))
 
+    probe_labels = sorted(
+        {
+            probe_label
+            for item in policies
+            for probe_label in (
+                (item["metrics"] or {}).get("slo_probe_metrics") or {}
+            )
+        }
+    )
+    if probe_labels:
+        lines.extend(["", "## SLO Probe Metrics", ""])
+        for probe_label in probe_labels:
+            rows = []
+            lru_probe = (
+                (policies[0]["metrics"] or {}).get("slo_probe_metrics") or {}
+            ).get(probe_label, {})
+            lru_segments = lru_probe.get("segment_metrics") or {}
+            for item in policies:
+                metrics = item["metrics"] or {}
+                probe = (metrics.get("slo_probe_metrics") or {}).get(probe_label)
+                if not probe:
+                    rows.append([item["policy"], "pending", "", "", "", "", "", ""])
+                    continue
+                segments = probe.get("segment_metrics") or {}
+                high_main = segments.get("high_main") or {}
+                red_burst = segments.get("red_burst") or {}
+                lru_high_main = lru_segments.get("high_main") or {}
+                lru_red_burst = lru_segments.get("red_burst") or {}
+                rows.append(
+                    [
+                        item["policy"],
+                        number(probe.get("goodput_total_tokens_per_second"), 2),
+                        pct_delta(
+                            probe.get("goodput_total_tokens_per_second"),
+                            lru_probe.get("goodput_total_tokens_per_second"),
+                        ),
+                        percent(probe.get("slo_miss_rate"), 2),
+                        number(
+                            high_main.get("goodput_total_tokens_per_second"), 2
+                        ),
+                        pct_delta(
+                            high_main.get("goodput_total_tokens_per_second"),
+                            lru_high_main.get("goodput_total_tokens_per_second"),
+                        ),
+                        number(
+                            red_burst.get("goodput_total_tokens_per_second"), 2
+                        ),
+                        pct_delta(
+                            red_burst.get("goodput_total_tokens_per_second"),
+                            lru_red_burst.get("goodput_total_tokens_per_second"),
+                        ),
+                    ]
+                )
+            lines.extend([f"### {probe_label}", ""])
+            lines.extend(
+                table(
+                    [
+                        "Policy",
+                        "Goodput tok/s",
+                        "Goodput vs LRU",
+                        "SLO miss",
+                        "High-main goodput",
+                        "High-main vs LRU",
+                        "Red-burst goodput",
+                        "Red-burst vs LRU",
+                    ],
+                    rows,
+                )
+            )
+            lines.append("")
+
     lines.extend(["", "## Lifecycle", ""])
     rows = []
     for item in policies:
         lifecycle = item["lifecycle"]
         if not lifecycle:
-            rows.append([item["policy"], "pending", "", "", "", "", ""])
+            rows.append([item["policy"], "pending", "", "", "", "", "", "", ""])
             continue
         rows.append(
             [
                 item["policy"],
                 percent(lifecycle.get("prefix_hit_rate"), 2),
+                percent(lifecycle.get("eligible_prefix_hit_rate"), 2),
+                percent(lifecycle.get("warm_family_prefix_hit_rate"), 2),
                 number(lifecycle.get("prefix_hit_tokens"), 0),
                 number(lifecycle.get("evicted_blocks"), 0),
                 number(lifecycle.get("rebuilt_from_eviction_blocks"), 0),
@@ -212,6 +355,8 @@ def build_summary(run_root: Path) -> str:
             [
                 "Policy",
                 "Prefix hit",
+                "Eligible hit",
+                "Warm-family hit",
                 "Prefix hit tokens",
                 "Evicted",
                 "Rebuilt",
@@ -367,22 +512,40 @@ def build_summary(run_root: Path) -> str:
                 metrics = item["metrics"] or {}
                 class_metrics = (metrics.get("class_metrics") or {}).get(class_name)
                 if not class_metrics:
-                    rows.append([item["policy"], "pending", "", "", "", ""])
+                    rows.append([item["policy"], "pending", "", "", "", "", "", "", ""])
                     continue
                 rows.append(
                     [
                         item["policy"],
                         number(class_metrics.get("completed"), 0),
                         number(class_metrics.get("total_tokens_per_second"), 2),
+                        number(
+                            class_metrics.get("goodput_total_tokens_per_second"), 2
+                        ),
+                        number(
+                            class_metrics.get("e2e_goodput_total_tokens_per_second"),
+                            2,
+                        ),
                         number(class_metrics.get("latency_avg_seconds"), 3),
                         number(class_metrics.get("latency_p95_seconds"), 3),
+                        number(class_metrics.get("e2e_latency_p95_seconds"), 3),
                         number(class_metrics.get("errors"), 0),
                     ]
                 )
             lines.extend([f"### {class_name}", ""])
             lines.extend(
                 table(
-                    ["Policy", "Completed", "Total tok/s", "Avg latency s", "P95 latency s", "Errors"],
+                    [
+                        "Policy",
+                        "Completed",
+                        "Total tok/s",
+                        "Goodput tok/s",
+                        "E2E goodput tok/s",
+                        "Avg latency s",
+                        "P95 latency s",
+                        "E2E P95 latency s",
+                        "Errors",
+                    ],
                     rows,
                 )
             )

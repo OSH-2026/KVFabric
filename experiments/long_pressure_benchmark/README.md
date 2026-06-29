@@ -8,9 +8,21 @@ Design notes:
 
 - `docs/current/kvfabric_12h_acceptance_experiment_design.md`
 - `docs/current/kvfabric_30pct_throughput_refactor_research.md`
+- `docs/current/kvfabric_medium_capacity_generalization_design_2026-06-29.md`
 
 Main entry points:
 
+- `scripts/run_remote_qwen3_5_9b_12h_matrix_benchmark.sh`
+  starts the current Qwen3.5-9B medium-capacity matrix on the remote 2 x RTX
+  3090 server. This is the preferred next-round suite for proving high-pressure
+  SLO goodput, suitable-scenario e2e latency improvement, capacity sensitivity,
+  and low-reuse non-regression within roughly 12 hours.
+- `scripts/run_qwen3_5_9b_12h_matrix.sh`
+  runs the same Qwen3.5-9B matrix from inside a prepared repository checkout,
+  useful when already logged in to the remote server.
+- `scripts/run_qwen3_5_9b_quick_loop.sh`
+  runs the short daily-dedicated tuning loop, defaulting to medium and small KV
+  capacity profiles.
 - `scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh`
   starts the current 12h realistic trace benchmark on the remote 2 x RTX 3090
   server. This is the enterprise mixed trace path.
@@ -53,9 +65,21 @@ Main entry points:
 Planned formal 12h experiments:
 
 ```text
+qwen3_5_9b_12h_matrix
 saturation_throughput_12h
 enterprise_mixed_trace_12h
 sticky_conversation_trace_12h
+```
+
+Qwen3.5-9B matrix modules:
+
+```text
+capacity_sweep_6m
+daily_dedicated_reuse_40m
+saturation_medium_60m
+sticky_burst_45m
+enterprise_normal_25m
+low_reuse_low_frequency_20m
 ```
 
 Short 4h mirrors:

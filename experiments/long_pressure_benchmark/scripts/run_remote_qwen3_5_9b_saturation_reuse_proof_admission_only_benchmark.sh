@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/common.sh"
+
+REMOTE_HOST="${REMOTE_HOST:-robowalker}"
+REMOTE_SSH_TARGET="${REMOTE_SSH_TARGET:-$REMOTE_HOST}"
+REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
+REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
+REMOTE_VENV="${REMOTE_VENV:-.venv_kvfabric_0221}"
+REMOTE_JOB_NAME="${REMOTE_JOB_NAME:-remote_qwen3_5_9b_saturation_reuse_proof_admission_only}"
+REMOTE_CONFIG="${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_9b_saturation_reuse_proof_30m.json}"
+
+load_common_env
+
+ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "bash -s" <<REMOTE
+set -euo pipefail
+cd "$REMOTE_PROJECT"
+mkdir -p vllm_baseline/runtime_kvfabric_0221/jobs
+bash vllm_baseline/scripts/stop_server.sh qwen3_5_9b || true
+
+job_name="${REMOTE_JOB_NAME}_\$(date +%Y%m%d_%H%M%S)"
+job_script="vllm_baseline/runtime_kvfabric_0221/jobs/\${job_name}.sh"
+job_log="vllm_baseline/runtime_kvfabric_0221/jobs/\${job_name}.log"
+job_pid="vllm_baseline/runtime_kvfabric_0221/jobs/\${job_name}.pid"
+
+cat > "\$job_script" <<'RUN'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "\${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
+
+export VLLM_VENV_DIR="\${REMOTE_VENV:-.venv_kvfabric_0221}"
+export VLLM_SERVER_START_TIMEOUT="\${VLLM_SERVER_START_TIMEOUT:-900}"
+export KVFABRIC_AB_POLICIES="\${KVFABRIC_AB_POLICIES:-kvfabric_admission}"
+
+export LONG_BENCH_DURATION_SECONDS="\${LONG_BENCH_DURATION_SECONDS:-900}"
+export LONG_BENCH_WARMUP_SECONDS="\${LONG_BENCH_WARMUP_SECONDS:-90}"
+export LONG_BENCH_CONCURRENCY="\${LONG_BENCH_CONCURRENCY:-56}"
+export LONG_BENCH_METRICS_INTERVAL="\${LONG_BENCH_METRICS_INTERVAL:-30}"
+export LONG_BENCH_RAW_SAMPLE_RATE="\${LONG_BENCH_RAW_SAMPLE_RATE:-0.01}"
+export LONG_BENCH_RAW_SAMPLE_LIMIT="\${LONG_BENCH_RAW_SAMPLE_LIMIT:-1600}"
+export LONG_BENCH_TIMEOUT_SECONDS="\${LONG_BENCH_TIMEOUT_SECONDS:-900}"
+
+export VLLM_SERVE_GPU_MEMORY_UTILIZATION="\${VLLM_SERVE_GPU_MEMORY_UTILIZATION:-0.70}"
+export LONG_BENCH_MAX_MODEL_LEN="\${LONG_BENCH_MAX_MODEL_LEN:-4096}"
+export LONG_BENCH_MAX_NUM_SEQS="\${LONG_BENCH_MAX_NUM_SEQS:-64}"
+export LONG_BENCH_MAX_NUM_BATCHED_TOKENS="\${LONG_BENCH_MAX_NUM_BATCHED_TOKENS:-24576}"
+
+export KVFABRIC_LOG_BUFFER_SIZE="\${KVFABRIC_LOG_BUFFER_SIZE:-8192}"
+export KVFABRIC_LRU_ADMISSION_POLICY="\${KVFABRIC_LRU_ADMISSION_POLICY:-force}"
+export KVFABRIC_HINT_ADMISSION="\${KVFABRIC_HINT_ADMISSION:-1}"
+export KVFABRIC_HINT_SCHEDULER="\${KVFABRIC_HINT_SCHEDULER:-0}"
+export KVFABRIC_SCHEDULER_AFFINITY="\${KVFABRIC_SCHEDULER_AFFINITY:-off}"
+export KVFABRIC_ADMISSION_LIMIT_COLD_MISS="\${KVFABRIC_ADMISSION_LIMIT_COLD_MISS:-1}"
+export KVFABRIC_ADMISSION_MIN_PROMPT_TOKENS="\${KVFABRIC_ADMISSION_MIN_PROMPT_TOKENS:-400}"
+export KVFABRIC_ADMISSION_ANCHOR_BLOCKS="\${KVFABRIC_ADMISSION_ANCHOR_BLOCKS:-1}"
+export KVFABRIC_HINT_BYPASS_DISCOVERY_TOKENS="\${KVFABRIC_HINT_BYPASS_DISCOVERY_TOKENS:-0}"
+export KVFABRIC_HINT_BYPASS_MIN_CACHE_BLOCKS="\${KVFABRIC_HINT_BYPASS_MIN_CACHE_BLOCKS:-0}"
+export KVFABRIC_HINT_LOW_REUSE_DISCOVERY_TOKENS="\${KVFABRIC_HINT_LOW_REUSE_DISCOVERY_TOKENS:-0}"
+export KVFABRIC_HINT_LOW_REUSE_MIN_CACHE_BLOCKS="\${KVFABRIC_HINT_LOW_REUSE_MIN_CACHE_BLOCKS:-0}"
+export KVFABRIC_HINT_TRANSIENT_DISCOVERY_TOKENS="\${KVFABRIC_HINT_TRANSIENT_DISCOVERY_TOKENS:-0}"
+export KVFABRIC_ADMISSION_COLD_DISCOVERY_TOKENS="\${KVFABRIC_ADMISSION_COLD_DISCOVERY_TOKENS:-0}"
+export KVFABRIC_ADMISSION_REUSE_MIN_HIT_TOKENS="\${KVFABRIC_ADMISSION_REUSE_MIN_HIT_TOKENS:-512}"
+export KVFABRIC_ADMISSION_HEAD_WINDOW="\${KVFABRIC_ADMISSION_HEAD_WINDOW:-1536}"
+export KVFABRIC_RANK_LOG_EVENTS="\${KVFABRIC_RANK_LOG_EVENTS:-0}"
+export KVFABRIC_RANK_LOG_CANDIDATES="\${KVFABRIC_RANK_LOG_CANDIDATES:-0}"
+
+bash experiments/long_pressure_benchmark/scripts/run_remote_27b_long_benchmark.sh \\
+  qwen3_5_9b \\
+  "\${REMOTE_CONFIG:-experiments/long_pressure_benchmark/configs/qwen3_5_9b_saturation_reuse_proof_30m.json}"
+RUN
+
+chmod +x "\$job_script"
+REMOTE_PROJECT="$REMOTE_PROJECT" \\
+REMOTE_VENV="$REMOTE_VENV" \\
+REMOTE_CONFIG="$REMOTE_CONFIG" \\
+KVFABRIC_AB_POLICIES="${KVFABRIC_AB_POLICIES:-}" \\
+LONG_BENCH_DURATION_SECONDS="${LONG_BENCH_DURATION_SECONDS:-}" \\
+LONG_BENCH_WARMUP_SECONDS="${LONG_BENCH_WARMUP_SECONDS:-}" \\
+VLLM_SERVE_GPU_MEMORY_UTILIZATION="${VLLM_SERVE_GPU_MEMORY_UTILIZATION:-}" \\
+nohup bash "\$job_script" > "\$job_log" 2>&1 &
+echo \$! > "\$job_pid"
+ln -sf "\$(basename "\$job_log")" vllm_baseline/runtime_kvfabric_0221/jobs/remote_qwen3_5_9b_saturation_reuse_proof_admission_only_latest.log
+ln -sf "\$(basename "\$job_pid")" vllm_baseline/runtime_kvfabric_0221/jobs/remote_qwen3_5_9b_saturation_reuse_proof_admission_only_latest.pid
+echo "started_\${job_name}_pid=\$(cat "\$job_pid")"
+echo "job_log=$REMOTE_PROJECT/\$job_log"
+REMOTE

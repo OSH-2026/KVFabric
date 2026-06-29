@@ -1,0 +1,30 @@
+{
+  "name": "qwen3_5_9b_capacity_sweep_6m",
+  "description": "Short capacity calibration trace for Qwen3.5-9B. Run with lru/shared_aware across small, medium, and large KV capacity profiles before the main matrix.",
+  "trace": {
+    "profile": "daily_dedicated_reuse",
+    "duration_seconds": 360,
+    "request_rate": 0.50,
+    "seed": 20260629,
+    "max_model_len": 4096,
+    "load_mode": "capacity_sweep",
+    "hint_regime": "partial_hints",
+    "tenant_count": 3,
+    "client_count": 6,
+    "hot_family_count": 12,
+    "session_family_count": 16,
+    "session_reuse_probability": 0.88,
+    "session_interval_min_seconds": 8,
+    "session_interval_max_seconds": 80,
+    "burst_probability": 0.04
+  },
+  "loadgen": {
+    "max_in_flight": 32,
+    "metrics_interval": 20,
+    "raw_sample_rate": 0.04,
+    "raw_sample_limit": 800,
+    "warmup_seconds": 45,
+    "timeout_seconds": 600,
+    "slo_seconds": 60
+  }
+}

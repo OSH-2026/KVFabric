@@ -93,6 +93,7 @@ def derive_headers(
     entry: dict[str, Any],
     hint_regime: str,
     rng: random.Random,
+    slo_seconds: float | None = None,
 ) -> dict[str, str] | None:
     if hint_regime == "no_hints":
         return None
@@ -139,6 +140,11 @@ def derive_headers(
         if phase and session_id:
             headers["x-kvfabric-phase"] = str(phase)
 
+    if slo_seconds is not None and slo_seconds > 0:
+        slo_ms = str(int(slo_seconds * 1000))
+        headers["x-kvfabric-slo-ms"] = slo_ms
+        headers["x-kvfabric-slo"] = slo_ms
+
     return headers
 
 
@@ -155,12 +161,19 @@ class RunStats:
         self.goodput_prompt_tokens = 0
         self.goodput_completion_tokens = 0
         self.goodput_total_tokens = 0
+        self.e2e_goodput_prompt_tokens = 0
+        self.e2e_goodput_completion_tokens = 0
+        self.e2e_goodput_total_tokens = 0
         self.slo_pass = 0
         self.slo_miss = 0
+        self.e2e_slo_pass = 0
+        self.e2e_slo_miss = 0
         self.latencies: list[float] = []
+        self.e2e_latencies: list[float] = []
         self.send_delays: list[float] = []
         self.queue_delays: list[float] = []
         self.recent_latencies: deque[float] = deque(maxlen=4096)
+        self.recent_e2e_latencies: deque[float] = deque(maxlen=4096)
         self.sampled_outputs = 0
         self.error_types: Counter[str] = Counter()
         self.class_stats: dict[str, dict[str, Any]] = defaultdict(
@@ -175,11 +188,18 @@ class RunStats:
                 "goodput_prompt_tokens": 0,
                 "goodput_completion_tokens": 0,
                 "goodput_total_tokens": 0,
+                "e2e_goodput_prompt_tokens": 0,
+                "e2e_goodput_completion_tokens": 0,
+                "e2e_goodput_total_tokens": 0,
                 "slo_pass": 0,
                 "slo_miss": 0,
+                "e2e_slo_pass": 0,
+                "e2e_slo_miss": 0,
                 "latencies": [],
+                "e2e_latencies": [],
                 "send_delays": [],
                 "recent_latencies": deque(maxlen=1024),
+                "recent_e2e_latencies": deque(maxlen=1024),
             }
         )
         self.measured = {
@@ -192,9 +212,15 @@ class RunStats:
             "goodput_prompt_tokens": 0,
             "goodput_completion_tokens": 0,
             "goodput_total_tokens": 0,
+            "e2e_goodput_prompt_tokens": 0,
+            "e2e_goodput_completion_tokens": 0,
+            "e2e_goodput_total_tokens": 0,
             "slo_pass": 0,
             "slo_miss": 0,
+            "e2e_slo_pass": 0,
+            "e2e_slo_miss": 0,
             "latencies": [],
+            "e2e_latencies": [],
             "send_delays": [],
             "error_types": Counter(),
         }
@@ -214,9 +240,12 @@ class RunStats:
         measured: bool,
         slo_seconds: float,
     ) -> None:
+        e2e_latency = latency + send_delay
         self.completed += 1
         self.latencies.append(latency)
         self.recent_latencies.append(latency)
+        self.e2e_latencies.append(e2e_latency)
+        self.recent_e2e_latencies.append(e2e_latency)
         self.send_delays.append(send_delay)
         prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
         completion_tokens = int(usage.get("completion_tokens", 0) or 0)
@@ -232,6 +261,14 @@ class RunStats:
             self.slo_pass += 1
         else:
             self.slo_miss += 1
+        e2e_slo_pass = slo_seconds <= 0 or e2e_latency <= slo_seconds
+        if e2e_slo_pass:
+            self.e2e_goodput_prompt_tokens += prompt_tokens
+            self.e2e_goodput_completion_tokens += completion_tokens
+            self.e2e_goodput_total_tokens += total_tokens
+            self.e2e_slo_pass += 1
+        else:
+            self.e2e_slo_miss += 1
 
         stats = self.class_stats[request_class]
         stats["completed"] += 1
@@ -245,9 +282,18 @@ class RunStats:
             stats["slo_pass"] += 1
         else:
             stats["slo_miss"] += 1
+        if e2e_slo_pass:
+            stats["e2e_goodput_prompt_tokens"] += prompt_tokens
+            stats["e2e_goodput_completion_tokens"] += completion_tokens
+            stats["e2e_goodput_total_tokens"] += total_tokens
+            stats["e2e_slo_pass"] += 1
+        else:
+            stats["e2e_slo_miss"] += 1
         stats["latencies"].append(latency)
+        stats["e2e_latencies"].append(e2e_latency)
         stats["send_delays"].append(send_delay)
         stats["recent_latencies"].append(latency)
+        stats["recent_e2e_latencies"].append(e2e_latency)
 
         if measured:
             self.measured["completed"] += 1
@@ -261,7 +307,15 @@ class RunStats:
                 self.measured["slo_pass"] += 1
             else:
                 self.measured["slo_miss"] += 1
+            if e2e_slo_pass:
+                self.measured["e2e_goodput_prompt_tokens"] += prompt_tokens
+                self.measured["e2e_goodput_completion_tokens"] += completion_tokens
+                self.measured["e2e_goodput_total_tokens"] += total_tokens
+                self.measured["e2e_slo_pass"] += 1
+            else:
+                self.measured["e2e_slo_miss"] += 1
             self.measured["latencies"].append(latency)
+            self.measured["e2e_latencies"].append(e2e_latency)
             self.measured["send_delays"].append(send_delay)
 
     def record_error(
@@ -296,6 +350,12 @@ class RunStats:
         slo_miss: int,
         latencies: list[float],
         send_delays: list[float],
+        e2e_goodput_prompt_tokens: int,
+        e2e_goodput_completion_tokens: int,
+        e2e_goodput_total_tokens: int,
+        e2e_slo_pass: int,
+        e2e_slo_miss: int,
+        e2e_latencies: list[float],
     ) -> dict[str, Any]:
         return {
             "completed": completed,
@@ -319,15 +379,30 @@ class RunStats:
             "goodput_total_tokens_per_second": (
                 goodput_total_tokens / elapsed if elapsed > 0 else 0.0
             ),
+            "e2e_goodput_prompt_tokens": e2e_goodput_prompt_tokens,
+            "e2e_goodput_completion_tokens": e2e_goodput_completion_tokens,
+            "e2e_goodput_total_tokens": e2e_goodput_total_tokens,
+            "e2e_goodput_total_tokens_per_second": (
+                e2e_goodput_total_tokens / elapsed if elapsed > 0 else 0.0
+            ),
             "slo_pass": slo_pass,
             "slo_miss": slo_miss,
             "slo_miss_rate": slo_miss / completed if completed else 0.0,
+            "e2e_slo_pass": e2e_slo_pass,
+            "e2e_slo_miss": e2e_slo_miss,
+            "e2e_slo_miss_rate": e2e_slo_miss / completed if completed else 0.0,
             "latency_avg_seconds": statistics.mean(latencies)
             if latencies
             else 0.0,
             "latency_p50_seconds": percentile(latencies, 0.50),
             "latency_p95_seconds": percentile(latencies, 0.95),
             "latency_p99_seconds": percentile(latencies, 0.99),
+            "e2e_latency_avg_seconds": statistics.mean(e2e_latencies)
+            if e2e_latencies
+            else 0.0,
+            "e2e_latency_p50_seconds": percentile(e2e_latencies, 0.50),
+            "e2e_latency_p95_seconds": percentile(e2e_latencies, 0.95),
+            "e2e_latency_p99_seconds": percentile(e2e_latencies, 0.99),
             "send_delay_avg_seconds": statistics.mean(send_delays)
             if send_delays
             else 0.0,
@@ -349,6 +424,12 @@ class RunStats:
             int(self.measured["slo_miss"]),
             list(self.measured["latencies"]),
             list(self.measured["send_delays"]),
+            int(self.measured["e2e_goodput_prompt_tokens"]),
+            int(self.measured["e2e_goodput_completion_tokens"]),
+            int(self.measured["e2e_goodput_total_tokens"]),
+            int(self.measured["e2e_slo_pass"]),
+            int(self.measured["e2e_slo_miss"]),
+            list(self.measured["e2e_latencies"]),
         )
         full = self._base_snapshot(
             max(elapsed, 1e-9),
@@ -364,6 +445,12 @@ class RunStats:
             self.slo_miss,
             self.latencies,
             self.send_delays,
+            self.e2e_goodput_prompt_tokens,
+            self.e2e_goodput_completion_tokens,
+            self.e2e_goodput_total_tokens,
+            self.e2e_slo_pass,
+            self.e2e_slo_miss,
+            self.e2e_latencies,
         )
         class_metrics = {}
         for request_class, stats in sorted(self.class_stats.items()):
@@ -382,6 +469,12 @@ class RunStats:
                     int(stats["slo_miss"]),
                     list(stats["latencies"]),
                     list(stats["send_delays"]),
+                    int(stats["e2e_goodput_prompt_tokens"]),
+                    int(stats["e2e_goodput_completion_tokens"]),
+                    int(stats["e2e_goodput_total_tokens"]),
+                    int(stats["e2e_slo_pass"]),
+                    int(stats["e2e_slo_miss"]),
+                    list(stats["e2e_latencies"]),
                 ),
                 "offered": int(stats["offered"]),
                 "error_types": dict(sorted(stats["error_types"].items())),
@@ -460,9 +553,11 @@ async def metrics_sampler(
             async with stats_lock:
                 elapsed = max(now - stats.started, 1e-9)
                 recent = list(stats.recent_latencies)
+                recent_e2e = list(stats.recent_e2e_latencies)
                 class_snapshot = {}
                 for request_class, class_stats in sorted(stats.class_stats.items()):
                     class_recent = list(class_stats["recent_latencies"])
+                    class_recent_e2e = list(class_stats["recent_e2e_latencies"])
                     class_snapshot[request_class] = {
                         "offered": int(class_stats["offered"]),
                         "completed": int(class_stats["completed"]),
@@ -470,6 +565,9 @@ async def metrics_sampler(
                         "total_tokens": int(class_stats["total_tokens"]),
                         "goodput_total_tokens": int(
                             class_stats["goodput_total_tokens"]
+                        ),
+                        "e2e_goodput_total_tokens": int(
+                            class_stats["e2e_goodput_total_tokens"]
                         ),
                         "requests_per_second": (
                             int(class_stats["completed"]) / elapsed
@@ -480,13 +578,31 @@ async def metrics_sampler(
                         "goodput_total_tokens_per_second": (
                             int(class_stats["goodput_total_tokens"]) / elapsed
                         ),
+                        "e2e_goodput_total_tokens_per_second": (
+                            int(class_stats["e2e_goodput_total_tokens"]) / elapsed
+                        ),
                         "latency_avg_seconds": (
                             statistics.mean(class_recent) if class_recent else 0.0
                         ),
                         "latency_p95_seconds": percentile(class_recent, 0.95),
+                        "e2e_latency_avg_seconds": (
+                            statistics.mean(class_recent_e2e)
+                            if class_recent_e2e
+                            else 0.0
+                        ),
+                        "e2e_latency_p95_seconds": percentile(
+                            class_recent_e2e, 0.95
+                        ),
                         "slo_miss": int(class_stats["slo_miss"]),
                         "slo_miss_rate": (
                             int(class_stats["slo_miss"])
+                            / int(class_stats["completed"])
+                            if int(class_stats["completed"])
+                            else 0.0
+                        ),
+                        "e2e_slo_miss": int(class_stats["e2e_slo_miss"]),
+                        "e2e_slo_miss_rate": (
+                            int(class_stats["e2e_slo_miss"])
                             / int(class_stats["completed"])
                             if int(class_stats["completed"])
                             else 0.0
@@ -508,13 +624,25 @@ async def metrics_sampler(
                     "goodput_total_tokens_per_second": (
                         stats.goodput_total_tokens / elapsed
                     ),
+                    "e2e_goodput_total_tokens_per_second": (
+                        stats.e2e_goodput_total_tokens / elapsed
+                    ),
                     "slo_miss_rate": (
                         stats.slo_miss / stats.completed if stats.completed else 0.0
+                    ),
+                    "e2e_slo_miss_rate": (
+                        stats.e2e_slo_miss / stats.completed
+                        if stats.completed
+                        else 0.0
                     ),
                     "latency_avg_seconds": statistics.mean(recent)
                     if recent
                     else 0.0,
                     "latency_p95_seconds": percentile(recent, 0.95),
+                    "e2e_latency_avg_seconds": statistics.mean(recent_e2e)
+                    if recent_e2e
+                    else 0.0,
+                    "e2e_latency_p95_seconds": percentile(recent_e2e, 0.95),
                     "send_delay_p95_seconds": percentile(stats.send_delays, 0.95),
                 }
             rolling_file.write(json.dumps(snapshot, sort_keys=True) + "\n")
@@ -647,7 +775,12 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                         "temperature": float(entry.get("temperature", 0.0)),
                         "max_tokens": int(entry.get("max_tokens", 128)),
                     }
-                    headers = derive_headers(entry, hint_regime, rng)
+                    headers = derive_headers(
+                        entry,
+                        hint_regime,
+                        rng,
+                        args.slo_seconds,
+                    )
                     try:
                         latency, data = await post_chat(
                             client,
@@ -657,6 +790,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                             args.timeout,
                         )
                         usage = data.get("usage", {})
+                        e2e_latency = latency + send_delay
                         should_sample = (
                             args.raw_sample_rate >= 1.0
                             or sample_rng.random() < args.raw_sample_rate
@@ -686,6 +820,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                 "headers": headers or {},
                                 "send_delay_seconds": send_delay,
                                 "latency_seconds": latency,
+                                "e2e_latency_seconds": e2e_latency,
                                 "usage": usage,
                                 "output": message.get("content", ""),
                             }
@@ -805,9 +940,13 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Measured total tok/s: {metrics['total_tokens_per_second']:.2f}",
                 f"- SLO seconds: {args.slo_seconds:.1f}",
                 f"- Goodput tokens/s: {metrics['goodput_total_tokens_per_second']:.2f}",
+                f"- E2E goodput tokens/s: {metrics['e2e_goodput_total_tokens_per_second']:.2f}",
                 f"- SLO miss rate: {metrics['slo_miss_rate']:.4f}",
+                f"- E2E SLO miss rate: {metrics['e2e_slo_miss_rate']:.4f}",
                 f"- Latency avg seconds: {metrics['latency_avg_seconds']:.3f}",
                 f"- Latency p95 seconds: {metrics['latency_p95_seconds']:.3f}",
+                f"- E2E latency avg seconds: {metrics['e2e_latency_avg_seconds']:.3f}",
+                f"- E2E latency p95 seconds: {metrics['e2e_latency_p95_seconds']:.3f}",
                 f"- Send delay p95 seconds: {metrics['send_delay_p95_seconds']:.3f}",
             ]
         )

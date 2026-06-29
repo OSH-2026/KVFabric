@@ -10,6 +10,7 @@ table, and KVFABRIC_LIFECYCLE_LOG_PATH=/path/events.jsonl to emit events.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from dataclasses import asdict, dataclass
@@ -29,6 +30,43 @@ if TYPE_CHECKING:
 
 def _env_enabled(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_enabled_default(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    return max(low, min(high, value))
+
+
+def _env_float_clamped(
+    name: str,
+    default: float,
+    low: float = 0.0,
+    high: float = 1.0,
+) -> float:
+    return _clamp(_env_float(name, default), low, high)
+
+
+def _env_has_any(*names: str) -> bool:
+    return any(
+        os.environ.get(name) is not None and os.environ.get(name, "").strip() != ""
+        for name in names
+    )
 
 
 def _env_tokens(name: str, default: str = "") -> tuple[str, ...]:
@@ -148,6 +186,186 @@ class RequestMeta:
     admission_limited_count: int = 0
 
 
+@dataclass(frozen=True)
+class KVFabricControlConfig:
+    """External parameter vector for the unified KVFabric controller.
+
+    Old policy names remain accepted as presets, but runtime decisions should
+    read this config instead of branching on strategy names. Strength values are
+    continuous 0..1 controls: 0 means observe-only/LRU-equivalent, 1 means full
+    intervention for that subsystem.
+    """
+
+    profile: str
+    explicit: bool
+    admission_strength: float
+    eviction_strength: float
+    scheduler_strength: float
+    slo_protection_strength: float
+    hint_trust: float
+    low_reuse_cache_fraction: float
+    transient_cache_fraction: float
+    bypass_cache_fraction: float
+    durable_cache_fraction: float
+    cold_cache_fraction: float
+
+    @property
+    def enabled(self) -> bool:
+        return (
+            self.admission_strength > 0.0
+            or self.eviction_strength > 0.0
+            or self.scheduler_strength > 0.0
+            or self.slo_protection_strength > 0.0
+        )
+
+    @classmethod
+    def from_env(
+        cls,
+        eviction_policy: str,
+        admission_policy: str,
+    ) -> "KVFabricControlConfig":
+        explicit = _env_has_any(
+            "KVFABRIC_ENABLE",
+            "KVFABRIC_PROFILE",
+            "KVFABRIC_ADMISSION_STRENGTH",
+            "KVFABRIC_EVICTION_STRENGTH",
+            "KVFABRIC_SCHEDULER_STRENGTH",
+            "KVFABRIC_SLO_PROTECTION_STRENGTH",
+            "KVFABRIC_HINT_TRUST",
+            "KVFABRIC_LOW_REUSE_CACHE_FRACTION",
+            "KVFABRIC_TRANSIENT_CACHE_FRACTION",
+            "KVFABRIC_BYPASS_CACHE_FRACTION",
+            "KVFABRIC_DURABLE_CACHE_FRACTION",
+            "KVFABRIC_COLD_CACHE_FRACTION",
+        )
+        profile = os.environ.get("KVFABRIC_PROFILE", "").strip().lower()
+        if not profile:
+            profile = "legacy"
+
+        admission_strength = 0.0
+        eviction_strength = 0.0
+        scheduler_strength = 0.0
+        slo_protection_strength = 0.0
+        hint_trust = 1.0
+        low_reuse_fraction = 1.0
+        transient_fraction = 1.0
+        bypass_fraction = 1.0
+        durable_fraction = 1.0
+        cold_fraction = 1.0
+
+        if profile in {"off", "disabled", "lru", "baseline"}:
+            pass
+        elif profile in {"admission", "admission_dominant", "throughput"}:
+            admission_strength = 1.0
+            low_reuse_fraction = 0.0
+            transient_fraction = 0.0
+            bypass_fraction = 0.0
+            durable_fraction = 1.0
+            cold_fraction = 0.0
+        elif profile in {"throughput_protect", "protect_throughput"}:
+            admission_strength = 0.9
+            eviction_strength = 0.25
+            low_reuse_fraction = 0.0
+            transient_fraction = 0.10
+            bypass_fraction = 0.0
+            durable_fraction = 1.0
+            cold_fraction = 0.05
+        elif profile in {"eviction", "eviction_light", "rebuilt"}:
+            admission_strength = 0.7
+            eviction_strength = 0.35
+            low_reuse_fraction = 0.0
+            transient_fraction = 0.15
+            bypass_fraction = 0.0
+            durable_fraction = 1.0
+            cold_fraction = 0.10
+        elif profile in {"latency", "latency_protected"}:
+            admission_strength = 0.8
+            eviction_strength = 0.20
+            scheduler_strength = 0.55
+            slo_protection_strength = 0.75
+            low_reuse_fraction = 0.0
+            transient_fraction = 0.20
+            bypass_fraction = 0.0
+            durable_fraction = 1.0
+            cold_fraction = 0.10
+        else:
+            if admission_policy in {"force", "on", "enabled"}:
+                admission_strength = 1.0
+                low_reuse_fraction = 0.0
+                transient_fraction = 0.0
+                bypass_fraction = 0.0
+                cold_fraction = 0.0
+            elif admission_policy not in {"off", "none", "disabled"} and (
+                eviction_policy in {"shared_aware", "family_protect"}
+            ):
+                admission_strength = 0.7
+                low_reuse_fraction = 0.0
+                transient_fraction = 0.25
+                bypass_fraction = 0.0
+                cold_fraction = 0.25
+
+            if eviction_policy == "shared_aware":
+                eviction_strength = 0.7
+            elif eviction_policy == "family_protect":
+                eviction_strength = 1.0
+
+            scheduler_affinity = os.environ.get(
+                "KVFABRIC_SCHEDULER_AFFINITY", ""
+            ).strip().lower()
+            if scheduler_affinity in {"positive", "hybrid", "risk"}:
+                scheduler_strength = 0.5
+
+        admission_strength = _env_float_clamped(
+            "KVFABRIC_ADMISSION_STRENGTH", admission_strength
+        )
+        eviction_strength = _env_float_clamped(
+            "KVFABRIC_EVICTION_STRENGTH", eviction_strength
+        )
+        scheduler_strength = _env_float_clamped(
+            "KVFABRIC_SCHEDULER_STRENGTH", scheduler_strength
+        )
+        slo_protection_strength = _env_float_clamped(
+            "KVFABRIC_SLO_PROTECTION_STRENGTH", slo_protection_strength
+        )
+        hint_trust = _env_float_clamped("KVFABRIC_HINT_TRUST", hint_trust)
+        low_reuse_fraction = _env_float_clamped(
+            "KVFABRIC_LOW_REUSE_CACHE_FRACTION", low_reuse_fraction
+        )
+        transient_fraction = _env_float_clamped(
+            "KVFABRIC_TRANSIENT_CACHE_FRACTION", transient_fraction
+        )
+        bypass_fraction = _env_float_clamped(
+            "KVFABRIC_BYPASS_CACHE_FRACTION", bypass_fraction
+        )
+        durable_fraction = _env_float_clamped(
+            "KVFABRIC_DURABLE_CACHE_FRACTION", durable_fraction
+        )
+        cold_fraction = _env_float_clamped(
+            "KVFABRIC_COLD_CACHE_FRACTION", cold_fraction
+        )
+
+        if explicit and not _env_enabled_default("KVFABRIC_ENABLE", True):
+            admission_strength = 0.0
+            eviction_strength = 0.0
+            scheduler_strength = 0.0
+            slo_protection_strength = 0.0
+
+        return cls(
+            profile=profile,
+            explicit=explicit,
+            admission_strength=admission_strength,
+            eviction_strength=eviction_strength,
+            scheduler_strength=scheduler_strength,
+            slo_protection_strength=slo_protection_strength,
+            hint_trust=hint_trust,
+            low_reuse_cache_fraction=low_reuse_fraction,
+            transient_cache_fraction=transient_fraction,
+            bypass_cache_fraction=bypass_fraction,
+            durable_cache_fraction=durable_fraction,
+            cold_cache_fraction=cold_fraction,
+        )
+
+
 class KVFabricLifecycleTracker:
     """Tracks OS-style KV block lifecycle metadata for KVFabric experiments."""
 
@@ -202,6 +420,10 @@ class KVFabricLifecycleTracker:
         self.admission_policy = os.environ.get(
             "KVFABRIC_ADMISSION_POLICY", "auto"
         ).strip().lower()
+        self.control_config = KVFabricControlConfig.from_env(
+            eviction_policy=self.eviction_policy,
+            admission_policy=self.admission_policy,
+        )
         self.admission_min_free_ratio = float(
             os.environ.get("KVFABRIC_ADMISSION_MIN_FREE_RATIO", "0.20")
         )
@@ -257,16 +479,16 @@ class KVFabricLifecycleTracker:
             os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP", "4")
         )
         self.scheduler_defer_max_count = int(
-            os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_COUNT", "0")
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_COUNT", "1")
         )
         self.scheduler_defer_low_reuse_max_count = int(
-            os.environ.get("KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT", "0")
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT", "1")
         )
         self.scheduler_defer_max_age_ms = int(
-            os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS", "0")
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS", "5000")
         )
         self.scheduler_defer_low_reuse_max_age_ms = int(
-            os.environ.get("KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS", "0")
+            os.environ.get("KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS", "3000")
         )
         self.scheduler_positive_scan_window = int(
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW", "0")
@@ -299,10 +521,10 @@ class KVFabricLifecycleTracker:
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SESSION_TURN_BONUS", "1.5")
         )
         self.scheduler_head_age_guard_ms = int(
-            os.environ.get("KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS", "0")
+            os.environ.get("KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS", "5000")
         )
         self.scheduler_low_reuse_head_age_guard_ms = int(
-            os.environ.get("KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS", "0")
+            os.environ.get("KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS", "3000")
         )
         self.scheduler_latency_protected_classes = _env_tokens(
             "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_CLASSES"
@@ -331,6 +553,24 @@ class KVFabricLifecycleTracker:
                 "0.0",
             )
         )
+        self.scheduler_slo_head_guard_ratio = float(
+            os.environ.get("KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO", "0.65")
+        )
+        self.scheduler_slo_head_guard_min_ms = int(
+            os.environ.get("KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_MIN_MS", "3000")
+        )
+        self.scheduler_slo_latency_promote_ratio = float(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO",
+                "0.85",
+            )
+        )
+        self.scheduler_slo_latency_promote_min_ms = int(
+            os.environ.get(
+                "KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS",
+                "5000",
+            )
+        )
         self.protect_min_hit_count = int(
             os.environ.get("KVFABRIC_PROTECT_MIN_HIT_COUNT", "1")
         )
@@ -348,6 +588,33 @@ class KVFabricLifecycleTracker:
         )
         self.protected_depth_floor = int(
             os.environ.get("KVFABRIC_PROTECTED_DEPTH", "2")
+        )
+        self.family_protect_soft_budget = os.environ.get(
+            "KVFABRIC_FAMILY_PROTECT_SOFT_BUDGET", "1"
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        self.family_protect_max_protected_scan_ratio = max(
+            0.0,
+            min(
+                1.0,
+                float(
+                    os.environ.get(
+                        "KVFABRIC_FAMILY_PROTECT_MAX_PROTECTED_SCAN_RATIO",
+                        "0.70",
+                    )
+                ),
+            ),
+        )
+        self.family_protect_max_family_scan_ratio = max(
+            0.0,
+            min(
+                1.0,
+                float(
+                    os.environ.get(
+                        "KVFABRIC_FAMILY_PROTECT_MAX_FAMILY_SCAN_RATIO",
+                        "0.35",
+                    )
+                ),
+            ),
         )
         self.pressure_yellow_ratio = float(
             os.environ.get("KVFABRIC_PRESSURE_YELLOW_RATIO", "0.30")
@@ -373,7 +640,50 @@ class KVFabricLifecycleTracker:
         self.eviction_rank_min_score = float(
             os.environ.get("KVFABRIC_EVICTION_RANK_MIN_SCORE", "0.0")
         )
+        self.eviction_score_recompute_weight = float(
+            os.environ.get("KVFABRIC_EVICTION_SCORE_RECOMPUTE_WEIGHT", "0.01")
+        )
+        self.eviction_score_recompute_cap = float(
+            os.environ.get("KVFABRIC_EVICTION_SCORE_RECOMPUTE_CAP", "16.0")
+        )
+        self.eviction_score_anchor_bonus = float(
+            os.environ.get("KVFABRIC_EVICTION_SCORE_ANCHOR_BONUS", "24.0")
+        )
+        self.eviction_selector = os.environ.get(
+            "KVFABRIC_EVICTION_SELECTOR", "rank"
+        ).strip().lower()
+        if self.eviction_selector not in {"rank", "linear"}:
+            self.eviction_selector = "rank"
+        self.rank_log_events = _env_enabled_default(
+            "KVFABRIC_RANK_LOG_EVENTS", True
+        )
         self.rank_log_candidates = _env_enabled("KVFABRIC_RANK_LOG_CANDIDATES")
+        if self.control_config.scheduler_strength <= 0.0:
+            self.scheduler_affinity = "off"
+            self.scheduler_defer_max_per_step = 0
+            self.scheduler_positive_scan_window = 0
+            self.scheduler_positive_max_per_step = 0
+        else:
+            scheduler_strength = self.control_config.scheduler_strength
+            if not _env_has_any("KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW"):
+                self.scheduler_positive_scan_window = max(
+                    2,
+                    int(round(32 * scheduler_strength)),
+                )
+            if not _env_has_any("KVFABRIC_SCHEDULER_POSITIVE_MAX_PER_STEP"):
+                self.scheduler_positive_max_per_step = max(
+                    1,
+                    int(round(4 * scheduler_strength)),
+                )
+            if not _env_has_any("KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP"):
+                self.scheduler_defer_max_per_step = int(
+                    round(2 * scheduler_strength)
+                )
+        if self.control_config.slo_protection_strength <= 0.0:
+            if not _env_has_any("KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO"):
+                self.scheduler_slo_head_guard_ratio = 0.0
+            if not _env_has_any("KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO"):
+                self.scheduler_slo_latency_promote_ratio = 0.0
         ablation = os.environ.get("KVFABRIC_RETAIN_ABLATION", "").strip().lower()
         ablated = {
             item.strip()
@@ -399,6 +709,7 @@ class KVFabricLifecycleTracker:
         self._emit(
             "tracker_initialized",
             policy=self.eviction_policy,
+            controller=asdict(self.control_config),
             log_path=str(self.log_path) if self.log_path else None,
             family_tree=self.enable_family_tree,
             request_meta=self.enable_request_meta,
@@ -463,6 +774,14 @@ class KVFabricLifecycleTracker:
             scheduler_latency_protected_min_risk_ratio=(
                 self.scheduler_latency_protected_min_risk_ratio
             ),
+            scheduler_slo_head_guard_ratio=self.scheduler_slo_head_guard_ratio,
+            scheduler_slo_head_guard_min_ms=self.scheduler_slo_head_guard_min_ms,
+            scheduler_slo_latency_promote_ratio=(
+                self.scheduler_slo_latency_promote_ratio
+            ),
+            scheduler_slo_latency_promote_min_ms=(
+                self.scheduler_slo_latency_promote_min_ms
+            ),
             scheduler_defer_max_count=self.scheduler_defer_max_count,
             scheduler_defer_low_reuse_max_count=(
                 self.scheduler_defer_low_reuse_max_count
@@ -471,11 +790,27 @@ class KVFabricLifecycleTracker:
             scheduler_defer_low_reuse_max_age_ms=(
                 self.scheduler_defer_low_reuse_max_age_ms
             ),
+            family_protect_soft_budget=self.family_protect_soft_budget,
+            family_protect_max_protected_scan_ratio=(
+                self.family_protect_max_protected_scan_ratio
+            ),
+            family_protect_max_family_scan_ratio=(
+                self.family_protect_max_family_scan_ratio
+            ),
+            eviction_selector=self.eviction_selector,
+            eviction_score_recompute_weight=self.eviction_score_recompute_weight,
+            eviction_score_recompute_cap=self.eviction_score_recompute_cap,
+            eviction_score_anchor_bonus=self.eviction_score_anchor_bonus,
+            rank_log_events=self.rank_log_events,
+            rank_log_candidates=self.rank_log_candidates,
         )
 
     @classmethod
     def from_env(cls) -> "KVFabricLifecycleTracker | None":
-        if not _env_enabled("KVFABRIC_LIFECYCLE"):
+        if not (
+            _env_enabled("KVFABRIC_LIFECYCLE")
+            or _env_enabled("KVFABRIC_ENABLE")
+        ):
             return None
         return cls(
             enabled=True,
@@ -752,6 +1087,44 @@ class KVFabricLifecycleTracker:
 
         return default_discovery_blocks, "hint_unknown"
 
+    def _admission_cache_fraction(
+        self,
+        hints: KVFabricRequestHints | None,
+        request_class: str,
+        request_hit_tokens: int,
+    ) -> float:
+        """Return the continuous cache fraction for newly computed blocks.
+
+        The fraction is blended by admission strength and hint trust. A value of
+        1.0 means cache all remaining full blocks; 0.0 means cache no new blocks
+        beyond the explicit anchor/discovery minimum.
+        """
+        class_fraction = self.control_config.cold_cache_fraction
+        if request_hit_tokens > 0:
+            class_fraction = self.control_config.durable_cache_fraction
+        if hints is not None and hints.has_hints:
+            if hints.is_durable:
+                hinted_fraction = self.control_config.durable_cache_fraction
+            elif hints.cache_priority == "bypass":
+                hinted_fraction = self.control_config.bypass_cache_fraction
+            elif hints.is_low_reuse:
+                hinted_fraction = self.control_config.low_reuse_cache_fraction
+            elif hints.is_transient:
+                hinted_fraction = self.control_config.transient_cache_fraction
+            else:
+                hinted_fraction = class_fraction
+            class_fraction = (
+                1.0
+                - self.control_config.hint_trust * (1.0 - hinted_fraction)
+            )
+        elif request_class in {"long_reuse", "short_reuse"}:
+            class_fraction = self.control_config.durable_cache_fraction
+
+        return (
+            1.0
+            - self.control_config.admission_strength * (1.0 - class_fraction)
+        )
+
     def _hint_should_protect_from_defer(
         self,
         hints: KVFabricRequestHints | None,
@@ -819,6 +1192,21 @@ class KVFabricLifecycleTracker:
             if token and token in request_class:
                 return True
         return False
+
+    @staticmethod
+    def _slo_age_threshold_ms(
+        hints: KVFabricRequestHints | None,
+        ratio: float,
+        min_ms: int,
+    ) -> float:
+        if (
+            hints is None
+            or not hints.has_hints
+            or hints.slo_ms <= 0
+            or ratio <= 0
+        ):
+            return 0.0
+        return max(float(min_ms), float(hints.slo_ms) * ratio)
 
     @staticmethod
     def _request_age_ms(
@@ -1105,34 +1493,51 @@ class KVFabricLifecycleTracker:
         )
 
     def use_kvfabric_eviction(self) -> bool:
-        return self.enabled and self.eviction_policy in {
-            "shared_aware",
-            "family_protect",
-        }
+        return self.enabled and self.control_config.eviction_strength > 0.0
 
     def eviction_candidate_window(self, num_blocks: int, free_blocks: int) -> int:
-        window = max(
+        target_window = max(
             num_blocks * self.eviction_candidate_window_multiplier,
             self.eviction_candidate_window_min,
             num_blocks,
         )
         if self.eviction_candidate_window_max > 0:
-            window = min(window, max(num_blocks, self.eviction_candidate_window_max))
+            target_window = min(
+                target_window,
+                max(num_blocks, self.eviction_candidate_window_max),
+            )
+        strength = self.control_config.eviction_strength
+        window = num_blocks + math.ceil((target_window - num_blocks) * strength)
         return min(window, free_blocks)
 
+    def _effective_eviction_rank_min_score(self) -> float:
+        if self.eviction_rank_min_score > 0.0:
+            return self.eviction_rank_min_score
+        strength = self.control_config.eviction_strength
+        if strength >= 1.0:
+            return 0.0
+        return 64.0 * (1.0 - strength)
+
     def should_rank_lru_victims(self, victims: list["KVCacheBlock"]) -> bool:
+        min_score = self._effective_eviction_rank_min_score()
         for block in victims:
             if block.block_hash is None:
                 continue
-            if self.is_protected(block):
-                return True
-            if self.eviction_rank_min_score > 0.0:
-                if self.get_retain_score(block) >= self.eviction_rank_min_score:
+            score = self.get_eviction_retain_score(block)
+            if min_score > 0.0:
+                if score >= min_score:
                     return True
+                continue
+            if score > 0.0 or self.is_protected(block):
+                return True
         return False
 
     def use_family_protect_eviction(self) -> bool:
-        return self.enabled and self.eviction_policy == "family_protect"
+        return (
+            self.enabled
+            and self.control_config.eviction_strength > 0.0
+            and self.eviction_policy == "family_protect"
+        )
 
     def limit_cache_blocks(
         self,
@@ -1148,9 +1553,17 @@ class KVFabricLifecycleTracker:
         eviction_risk_ratio: float = 0.0,
         protected_risk_ratio: float = 0.0,
     ) -> int:
-        if self.admission_policy in {"off", "none", "disabled"} or total_blocks <= 0:
+        if total_blocks <= 0:
             return num_full_blocks
-        if self.admission_policy == "auto" and self.eviction_policy == "lru":
+        if self.control_config.admission_strength <= 0.0:
+            return num_full_blocks
+        if self.admission_policy in {"off", "none", "disabled"}:
+            return num_full_blocks
+        if (
+            not self.control_config.explicit
+            and self.admission_policy == "auto"
+            and self.eviction_policy == "lru"
+        ):
             return num_full_blocks
         if self.admission_policy == "family_protect_only" and (
             self.eviction_policy != "family_protect"
@@ -1241,9 +1654,23 @@ class KVFabricLifecycleTracker:
                 )
         elif pressure_state == "YELLOW":
             anchor_blocks = max(anchor_blocks, num_cached_blocks + 1)
+        cache_fraction = self._admission_cache_fraction(
+            hints=hints,
+            request_class=request_class,
+            request_hit_tokens=request_hit_tokens,
+        )
+        remaining_blocks = max(num_full_blocks - num_cached_blocks, 0)
+        fraction_limit = num_full_blocks
+        if cache_fraction < 1.0 and remaining_blocks > 0:
+            fraction_limit = num_cached_blocks + math.ceil(
+                remaining_blocks * max(cache_fraction, 0.0)
+            )
+            if anchor_blocks > 0:
+                fraction_limit = max(fraction_limit, anchor_blocks)
+        token_limit = max(num_cached_blocks, anchor_blocks)
         limited = min(
             num_full_blocks,
-            max(num_cached_blocks, anchor_blocks),
+            max(token_limit, max(num_cached_blocks, fraction_limit)),
         )
         if limited < num_full_blocks:
             limit_state = (num_full_blocks, limited)
@@ -1281,6 +1708,9 @@ class KVFabricLifecycleTracker:
                 "request_class": request_class,
                 "admission_reason": admission_reason,
                 "admission_policy": self.admission_policy,
+                "admission_strength": self.control_config.admission_strength,
+                "admission_cache_fraction": cache_fraction,
+                "admission_fraction_limit": fraction_limit,
                 "admission_limit_cold_miss": self.admission_limit_cold_miss,
                 "admission_cold_discovery_blocks": (
                     self.admission_cold_discovery_blocks
@@ -1319,9 +1749,9 @@ class KVFabricLifecycleTracker:
         deferrals_this_step: int,
         eviction_risk_ratio: float,
     ) -> bool:
-        if self.scheduler_affinity in {"0", "off", "none", "disabled"}:
+        if self.control_config.scheduler_strength <= 0.0:
             return False
-        if self.eviction_policy == "lru":
+        if self.scheduler_affinity in {"0", "off", "none", "disabled"}:
             return False
         if already_deferred:
             return False
@@ -1471,9 +1901,9 @@ class KVFabricLifecycleTracker:
         promotions_this_step: int,
         eviction_risk_ratio: float,
     ) -> bool:
-        if self.scheduler_affinity not in {"positive", "hybrid"}:
+        if self.control_config.scheduler_strength <= 0.0:
             return False
-        if self.eviction_policy == "lru":
+        if self.scheduler_affinity not in {"positive", "hybrid"}:
             return False
         if not self.enable_hints or not self.hint_scheduler:
             return False
@@ -1491,13 +1921,13 @@ class KVFabricLifecycleTracker:
         promotions_this_step: int,
         eviction_risk_ratio: float,
     ) -> bool:
+        if self.control_config.scheduler_strength <= 0.0:
+            return False
         if not self.scheduler_latency_protected_classes:
             return False
         if self.scheduler_latency_protected_promote_age_ms <= 0:
             return False
         if self.scheduler_affinity not in {"positive", "hybrid"}:
-            return False
-        if self.eviction_policy == "lru":
             return False
         if not self.enable_hints or not self.hint_scheduler:
             return False
@@ -1530,17 +1960,31 @@ class KVFabricLifecycleTracker:
         hints = self._get_request_hints(request_id)
         if hints is not None:
             self._apply_hints_to_request_meta(request_meta, hints)
-        if not self._is_latency_protected_request(hints, max_output_tokens):
-            return False, 0.0
         request_age_ms = self._request_age_ms(
             request_meta,
             now_ns,
             arrival_time=arrival_time,
         )
-        return (
-            request_age_ms >= self.scheduler_latency_protected_promote_age_ms,
-            request_age_ms,
+        latency_protected = self._is_latency_protected_request(
+            hints,
+            max_output_tokens,
         )
+        thresholds: list[float] = []
+        if (
+            latency_protected
+            and self.scheduler_latency_protected_promote_age_ms > 0
+        ):
+            thresholds.append(float(self.scheduler_latency_protected_promote_age_ms))
+        slo_promote_ms = self._slo_age_threshold_ms(
+            hints,
+            self.scheduler_slo_latency_promote_ratio,
+            self.scheduler_slo_latency_promote_min_ms,
+        )
+        if slo_promote_ms > 0:
+            thresholds.append(slo_promote_ms)
+        if not thresholds:
+            return False, request_age_ms
+        return request_age_ms >= min(thresholds), request_age_ms
 
     def positive_request_score(
         self,
@@ -1623,6 +2067,7 @@ class KVFabricLifecycleTracker:
             self.scheduler_head_age_guard_ms <= 0
             and self.scheduler_low_reuse_head_age_guard_ms <= 0
             and self.scheduler_latency_protected_head_guard_ms <= 0
+            and self.scheduler_slo_head_guard_ratio <= 0
         ):
             return False
         if head_request_id == best_request_id:
@@ -1662,9 +2107,18 @@ class KVFabricLifecycleTracker:
             hints,
             head_max_output_tokens,
         )
+        slo_guard_ms = self._slo_age_threshold_ms(
+            hints,
+            self.scheduler_slo_head_guard_ratio,
+            self.scheduler_slo_head_guard_min_ms,
+        )
+        slo_guard = slo_guard_ms > 0 and head_age_ms >= slo_guard_ms
         threshold_ms = self.scheduler_head_age_guard_ms
         skip_reason = "head_age_guard"
-        if (
+        if slo_guard:
+            threshold_ms = slo_guard_ms
+            skip_reason = "slo_head_age_guard"
+        elif (
             latency_protected
             and self.scheduler_latency_protected_head_guard_ms > 0
         ):
@@ -1690,6 +2144,8 @@ class KVFabricLifecycleTracker:
                 "skip_reason": skip_reason,
                 "head_age_ms": head_age_ms,
                 "head_age_guard_ms": self.scheduler_head_age_guard_ms,
+                "slo_head_guard_ratio": self.scheduler_slo_head_guard_ratio,
+                "slo_head_guard_ms": slo_guard_ms,
                 "low_reuse_head_age_guard_ms": (
                     self.scheduler_low_reuse_head_age_guard_ms
                 ),
@@ -1830,6 +2286,12 @@ class KVFabricLifecycleTracker:
             return 0.0
         return self._retain_score(meta)
 
+    def get_eviction_retain_score(self, block: "KVCacheBlock") -> float:
+        meta = self.blocks.get(block.block_id)
+        if meta is None:
+            return 0.0
+        return self._eviction_retain_score(meta)
+
     def _retain_score(self, meta: LifecycleBlockMeta) -> float:
         score = meta.retain_score(
             use_reuse=self.retain_use_reuse,
@@ -1837,7 +2299,12 @@ class KVFabricLifecycleTracker:
             use_recompute=self.retain_use_recompute,
         )
         if self.retain_use_reuse:
-            score += self.family_index.family_value(meta.block_hash)
+            score += (
+                2.0 * min(meta.family_hit_count, 32)
+                + 4.0 * min(meta.family_branch_count, 8)
+                + 6.0 * min(meta.family_regret_count, 16)
+                + 1.0 * min(meta.protected_depth, 16)
+            )
             score += 3.0 * min(meta.family_hit_count, 32)
             score += 4.0 * min(meta.family_branch_count, 8)
             score += 8.0 * min(meta.family_regret_count, 16)
@@ -1845,11 +2312,41 @@ class KVFabricLifecycleTracker:
             score += 2.0 * max(meta.protected_depth - meta.prefix_depth + 1, 0)
         return score
 
-    def is_protected(self, block: "KVCacheBlock") -> bool:
-        meta = self.blocks.get(block.block_id)
-        if meta is None:
-            return False
-        self._refresh_family_fields(meta)
+    def _eviction_retain_score(self, meta: LifecycleBlockMeta) -> float:
+        """Hot-path retain score used only by eviction selection.
+
+        Full retain score is useful for post-hoc analysis, but in the allocation
+        path it can overvalue deep one-off blocks because recompute_cost grows
+        with depth. Prefix-cache reuse is anchor-sensitive: preserving shallow
+        hot family blocks is usually more valuable than protecting every deep
+        block in a long prompt. This score is therefore frequency/anchor-first
+        and uses a capped recompute bonus.
+        """
+        reused = meta.hit_count > 0 or meta.share_degree > 1
+        score = 0.0
+        if self.retain_use_reuse:
+            score += 8.0 * min(meta.hit_count, 16)
+            score += 6.0 * min(max(meta.share_degree - 1, 0), 8)
+            score += 3.0 * min(meta.branch_factor, 8)
+            score += 2.0 * min(meta.family_hit_count, 16)
+            score += 4.0 * min(meta.family_branch_count, 8)
+            score += 8.0 * min(meta.family_regret_count, 8)
+        if reused and self.retain_use_recompute:
+            score += min(
+                self.eviction_score_recompute_weight * meta.recompute_cost_tokens,
+                self.eviction_score_recompute_cap,
+            )
+        if (
+            self.retain_use_prefix
+            and meta.protected_depth > 0
+            and meta.prefix_depth > 0
+            and meta.prefix_depth <= meta.protected_depth
+        ):
+            score += self.eviction_score_anchor_bonus
+            score += 2.0 * max(meta.protected_depth - meta.prefix_depth, 0)
+        return score
+
+    def _is_protected_meta(self, meta: LifecycleBlockMeta) -> bool:
         return (
             meta.hit_count >= self.protect_min_hit_count
             or meta.share_degree >= self.protect_min_share_degree
@@ -1864,6 +2361,19 @@ class KVFabricLifecycleTracker:
             )
         )
 
+    def is_protected_cached(self, block: "KVCacheBlock") -> bool:
+        meta = self.blocks.get(block.block_id)
+        if meta is None:
+            return False
+        return self._is_protected_meta(meta)
+
+    def is_protected(self, block: "KVCacheBlock") -> bool:
+        meta = self.blocks.get(block.block_id)
+        if meta is None:
+            return False
+        self._refresh_family_fields(meta)
+        return self._is_protected_meta(meta)
+
     def _rank_key(
         self,
         indexed_block: tuple[int, "KVCacheBlock"],
@@ -1876,11 +2386,11 @@ class KVFabricLifecycleTracker:
             # Hard partition: first evict unprotected cached blocks. Protected
             # blocks are only considered if the unprotected pool cannot satisfy
             # the allocation.
-            bucket = 2 if self.is_protected(block) else 1
+            bucket = 2 if self.is_protected_cached(block) else 1
         else:
             bucket = 1
 
-        return bucket, self.get_retain_score(block), original_index
+        return bucket, self.get_eviction_retain_score(block), original_index
 
     def rank_eviction_candidates(
         self,
@@ -1900,48 +2410,55 @@ class KVFabricLifecycleTracker:
             key=self._rank_key,
         )
         selected = [block for _, block in ranked]
+        if not self.rank_log_events:
+            return selected
+
         hashed_candidates = [block for block in candidates if block.block_hash is not None]
         protected_candidates = [
-            block for block in hashed_candidates if self.is_protected(block)
+            block for block in hashed_candidates if self.is_protected_cached(block)
         ]
         hashed_selected = [block for block in selected if block.block_hash is not None]
         protected_selected = [
-            block for block in hashed_selected if self.is_protected(block)
+            block for block in hashed_selected if self.is_protected_cached(block)
         ]
-        selected_scores = [self.get_retain_score(block) for block in selected]
-        self._emit(
-            "eviction_candidates_ranked",
-            policy=self.eviction_policy,
-            retain_use_reuse=self.retain_use_reuse,
-            retain_use_prefix=self.retain_use_prefix,
-            retain_use_recompute=self.retain_use_recompute,
-            protect_min_hit_count=self.protect_min_hit_count,
-            protect_min_share_degree=self.protect_min_share_degree,
-            protect_min_branch_factor=self.protect_min_branch_factor,
-            protect_min_family_hits=self.protect_min_family_hits,
-            protect_min_family_branches=self.protect_min_family_branches,
-            protected_depth_floor=self.protected_depth_floor,
-            eviction_candidate_window_min=self.eviction_candidate_window_min,
-            eviction_candidate_window_multiplier=(
+        selected_scores = [
+            self.get_eviction_retain_score(block) for block in selected
+        ]
+        payload: dict[str, Any] = {
+            "policy": self.eviction_policy,
+            "selector": "rank",
+            "retain_use_reuse": self.retain_use_reuse,
+            "retain_use_prefix": self.retain_use_prefix,
+            "retain_use_recompute": self.retain_use_recompute,
+            "protect_min_hit_count": self.protect_min_hit_count,
+            "protect_min_share_degree": self.protect_min_share_degree,
+            "protect_min_branch_factor": self.protect_min_branch_factor,
+            "protect_min_family_hits": self.protect_min_family_hits,
+            "protect_min_family_branches": self.protect_min_family_branches,
+            "protected_depth_floor": self.protected_depth_floor,
+            "eviction_candidate_window_min": self.eviction_candidate_window_min,
+            "eviction_candidate_window_multiplier": (
                 self.eviction_candidate_window_multiplier
             ),
-            eviction_candidate_window_max=self.eviction_candidate_window_max,
-            eviction_rank_min_score=self.eviction_rank_min_score,
-            candidate_count=len(candidates),
-            selected_count=len(selected),
-            candidate_hashed_count=len(hashed_candidates),
-            candidate_protected_count=len(protected_candidates),
-            selected_hashed_count=len(hashed_selected),
-            selected_protected_count=len(protected_selected),
-            selected_avg_retain_score=(
+            "eviction_candidate_window_max": self.eviction_candidate_window_max,
+            "eviction_rank_min_score": self.eviction_rank_min_score,
+            "candidate_count": len(candidates),
+            "selected_count": len(selected),
+            "candidate_hashed_count": len(hashed_candidates),
+            "candidate_protected_count": len(protected_candidates),
+            "selected_hashed_count": len(hashed_selected),
+            "selected_protected_count": len(protected_selected),
+            "selected_avg_retain_score": (
                 sum(selected_scores) / len(selected_scores) if selected_scores else 0.0
             ),
-            candidates=[
+        }
+        if self.rank_log_candidates:
+            payload["candidates"] = [
                 {
                     "block_id": block.block_id,
                     "has_hash": block.block_hash is not None,
-                    "protected": self.is_protected(block),
-                    "retain_score": self.get_retain_score(block),
+                    "protected": self.is_protected_cached(block),
+                    "eviction_retain_score": self.get_eviction_retain_score(block),
                     "ref_count": block.ref_cnt,
                     "family_id": (
                         self.blocks.get(block.block_id).family_id
@@ -1960,8 +2477,137 @@ class KVFabricLifecycleTracker:
                     ),
                 }
                 for block in selected[:16]
-            ],
-        )
+            ]
+        self._emit("eviction_candidates_ranked", **payload)
+        return selected
+
+    def select_shared_aware_candidates(
+        self,
+        candidates: list["KVCacheBlock"],
+        num_blocks: int,
+    ) -> list["KVCacheBlock"]:
+        """Select victims with a low-overhead LRU bypass.
+
+        The default ranking selector is useful for diagnostics but it sorts the
+        whole candidate window. For fast 9B serving, a TinyLFU/CLOCK-style
+        bypass is cheaper: keep LRU order, skip only blocks whose retained value
+        is clearly above the configured threshold, and stop scanning as soon as
+        enough cheap victims are found.
+        """
+        if self.eviction_selector == "rank":
+            return self.rank_eviction_candidates(candidates, num_blocks)
+
+        min_score = self._effective_eviction_rank_min_score()
+        selected: list["KVCacheBlock"] = []
+        deferred: list[tuple[int, float, "KVCacheBlock"]] = []
+        hashed_count = 0
+        protected_count = 0
+        selected_hashed_count = 0
+        selected_protected_count = 0
+
+        for original_index, block in enumerate(candidates):
+            if block.block_hash is None:
+                selected.append(block)
+                if len(selected) >= num_blocks:
+                    break
+                continue
+
+            hashed_count += 1
+            score = self.get_eviction_retain_score(block)
+            protected = self.is_protected_cached(block)
+            if protected:
+                protected_count += 1
+            should_defer = (
+                score >= min_score if min_score > 0.0 else protected or score > 0.0
+            )
+            if should_defer and len(candidates) - original_index > (
+                num_blocks - len(selected)
+            ):
+                deferred.append((original_index, score, block))
+                continue
+
+            selected.append(block)
+            selected_hashed_count += 1
+            if protected:
+                selected_protected_count += 1
+            if len(selected) >= num_blocks:
+                break
+
+        if len(selected) < num_blocks and deferred:
+            needed = num_blocks - len(selected)
+            fallback = nsmallest(
+                needed,
+                deferred,
+                key=lambda item: (item[1], item[0]),
+            )
+            for _, _, block in fallback:
+                selected.append(block)
+                selected_hashed_count += 1
+                if self.is_protected_cached(block):
+                    selected_protected_count += 1
+
+        if not self.rank_log_events:
+            return selected
+
+        selected_scores = [
+            self.get_eviction_retain_score(block) for block in selected
+        ]
+        payload: dict[str, Any] = {
+            "policy": self.eviction_policy,
+            "selector": "linear",
+            "retain_use_reuse": self.retain_use_reuse,
+            "retain_use_prefix": self.retain_use_prefix,
+            "retain_use_recompute": self.retain_use_recompute,
+            "protect_min_hit_count": self.protect_min_hit_count,
+            "protect_min_share_degree": self.protect_min_share_degree,
+            "protect_min_branch_factor": self.protect_min_branch_factor,
+            "protect_min_family_hits": self.protect_min_family_hits,
+            "protect_min_family_branches": self.protect_min_family_branches,
+            "protected_depth_floor": self.protected_depth_floor,
+            "eviction_candidate_window_min": self.eviction_candidate_window_min,
+            "eviction_candidate_window_multiplier": (
+                self.eviction_candidate_window_multiplier
+            ),
+            "eviction_candidate_window_max": self.eviction_candidate_window_max,
+            "eviction_rank_min_score": self.eviction_rank_min_score,
+            "candidate_count": len(candidates),
+            "selected_count": len(selected),
+            "candidate_hashed_count": hashed_count,
+            "candidate_protected_count": protected_count,
+            "selected_hashed_count": selected_hashed_count,
+            "selected_protected_count": selected_protected_count,
+            "deferred_count": len(deferred),
+            "selected_avg_retain_score": (
+                sum(selected_scores) / len(selected_scores) if selected_scores else 0.0
+            ),
+        }
+        if self.rank_log_candidates:
+            payload["candidates"] = [
+                {
+                    "block_id": block.block_id,
+                    "has_hash": block.block_hash is not None,
+                    "protected": self.is_protected_cached(block),
+                    "eviction_retain_score": self.get_eviction_retain_score(block),
+                    "ref_count": block.ref_cnt,
+                    "family_id": (
+                        self.blocks.get(block.block_id).family_id
+                        if self.blocks.get(block.block_id) is not None
+                        else None
+                    ),
+                    "family_branch_count": (
+                        self.blocks.get(block.block_id).family_branch_count
+                        if self.blocks.get(block.block_id) is not None
+                        else 0
+                    ),
+                    "family_regret_count": (
+                        self.blocks.get(block.block_id).family_regret_count
+                        if self.blocks.get(block.block_id) is not None
+                        else 0
+                    ),
+                }
+                for block in selected[:16]
+            ]
+        self._emit("eviction_candidates_ranked", **payload)
         return selected
 
     def select_family_protect_candidates(
@@ -1980,10 +2626,29 @@ class KVFabricLifecycleTracker:
         """
         selected: list["KVCacheBlock"] = []
         deferred: list["KVCacheBlock"] = []
+        family_deferred_counts: dict[int | None, int] = {}
         hashed_count = 0
         protected_count = 0
         selected_hashed_count = 0
         selected_protected_count = 0
+        protected_budget_overflow_count = 0
+        family_budget_overflow_count = 0
+        soft_budget_enabled = (
+            self.family_protect_soft_budget
+            and self.family_protect_max_protected_scan_ratio < 1.0
+            and len(candidates) > num_blocks
+        )
+        protected_defer_budget = len(candidates)
+        family_defer_budget = len(candidates)
+        if soft_budget_enabled:
+            protected_defer_budget = max(
+                num_blocks,
+                int(len(candidates) * self.family_protect_max_protected_scan_ratio),
+            )
+            family_defer_budget = max(
+                1,
+                int(len(candidates) * self.family_protect_max_family_scan_ratio),
+            )
 
         for block in candidates:
             has_hash = block.block_hash is not None
@@ -1992,12 +2657,30 @@ class KVFabricLifecycleTracker:
                 hashed_count += 1
             if protected:
                 protected_count += 1
-                deferred.append(block)
-                continue
+                meta = self.blocks.get(block.block_id)
+                family_id = meta.family_id if meta is not None else None
+                family_deferred = family_deferred_counts.get(family_id, 0)
+                can_defer = (
+                    not soft_budget_enabled
+                    or (
+                        len(deferred) < protected_defer_budget
+                        and family_deferred < family_defer_budget
+                    )
+                )
+                if can_defer:
+                    deferred.append(block)
+                    family_deferred_counts[family_id] = family_deferred + 1
+                    continue
+                if len(deferred) >= protected_defer_budget:
+                    protected_budget_overflow_count += 1
+                else:
+                    family_budget_overflow_count += 1
 
             selected.append(block)
             if has_hash:
                 selected_hashed_count += 1
+            if protected:
+                selected_protected_count += 1
             if len(selected) >= num_blocks:
                 break
 
@@ -2009,7 +2692,12 @@ class KVFabricLifecycleTracker:
                 if len(selected) >= num_blocks:
                     break
 
-        selected_scores = [self.get_retain_score(block) for block in selected]
+        if not self.rank_log_events:
+            return selected
+
+        selected_scores = [
+            self.get_eviction_retain_score(block) for block in selected
+        ]
         payload: dict[str, Any] = {
             "policy": self.eviction_policy,
             "selector": "family_protect_linear",
@@ -2034,6 +2722,22 @@ class KVFabricLifecycleTracker:
             "candidate_protected_count": protected_count,
             "selected_hashed_count": selected_hashed_count,
             "selected_protected_count": selected_protected_count,
+            "family_protect_soft_budget": self.family_protect_soft_budget,
+            "family_protect_soft_budget_enabled": soft_budget_enabled,
+            "family_protect_max_protected_scan_ratio": (
+                self.family_protect_max_protected_scan_ratio
+            ),
+            "family_protect_max_family_scan_ratio": (
+                self.family_protect_max_family_scan_ratio
+            ),
+            "family_protect_protected_defer_budget": protected_defer_budget,
+            "family_protect_family_defer_budget": family_defer_budget,
+            "family_protect_protected_budget_overflow_count": (
+                protected_budget_overflow_count
+            ),
+            "family_protect_family_budget_overflow_count": (
+                family_budget_overflow_count
+            ),
             "selected_avg_retain_score": (
                 sum(selected_scores) / len(selected_scores) if selected_scores else 0.0
             ),
@@ -2044,7 +2748,7 @@ class KVFabricLifecycleTracker:
                     "block_id": block.block_id,
                     "has_hash": block.block_hash is not None,
                     "protected": self.is_protected(block),
-                    "retain_score": self.get_retain_score(block),
+                    "eviction_retain_score": self.get_eviction_retain_score(block),
                     "ref_count": block.ref_cnt,
                     "family_id": (
                         self.blocks.get(block.block_id).family_id

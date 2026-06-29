@@ -40,14 +40,85 @@ run_policy() {
   bash "$PROJECT_ROOT/vllm_baseline/scripts/stop_server.sh" "$MODEL_PRESET" || true
   trap 'if [[ "$completed" != "1" ]]; then bash "$PROJECT_ROOT/vllm_baseline/scripts/stop_server.sh" "$MODEL_PRESET" || true; fi' RETURN
 
+  local eviction_policy="$policy"
+  local control_profile="${KVFABRIC_PROFILE:-legacy}"
+  local control_enable="${KVFABRIC_ENABLE:-1}"
+  local admission_strength="${KVFABRIC_ADMISSION_STRENGTH:-}"
+  local eviction_strength="${KVFABRIC_EVICTION_STRENGTH:-}"
+  local scheduler_strength="${KVFABRIC_SCHEDULER_STRENGTH:-}"
+  local slo_protection_strength="${KVFABRIC_SLO_PROTECTION_STRENGTH:-}"
+  local hint_trust="${KVFABRIC_HINT_TRUST:-}"
+  local low_reuse_cache_fraction="${KVFABRIC_LOW_REUSE_CACHE_FRACTION:-}"
+  local transient_cache_fraction="${KVFABRIC_TRANSIENT_CACHE_FRACTION:-}"
+  local bypass_cache_fraction="${KVFABRIC_BYPASS_CACHE_FRACTION:-}"
+  local durable_cache_fraction="${KVFABRIC_DURABLE_CACHE_FRACTION:-}"
+  local cold_cache_fraction="${KVFABRIC_COLD_CACHE_FRACTION:-}"
   if [[ "$policy" == "lru" ]]; then
     admission_policy="${KVFABRIC_LRU_ADMISSION_POLICY:-off}"
+    control_profile="off"
+    control_enable="0"
+    admission_strength="0"
+    eviction_strength="0"
+    scheduler_strength="0"
+    slo_protection_strength="0"
+  elif [[ "$policy" == "lru_admission" ]]; then
+    eviction_policy="lru"
+    admission_policy="${KVFABRIC_LRU_ADMISSION_POLICY:-force}"
+    control_profile="${KVFABRIC_POLICY_PROFILE:-admission_dominant}"
+    admission_strength="${admission_strength:-1.0}"
+    eviction_strength="${eviction_strength:-0.0}"
+    scheduler_strength="${scheduler_strength:-0.0}"
+    slo_protection_strength="${slo_protection_strength:-0.0}"
+  elif [[ "$policy" == "kvfabric_admission" || "$policy" == "kvfabric_admission_dominant" ]]; then
+    eviction_policy="lru"
+    admission_policy="${KVFABRIC_LRU_ADMISSION_POLICY:-force}"
+    control_profile="${KVFABRIC_POLICY_PROFILE:-admission_dominant}"
+    admission_strength="${admission_strength:-1.0}"
+    eviction_strength="${eviction_strength:-0.0}"
+    scheduler_strength="${scheduler_strength:-0.0}"
+    slo_protection_strength="${slo_protection_strength:-0.0}"
+  elif [[ "$policy" == "kvfabric_throughput" || "$policy" == "kvfabric_throughput_protect" ]]; then
+    eviction_policy="shared_aware"
+    admission_policy="${KVFABRIC_ADMISSION_POLICY:-auto}"
+    control_profile="${KVFABRIC_POLICY_PROFILE:-throughput_protect}"
+    admission_strength="${admission_strength:-0.9}"
+    eviction_strength="${eviction_strength:-0.25}"
+    scheduler_strength="${scheduler_strength:-0.0}"
+    slo_protection_strength="${slo_protection_strength:-0.0}"
+  elif [[ "$policy" == "kvfabric_rebuilt" || "$policy" == "kvfabric_eviction" ]]; then
+    eviction_policy="shared_aware"
+    admission_policy="${KVFABRIC_ADMISSION_POLICY:-auto}"
+    control_profile="${KVFABRIC_POLICY_PROFILE:-eviction_light}"
+    admission_strength="${admission_strength:-0.7}"
+    eviction_strength="${eviction_strength:-0.35}"
+    scheduler_strength="${scheduler_strength:-0.0}"
+    slo_protection_strength="${slo_protection_strength:-0.0}"
+  elif [[ "$policy" == "kvfabric_latency" || "$policy" == "kvfabric_latency_protected" ]]; then
+    eviction_policy="shared_aware"
+    admission_policy="${KVFABRIC_ADMISSION_POLICY:-auto}"
+    control_profile="${KVFABRIC_POLICY_PROFILE:-latency_protected}"
+    admission_strength="${admission_strength:-0.8}"
+    eviction_strength="${eviction_strength:-0.2}"
+    scheduler_strength="${scheduler_strength:-0.55}"
+    slo_protection_strength="${slo_protection_strength:-0.75}"
   else
     admission_policy="${KVFABRIC_ADMISSION_POLICY:-auto}"
   fi
 
   KVFABRIC_LIFECYCLE=1 \
-  KVFABRIC_EVICTION_POLICY="$policy" \
+  KVFABRIC_ENABLE="$control_enable" \
+  KVFABRIC_PROFILE="$control_profile" \
+  KVFABRIC_ADMISSION_STRENGTH="$admission_strength" \
+  KVFABRIC_EVICTION_STRENGTH="$eviction_strength" \
+  KVFABRIC_SCHEDULER_STRENGTH="$scheduler_strength" \
+  KVFABRIC_SLO_PROTECTION_STRENGTH="$slo_protection_strength" \
+  KVFABRIC_HINT_TRUST="$hint_trust" \
+  KVFABRIC_LOW_REUSE_CACHE_FRACTION="$low_reuse_cache_fraction" \
+  KVFABRIC_TRANSIENT_CACHE_FRACTION="$transient_cache_fraction" \
+  KVFABRIC_BYPASS_CACHE_FRACTION="$bypass_cache_fraction" \
+  KVFABRIC_DURABLE_CACHE_FRACTION="$durable_cache_fraction" \
+  KVFABRIC_COLD_CACHE_FRACTION="$cold_cache_fraction" \
+  KVFABRIC_EVICTION_POLICY="$eviction_policy" \
   KVFABRIC_ADMISSION_POLICY="$admission_policy" \
   KVFABRIC_LIFECYCLE_LOG_PATH="$lifecycle_log" \
   KVFABRIC_ENABLE_FAMILY_TREE="${KVFABRIC_ENABLE_FAMILY_TREE:-1}" \
@@ -87,6 +158,20 @@ run_policy() {
   KVFABRIC_SCHEDULER_POSITIVE_HIT_WEIGHT="${KVFABRIC_SCHEDULER_POSITIVE_HIT_WEIGHT:-0.004}" \
   KVFABRIC_SCHEDULER_POSITIVE_HIT_MAX_BONUS="${KVFABRIC_SCHEDULER_POSITIVE_HIT_MAX_BONUS:-18.0}" \
   KVFABRIC_SCHEDULER_POSITIVE_SESSION_TURN_BONUS="${KVFABRIC_SCHEDULER_POSITIVE_SESSION_TURN_BONUS:-1.5}" \
+  KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS="${KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS:-5000}" \
+  KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS="${KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS:-3000}" \
+  KVFABRIC_SCHEDULER_DEFER_MAX_COUNT="${KVFABRIC_SCHEDULER_DEFER_MAX_COUNT:-1}" \
+  KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT="${KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT:-1}" \
+  KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS="${KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS:-5000}" \
+  KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS="${KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS:-3000}" \
+  KVFABRIC_SCHEDULER_LATENCY_PROTECTED_CLASSES="${KVFABRIC_SCHEDULER_LATENCY_PROTECTED_CLASSES:-decode_heavy decode low_reuse_long}" \
+  KVFABRIC_SCHEDULER_LATENCY_PROTECTED_HEAD_GUARD_MS="${KVFABRIC_SCHEDULER_LATENCY_PROTECTED_HEAD_GUARD_MS:-8000}" \
+  KVFABRIC_SCHEDULER_LATENCY_PROTECTED_PROMOTE_AGE_MS="${KVFABRIC_SCHEDULER_LATENCY_PROTECTED_PROMOTE_AGE_MS:-9000}" \
+  KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_RISK_RATIO="${KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_RISK_RATIO:-0.35}" \
+  KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO="${KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO:-0.65}" \
+  KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_MIN_MS="${KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_MIN_MS:-3000}" \
+  KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO="${KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO:-0.85}" \
+  KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS="${KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS:-5000}" \
   KVFABRIC_ADMISSION_MIN_PROMPT_TOKENS="${KVFABRIC_ADMISSION_MIN_PROMPT_TOKENS:-700}" \
   KVFABRIC_PROTECT_MIN_HIT_COUNT="${KVFABRIC_PROTECT_MIN_HIT_COUNT:-1}" \
   KVFABRIC_PROTECT_MIN_SHARE_DEGREE="${KVFABRIC_PROTECT_MIN_SHARE_DEGREE:-2}" \
@@ -94,9 +179,15 @@ run_policy() {
   KVFABRIC_PROTECT_MIN_FAMILY_HITS="${KVFABRIC_PROTECT_MIN_FAMILY_HITS:-2}" \
   KVFABRIC_PROTECT_MIN_FAMILY_BRANCHES="${KVFABRIC_PROTECT_MIN_FAMILY_BRANCHES:-1}" \
   KVFABRIC_PROTECTED_DEPTH="${KVFABRIC_PROTECTED_DEPTH:-2}" \
+  KVFABRIC_EVICTION_SELECTOR="${KVFABRIC_EVICTION_SELECTOR:-rank}" \
   KVFABRIC_EVICTION_CANDIDATE_WINDOW_MIN="${KVFABRIC_EVICTION_CANDIDATE_WINDOW_MIN:-512}" \
   KVFABRIC_EVICTION_CANDIDATE_WINDOW_MULTIPLIER="${KVFABRIC_EVICTION_CANDIDATE_WINDOW_MULTIPLIER:-16}" \
   KVFABRIC_EVICTION_CANDIDATE_WINDOW_MAX="${KVFABRIC_EVICTION_CANDIDATE_WINDOW_MAX:-1024}" \
+  KVFABRIC_EVICTION_RANK_MIN_SCORE="${KVFABRIC_EVICTION_RANK_MIN_SCORE:-0.0}" \
+  KVFABRIC_EVICTION_SCORE_RECOMPUTE_WEIGHT="${KVFABRIC_EVICTION_SCORE_RECOMPUTE_WEIGHT:-0.01}" \
+  KVFABRIC_EVICTION_SCORE_RECOMPUTE_CAP="${KVFABRIC_EVICTION_SCORE_RECOMPUTE_CAP:-16.0}" \
+  KVFABRIC_EVICTION_SCORE_ANCHOR_BONUS="${KVFABRIC_EVICTION_SCORE_ANCHOR_BONUS:-24.0}" \
+  KVFABRIC_RANK_LOG_EVENTS="${KVFABRIC_RANK_LOG_EVENTS:-0}" \
   KVFABRIC_RANK_LOG_CANDIDATES="${KVFABRIC_RANK_LOG_CANDIDATES:-0}" \
   KV_CACHE_METRICS=1 \
   KV_CACHE_METRICS_SAMPLE="${KV_CACHE_METRICS_SAMPLE:-0.05}" \

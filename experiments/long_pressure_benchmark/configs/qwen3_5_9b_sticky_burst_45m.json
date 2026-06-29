@@ -1,0 +1,30 @@
+{
+  "name": "qwen3_5_9b_sticky_burst_45m",
+  "description": "Latency-oriented sticky session trace for Qwen3.5-9B with repeated follow-up conversations, long-document QA, agent loops, and low-reuse long-output noise.",
+  "trace": {
+    "profile": "sticky_burst",
+    "duration_seconds": 2700,
+    "request_rate": 0.62,
+    "seed": 20260701,
+    "max_model_len": 4096,
+    "load_mode": "sticky_latency_pressure",
+    "hint_regime": "partial_hints",
+    "tenant_count": 4,
+    "client_count": 12,
+    "hot_family_count": 24,
+    "session_family_count": 32,
+    "session_reuse_probability": 0.78,
+    "session_interval_min_seconds": 8,
+    "session_interval_max_seconds": 90,
+    "burst_probability": 0.10
+  },
+  "loadgen": {
+    "max_in_flight": 64,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.02,
+    "raw_sample_limit": 2000,
+    "warmup_seconds": 120,
+    "timeout_seconds": 1200,
+    "slo_seconds": 120
+  }
+}

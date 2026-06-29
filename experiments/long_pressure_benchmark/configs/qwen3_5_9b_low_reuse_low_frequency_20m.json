@@ -1,0 +1,27 @@
+{
+  "name": "qwen3_5_9b_low_reuse_low_frequency_20m",
+  "description": "Low-frequency and low-reuse guardrail trace for Qwen3.5-9B. It should show near-neutral behavior rather than optimized speedup.",
+  "trace": {
+    "profile": "low_reuse_low_frequency",
+    "duration_seconds": 1200,
+    "request_rate": 0.25,
+    "seed": 20260703,
+    "max_model_len": 4096,
+    "load_mode": "guardrail_low_reuse",
+    "hint_regime": "partial_hints",
+    "tenant_count": 12,
+    "client_count": 96,
+    "session_reuse_probability": 0.10,
+    "cold_family_reuse_probability": 0.0,
+    "burst_probability": 0.01
+  },
+  "loadgen": {
+    "max_in_flight": 16,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.03,
+    "raw_sample_limit": 1000,
+    "warmup_seconds": 60,
+    "timeout_seconds": 900,
+    "slo_seconds": 120
+  }
+}

@@ -21,6 +21,8 @@ sync_paths=(
   "vllm_workspace/upstream_manifest.txt"
   "vllm_workspace/patches/vllm_overlay.patch"
   "vllm_workspace/scripts/"
+  "vllm_baseline/profiles/qwen3_5_9b.env"
+  "docs/current/kvfabric_medium_capacity_generalization_design_2026-06-29.md"
   "docs/current/kvfabric_sticky_conversation_fairness_refactor_2026-06-26.md"
   "docs/current/kvfabric_sticky_latency_throughput_refactor_2026-06-27.md"
   "experiments/long_pressure_benchmark/README.md"
@@ -41,6 +43,21 @@ sync_paths=(
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_12h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_sticky_conversation_trace_4h.json"
   "experiments/long_pressure_benchmark/configs/qwen3_5_27b_conversation_sticky_trace_4h.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_capacity_sweep_6m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_daily_dedicated_reuse_40m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_enterprise_normal_25m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_interactive_latency_quick_12m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_interactive_latency_reuse_45m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_lru_gap_throughput_quick_12m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_low_reuse_low_frequency_20m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_prefill_reuse_quick_12m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_prefill_reuse_saturation_60m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_quick_daily_8m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_rebuilt_pressure_30m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_rebuilt_quick_12m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_saturation_reuse_proof_30m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_saturation_medium_60m.json"
+  "experiments/long_pressure_benchmark/configs/qwen3_5_9b_sticky_burst_45m.json"
   "experiments/long_pressure_benchmark/scripts/common.sh"
   "experiments/long_pressure_benchmark/scripts/deploy_remote_27b_long_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_long_benchmark.sh"
@@ -54,6 +71,13 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_qwen3_5_9b_12h_matrix.sh"
+  "experiments/long_pressure_benchmark/scripts/run_qwen3_5_9b_quick_loop.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_12h_matrix_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_quick_loop_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_saturation_reuse_proof_admission_only_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_saturation_reuse_proof_benchmark.sh"
+  "experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_saturation_reuse_proof_eviction_only_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/status_remote_27b_benchmark.sh"
   "experiments/long_pressure_benchmark/scripts/run_remote_27b_dashboard.sh"
   "experiments/long_pressure_benchmark/scripts/start_remote_27b_4h_suite_with_dashboard.sh"
@@ -61,6 +85,7 @@ sync_paths=(
   "experiments/long_pressure_benchmark/scripts/export_kv_cache_replay.sh"
   "experiments/long_pressure_benchmark/scripts/sync_remote_27b_benchmark_results.sh"
   "experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py"
+  "experiments/long_pressure_benchmark/scripts/recompute_duration_slo_from_lifecycle.py"
   "experiments/long_pressure_benchmark/scripts/analyze_acceptance_run.py"
   "experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py"
 )
@@ -69,6 +94,7 @@ echo "Syncing KVFabric overlay and long benchmark scripts to ${REMOTE_HOST}:${RE
 ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
   mkdir -p \
     docs/current \
+    vllm_baseline/profiles \
     experiments/long_pressure_benchmark/configs \
     experiments/long_pressure_benchmark/examples \
     experiments/long_pressure_benchmark/scripts \
@@ -131,13 +157,22 @@ ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" "cd '$REMOTE_PROJECT' && \
     experiments/long_pressure_benchmark/examples/online_batch.py \
     experiments/long_pressure_benchmark/examples/summarize_kvfabric_lifecycle.py \
     experiments/long_pressure_benchmark/scripts/summarize_remote_27b_benchmark_results.py \
+    experiments/long_pressure_benchmark/scripts/recompute_duration_slo_from_lifecycle.py \
     experiments/long_pressure_benchmark/scripts/analyze_acceptance_run.py \
     experiments/long_pressure_benchmark/scripts/validate_payload_lengths.py \
     experiments/long_pressure_benchmark/dashboard/kvfabric_run_reader.py \
     experiments/long_pressure_benchmark/dashboard/kv_cache_replay.py \
     experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard.py \
     experiments/long_pressure_benchmark/dashboard/run_kvfabric_dashboard_static.py \
-    experiments/long_pressure_benchmark/dashboard/render_replay_gif.py"
+    experiments/long_pressure_benchmark/dashboard/render_replay_gif.py && \
+  bash -n \
+    experiments/long_pressure_benchmark/scripts/run_qwen3_5_9b_12h_matrix.sh \
+    experiments/long_pressure_benchmark/scripts/run_qwen3_5_9b_quick_loop.sh \
+    experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_12h_matrix_benchmark.sh \
+    experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_quick_loop_benchmark.sh \
+    experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_saturation_reuse_proof_admission_only_benchmark.sh \
+    experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_saturation_reuse_proof_benchmark.sh \
+    experiments/long_pressure_benchmark/scripts/run_remote_qwen3_5_9b_saturation_reuse_proof_eviction_only_benchmark.sh"
 
 if [[ "$REMOTE_MODE" == "sync" ]]; then
   echo "Remote sync and compile completed."
