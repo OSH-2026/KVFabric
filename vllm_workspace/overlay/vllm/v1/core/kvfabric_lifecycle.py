@@ -263,13 +263,13 @@ class KVFabricControlConfig:
             durable_fraction = 1.0
             cold_fraction = 0.0
         elif profile in {"throughput_protect", "protect_throughput"}:
-            admission_strength = 0.9
-            eviction_strength = 0.25
+            admission_strength = 0.65
+            eviction_strength = 0.55
             low_reuse_fraction = 0.0
-            transient_fraction = 0.10
+            transient_fraction = 0.25
             bypass_fraction = 0.0
             durable_fraction = 1.0
-            cold_fraction = 0.05
+            cold_fraction = 0.15
         elif profile in {"eviction", "eviction_light", "rebuilt"}:
             admission_strength = 0.7
             eviction_strength = 0.35
@@ -1514,9 +1514,13 @@ class KVFabricLifecycleTracker:
         if self.eviction_rank_min_score > 0.0:
             return self.eviction_rank_min_score
         strength = self.control_config.eviction_strength
+        if strength <= 0.0:
+            return float("inf")
         if strength >= 1.0:
             return 0.0
-        return 64.0 * (1.0 - strength)
+        if self.eviction_selector == "linear":
+            return 12.0 * (1.0 - strength)
+        return 32.0 * (1.0 - strength)
 
     def should_rank_lru_victims(self, victims: list["KVCacheBlock"]) -> bool:
         min_score = self._effective_eviction_rank_min_score()
@@ -1524,11 +1528,12 @@ class KVFabricLifecycleTracker:
             if block.block_hash is None:
                 continue
             score = self.get_eviction_retain_score(block)
+            protected = self.is_protected(block)
             if min_score > 0.0:
-                if score >= min_score:
+                if protected or score >= min_score:
                     return True
                 continue
-            if score > 0.0 or self.is_protected(block):
+            if score > 0.0 or protected:
                 return True
         return False
 
@@ -2517,9 +2522,10 @@ class KVFabricLifecycleTracker:
             protected = self.is_protected_cached(block)
             if protected:
                 protected_count += 1
-            should_defer = (
-                score >= min_score if min_score > 0.0 else protected or score > 0.0
-            )
+            if min_score > 0.0:
+                should_defer = protected or score >= min_score
+            else:
+                should_defer = protected or score > 0.0
             if should_defer and len(candidates) - original_index > (
                 num_blocks - len(selected)
             ):

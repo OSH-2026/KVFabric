@@ -81,8 +81,8 @@ run_policy() {
     eviction_policy="shared_aware"
     admission_policy="${KVFABRIC_ADMISSION_POLICY:-auto}"
     control_profile="${KVFABRIC_POLICY_PROFILE:-throughput_protect}"
-    admission_strength="${admission_strength:-0.9}"
-    eviction_strength="${eviction_strength:-0.25}"
+    admission_strength="${admission_strength:-0.65}"
+    eviction_strength="${eviction_strength:-0.55}"
     scheduler_strength="${scheduler_strength:-0.0}"
     slo_protection_strength="${slo_protection_strength:-0.0}"
   elif [[ "$policy" == "kvfabric_rebuilt" || "$policy" == "kvfabric_eviction" ]]; then
