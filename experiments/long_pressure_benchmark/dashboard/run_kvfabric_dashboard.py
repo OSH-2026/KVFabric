@@ -29,7 +29,6 @@ from kv_cache_replay import (  # noqa: E402
 )
 from kvfabric_run_reader import (  # noqa: E402
     KVFabricRunReader,
-    POLICIES,
     PolicySnapshot,
     format_age,
 )
@@ -372,10 +371,14 @@ def render_lifecycle_numbers(state: Any, snapshot: PolicySnapshot) -> None:
 def render_dashboard(reader: KVFabricRunReader, args: argparse.Namespace) -> None:
     snapshots = reader.policy_snapshots()
     current_policy = reader.current_policy()
+    policy_names = [snapshot.policy for snapshot in snapshots]
+    if not policy_names:
+        st.warning("No policy outputs found yet.")
+        return
     selected_policy = st.sidebar.radio(
         "Policy",
-        POLICIES,
-        index=POLICIES.index(current_policy) if current_policy in POLICIES else 0,
+        policy_names,
+        index=policy_names.index(current_policy) if current_policy in policy_names else 0,
     )
     snapshot = next(item for item in snapshots if item.policy == selected_policy)
 

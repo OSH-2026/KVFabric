@@ -15,7 +15,7 @@ if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
 from kv_cache_replay import load_replay_state  # noqa: E402
-from kvfabric_run_reader import KVFabricRunReader, POLICIES  # noqa: E402
+from kvfabric_run_reader import KVFabricRunReader  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,8 +94,9 @@ def build_snapshot(args: argparse.Namespace, query: dict[str, list[str]]) -> dic
     )
     job_log = Path(args.job_log).expanduser() if args.job_log else None
     reader = KVFabricRunReader(run_root, job_log=job_log)
+    policy_names = reader.policy_names()
     current_policy = query.get("policy", [reader.current_policy()])[0]
-    if current_policy not in POLICIES:
+    if current_policy not in policy_names:
         current_policy = reader.current_policy()
     snapshots = reader.policy_snapshots()
     policy_rows = []
@@ -114,8 +115,20 @@ def build_snapshot(args: argparse.Namespace, query: dict[str, list[str]]) -> dic
                 "offered": offered,
                 "tok_s": metric(item, "total_tokens_per_second", 0.0),
                 "goodput_tok_s": metric(item, "goodput_total_tokens_per_second", 0.0),
-                "avg_latency_s": metric(item, "latency_avg_seconds", 0.0),
-                "p95_latency_s": metric(item, "latency_p95_seconds", 0.0),
+                "e2e_goodput_tok_s": metric(
+                    item,
+                    "e2e_goodput_total_tokens_per_second",
+                    0.0,
+                ),
+                "avg_latency_s": metric(item, "latency_avg_seconds", None),
+                "p50_latency_s": metric(item, "latency_p50_seconds", None),
+                "p95_latency_s": metric(item, "latency_p95_seconds", None),
+                "p99_latency_s": metric(item, "latency_p99_seconds", None),
+                "e2e_p50_latency_s": metric(item, "e2e_latency_p50_seconds", None),
+                "e2e_p95_latency_s": metric(item, "e2e_latency_p95_seconds", None),
+                "e2e_p99_latency_s": metric(item, "e2e_latency_p99_seconds", None),
+                "slo_miss_rate": metric(item, "slo_miss_rate", None),
+                "e2e_slo_miss_rate": metric(item, "e2e_slo_miss_rate", None),
                 "prefix_hit_rate": item.lifecycle_metrics.get("prefix_hit_rate"),
                 "rebuilt": item.lifecycle_metrics.get("rebuilt_from_eviction_blocks"),
                 "admission_saved": item.lifecycle_metrics.get(
@@ -123,12 +136,34 @@ def build_snapshot(args: argparse.Namespace, query: dict[str, list[str]]) -> dic
                 ),
                 "rolling": item.rolling[-240:],
                 "last_update_epoch": item.last_update_mtime,
+                "has_data": bool(
+                    item.rolling
+                    or item.final_metrics
+                    or item.lifecycle_metrics
+                    or completed
+                ),
             }
         )
     selected = next(
         (item for item in snapshots if item.policy == current_policy),
         snapshots[-1],
     )
+    replay = compact_blocks(
+        run_root,
+        current_policy,
+        limit_events=max(args.lifecycle_event_limit, 1),
+    )
+    replay_counters = replay.get("counters") or {}
+    for row in policy_rows:
+        if row["policy"] != current_policy:
+            continue
+        if row["prefix_hit_rate"] is None and replay.get("available"):
+            row["prefix_hit_rate"] = replay.get("prefix_hit_rate")
+        if row["rebuilt"] is None:
+            row["rebuilt"] = replay_counters.get("rebuilt_from_eviction")
+        if row["admission_saved"] is None:
+            row["admission_saved"] = replay_counters.get("admission_saved_blocks")
+        break
     return {
         "generated_at": time.time(),
         "dashboard_backend": "static",
@@ -138,14 +173,12 @@ def build_snapshot(args: argparse.Namespace, query: dict[str, list[str]]) -> dic
         "trace_summary": reader.trace_summary(),
         "current_policy": current_policy,
         "policies": policy_rows,
+        "class_metrics": selected.latest_class_rolling.get("classes")
+        or selected.class_metrics,
         "prometheus": selected.prometheus,
         "raw_outputs": selected.raw_outputs[-20:],
         "job_log_tail": reader.job_log_tail(max_bytes=18000),
-        "replay": compact_blocks(
-            run_root,
-            current_policy,
-            limit_events=max(args.lifecycle_event_limit, 1),
-        ),
+        "replay": replay,
     }
 
 
@@ -181,8 +214,6 @@ HTML = r"""
       padding: 18px 22px 10px;
       border-bottom: 1px solid var(--line);
       background: rgba(2, 6, 23, 0.92);
-      position: sticky;
-      top: 0;
       z-index: 5;
     }
     h1 { margin: 0; font-size: 24px; font-weight: 760; }
@@ -216,6 +247,7 @@ HTML = r"""
     th, td { padding: 8px 7px; border-bottom: 1px solid rgba(148,163,184,0.12); text-align: right; }
     th:first-child, td:first-child { text-align: left; }
     th { color: #cbd5e1; font-size: 12px; }
+    .muted-cell { color: var(--muted); text-align: left; }
     .status-completed { color: var(--green); font-weight: 780; }
     .status-running { color: var(--cyan); font-weight: 780; }
     .status-stalled, .status-started { color: var(--amber); font-weight: 780; }
@@ -255,7 +287,7 @@ HTML = r"""
     </section>
     <section class="grid cols">
       <div class="panel">
-        <h3>Rolling Throughput / Latency</h3>
+        <h3>Rolling Goodput / Latency</h3>
         <canvas id="rollingChart" height="260"></canvas>
       </div>
       <div class="panel">
@@ -264,6 +296,10 @@ HTML = r"""
         <div id="blockGrid"></div>
         <div class="legend" id="legend"></div>
       </div>
+    </section>
+    <section class="panel">
+      <h3>Request Class Latency</h3>
+      <table id="classTable"></table>
     </section>
     <section class="grid cols">
       <div class="panel">
@@ -278,13 +314,18 @@ HTML = r"""
   </main>
   <script>
     const refreshMs = __REFRESH_MS__;
+    const snapshotMode = new URLSearchParams(location.search).get("snapshot") === "1";
     let currentPolicy = "";
     const colors = {
       FREE: "#1f2937", ACTIVE: "#2563eb", SEALED: "#06b6d4",
       SHARED: "#22c55e", COOLING_WARM: "#eab308",
       COOLING_HOT: "#f97316", EVICTED: "#ef4444", REBUILT: "#a855f7"
     };
-    const fmt = (v, d=2) => Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, {maximumFractionDigits:d}) : "n/a";
+    const finite = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+    const fmt = (v, d=2) => finite(v) ? Number(v).toLocaleString(undefined, {maximumFractionDigits:d}) : "n/a";
+    const sec = (v) => finite(v) ? `${fmt(v)}s` : "n/a";
+    const pct = (v) => finite(v) ? `${fmt(Number(v) * 100)}%` : "n/a";
+    const firstFinite = (...values) => values.find(v => finite(v));
     function card(label, value, hint="") {
       return `<div class="panel card"><div class="label">${label}</div><div class="value">${value}</div><div class="hint">${hint}</div></div>`;
     }
@@ -297,12 +338,22 @@ HTML = r"""
     }
     function render(data) {
       const selected = data.policies.find(p => p.policy === data.current_policy) || data.policies[data.policies.length - 1] || {};
+      const primaryGoodput = firstFinite(selected.e2e_goodput_tok_s, selected.goodput_tok_s, selected.tok_s, 0);
+      const primaryP95 = firstFinite(selected.e2e_p95_latency_s, selected.p95_latency_s);
+      const primaryTail = firstFinite(
+        selected.e2e_p99_latency_s,
+        selected.p99_latency_s,
+        selected.e2e_p95_latency_s,
+        selected.p95_latency_s
+      );
+      const tailLabel = finite(selected.e2e_p99_latency_s) || finite(selected.p99_latency_s) ? "P99" : "P95";
       document.getElementById("runLine").textContent = `${data.run_name} | ${data.run_root}`;
       document.getElementById("cards").innerHTML = [
         card("Policy", data.current_policy, selected.status || ""),
         card("Completed", fmt(selected.completed, 0), `offered ${fmt(selected.offered, 0)}`),
-        card("Total tok/s", fmt(selected.tok_s), `goodput ${fmt(selected.goodput_tok_s)}`),
-        card("P95 latency", `${fmt(selected.p95_latency_s)}s`, `avg ${fmt(selected.avg_latency_s)}s`),
+        card("SLO goodput", fmt(primaryGoodput), `raw tok/s ${fmt(selected.tok_s)}`),
+        card("E2E / service p95", sec(primaryP95), `service ${sec(selected.p95_latency_s)}`),
+        card(`${tailLabel} / SLO miss`, sec(primaryTail), `miss ${pct(selected.e2e_slo_miss_rate ?? selected.slo_miss_rate)}`),
         card("Prefix hit", selected.prefix_hit_rate == null ? "n/a" : `${fmt(selected.prefix_hit_rate * 100)}%`, `rebuilt ${fmt(selected.rebuilt, 0)}`),
         card("KV usage", `${fmt((data.prometheus.kv_cache_usage_perc || 0) * 100)}%`, `waiting ${fmt(data.prometheus.num_requests_waiting || 0, 0)}`)
       ].join("");
@@ -310,12 +361,20 @@ HTML = r"""
         `<button class="${p.policy === data.current_policy ? "active" : ""}" onclick="currentPolicy='${p.policy}'; load();">${p.policy}</button>`
       ).join("");
       document.getElementById("policyTable").innerHTML =
-        `<tr><th>policy</th><th>status</th><th>completed</th><th>tok/s</th><th>goodput</th><th>avg</th><th>p95</th><th>hit</th><th>rebuilt</th><th>saved</th></tr>` +
-        data.policies.map(p => `<tr><td>${p.policy}</td><td class="${stateClass(p.status)}">${p.status}</td><td>${fmt(p.completed,0)}</td><td>${fmt(p.tok_s)}</td><td>${fmt(p.goodput_tok_s)}</td><td>${fmt(p.avg_latency_s)}</td><td>${fmt(p.p95_latency_s)}</td><td>${p.prefix_hit_rate == null ? "n/a" : fmt(p.prefix_hit_rate*100)+"%"}</td><td>${fmt(p.rebuilt,0)}</td><td>${fmt(p.admission_saved,0)}</td></tr>`).join("");
+        `<tr><th>policy</th><th>status</th><th>completed</th><th>SLO goodput</th><th>e2e p95</th><th>svc p95</th><th>SLO miss</th><th>hit</th><th>rebuilt</th><th>saved</th></tr>` +
+        data.policies.map(policyRow).join("");
       drawChart(selected.rolling || []);
       renderReplay(data.replay || {});
+      renderClassTable(data.class_metrics || {});
       document.getElementById("samples").textContent = JSON.stringify(data.raw_outputs || [], null, 2);
       document.getElementById("log").textContent = data.job_log_tail || "";
+    }
+    function policyRow(p) {
+      const waiting = !p.has_data && Number(p.completed || 0) === 0;
+      if (waiting) {
+        return `<tr><td>${p.policy}</td><td class="${stateClass(p.status)}">${p.status}</td><td>${fmt(p.completed,0)}</td><td colspan="7" class="muted-cell">waiting for this policy to start</td></tr>`;
+      }
+      return `<tr><td>${p.policy}</td><td class="${stateClass(p.status)}">${p.status}</td><td>${fmt(p.completed,0)}</td><td>${fmt(firstFinite(p.e2e_goodput_tok_s, p.goodput_tok_s))}</td><td>${sec(p.e2e_p95_latency_s)}</td><td>${sec(p.p95_latency_s)}</td><td>${pct(p.e2e_slo_miss_rate ?? p.slo_miss_rate)}</td><td>${p.prefix_hit_rate == null ? "n/a" : fmt(p.prefix_hit_rate*100)+"%"}</td><td>${fmt(p.rebuilt,0)}</td><td>${fmt(p.admission_saved,0)}</td></tr>`;
     }
     function drawChart(rows) {
       const canvas = document.getElementById("rollingChart");
@@ -331,9 +390,10 @@ HTML = r"""
       if (!rows.length) return;
       const maxX = Math.max(...rows.map(r => Number(r.elapsed_seconds || 0)), 1);
       const series = [
-        ["total_tokens_per_second", "#38bdf8", "tok/s"],
         ["goodput_total_tokens_per_second", "#22c55e", "goodput"],
-        ["latency_p95_seconds", "#f59e0b", "p95"]
+        ["e2e_goodput_total_tokens_per_second", "#38bdf8", "e2e goodput"],
+        ["latency_p95_seconds", "#f59e0b", "svc p95"],
+        ["e2e_latency_p95_seconds", "#a855f7", "e2e p95"]
       ];
       const maxY = Math.max(...rows.flatMap(r => series.map(s => Number(r[s[0]] || 0))), 1);
       series.forEach(([key, color]) => {
@@ -348,6 +408,19 @@ HTML = r"""
       ctx.fillStyle = "#cbd5e1"; ctx.font = "12px sans-serif";
       ctx.fillText(`max ${fmt(maxY)}`, 45, 20);
       series.forEach(([_, color, name], i) => { ctx.fillStyle = color; ctx.fillText(name, 120 + i*80, 20); });
+    }
+    function renderClassTable(classes) {
+      const rows = Object.entries(classes || {}).map(([name, m]) => ({
+        name,
+        completed: Number(m.completed || 0),
+        goodput: firstFinite(m.e2e_goodput_total_tokens_per_second, m.goodput_total_tokens_per_second, 0),
+        p95: firstFinite(m.e2e_latency_p95_seconds, m.latency_p95_seconds),
+        svcP95: firstFinite(m.latency_p95_seconds),
+        miss: firstFinite(m.e2e_slo_miss_rate, m.slo_miss_rate),
+      })).sort((a, b) => Number(b.p95 || -1) - Number(a.p95 || -1)).slice(0, 10);
+      document.getElementById("classTable").innerHTML =
+        `<tr><th>class</th><th>completed</th><th>SLO goodput</th><th>e2e p95</th><th>svc p95</th><th>SLO miss</th></tr>` +
+        (rows.length ? rows.map(r => `<tr><td>${r.name}</td><td>${fmt(r.completed,0)}</td><td>${fmt(r.goodput)}</td><td>${sec(r.p95)}</td><td>${sec(r.svcP95)}</td><td>${pct(r.miss)}</td></tr>`).join("") : `<tr><td colspan="6">No class rolling metrics yet</td></tr>`);
     }
     function renderReplay(replay) {
       const grid = document.getElementById("blockGrid");
@@ -364,7 +437,9 @@ HTML = r"""
       document.getElementById("legend").innerHTML = Object.entries(colors).map(([k,v]) => `<span><span class="dot" style="background:${v}"></span>${k}</span>`).join("");
     }
     load().catch(err => { document.body.innerHTML = `<pre>${err.stack || err}</pre>`; });
-    setInterval(() => load().catch(console.error), refreshMs);
+    if (!snapshotMode) {
+      window.kvfabricRefreshTimer = setInterval(() => load().catch(console.error), refreshMs);
+    }
   </script>
 </body>
 </html>

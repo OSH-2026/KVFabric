@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import Any
 
 
-POLICIES = ("lru", "shared_aware", "family_protect")
+POLICIES = (
+    "lru",
+    "shared_aware",
+    "family_protect",
+    "kvfabric_throughput",
+    "kvfabric_latency",
+    "kvfabric_admission",
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -186,6 +193,45 @@ class KVFabricRunReader:
             data = handle.read()
         return data.replace(b"\x00", b"").decode("utf-8", errors="replace")
 
+    def policy_names(self) -> list[str]:
+        names: list[str] = []
+
+        def add(name: object) -> None:
+            value = str(name or "").strip()
+            if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", value):
+                return
+            if value and value not in names:
+                names.append(value)
+
+        run_state = self.run_state()
+        add(run_state.get("current_policy"))
+
+        log_tail = self.job_log_tail(max_bytes=8000)
+        for match in re.finditer(r"policies=([^\n]+)", log_tail):
+            for policy in match.group(1).split():
+                add(policy)
+
+        for path in sorted(self.run_root.iterdir()) if self.run_root.exists() else []:
+            if not path.is_dir():
+                continue
+            if path.name in {"trace", "visuals"}:
+                continue
+            if (
+                (path / "online_trace").exists()
+                or (path / "online_duration").exists()
+                or (path / "kvfabric_lifecycle.jsonl").exists()
+                or (path / "policy_state.json").exists()
+            ):
+                add(path.name)
+
+        for policy in POLICIES:
+            if (self.run_root / policy).exists():
+                add(policy)
+
+        if not names:
+            names.extend(POLICIES[:3])
+        return names
+
     def load_trace_index(self) -> dict[str, dict[str, Any]]:
         if self._trace_index is not None:
             return self._trace_index
@@ -266,7 +312,7 @@ class KVFabricRunReader:
         )
 
     def policy_snapshots(self) -> list[PolicySnapshot]:
-        return [self.policy_snapshot(policy) for policy in POLICIES]
+        return [self.policy_snapshot(policy) for policy in self.policy_names()]
 
     def current_policy(self) -> str:
         run_state = self.run_state()
