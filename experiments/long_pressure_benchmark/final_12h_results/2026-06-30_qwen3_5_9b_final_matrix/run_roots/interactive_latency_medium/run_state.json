@@ -1,0 +1,12 @@
+{
+  "config_path": "/home/qy-dream/OSH_Project/KVFabric/experiments/long_pressure_benchmark/configs/qwen3_5_9b_foreground_latency_background_90m.json",
+  "current_policy": "",
+  "message": "run completed",
+  "model_preset": "qwen3_5_9b",
+  "phase": "completed",
+  "run_root": "/home/qy-dream/OSH_Project/KVFabric/experiments/long_pressure_benchmark/final_12h_results/2026-06-30_qwen3_5_9b_final_matrix/run_roots/interactive_latency_medium",
+  "status": "completed",
+  "suite_name": "qwen3_5_9b_foreground_latency_background_90m",
+  "updated_at": "2026-06-30T08:45:09+08:00",
+  "updated_at_epoch_seconds": 1782780309
+}

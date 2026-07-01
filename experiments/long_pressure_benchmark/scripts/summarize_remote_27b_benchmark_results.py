@@ -42,6 +42,12 @@ def pct_delta(value: float | None, baseline: float | None) -> str:
     return f"{((value - baseline) / baseline) * 100:+.2f}%"
 
 
+def pct_reduction(value: float | None, baseline: float | None) -> str:
+    if value is None or baseline in (None, 0):
+        return "n/a"
+    return f"{((baseline - value) / baseline) * 100:+.2f}%"
+
+
 def number(value: Any, digits: int = 2) -> str:
     if value is None:
         return "n/a"
@@ -56,6 +62,65 @@ def percent(value: Any, digits: int = 2) -> str:
     if value is None:
         return "n/a"
     return f"{float(value) * 100:.{digits}f}%"
+
+
+def selected_slo_probe_label(policies: list[dict[str, Any]]) -> str | None:
+    lru_metrics = policies[0]["metrics"] or {}
+    lru_probes = lru_metrics.get("slo_probe_metrics") or {}
+    best_label: str | None = None
+    best_delta: float | None = None
+    for item in policies[1:]:
+        metrics = item["metrics"] or {}
+        probes = metrics.get("slo_probe_metrics") or {}
+        for label, probe in probes.items():
+            lru_probe = lru_probes.get(label) or {}
+            baseline = lru_probe.get("goodput_total_tokens_per_second")
+            current = probe.get("goodput_total_tokens_per_second")
+            if baseline in (None, 0) or current is None:
+                continue
+            delta = (float(current) - float(baseline)) / float(baseline)
+            if best_delta is None or delta > best_delta:
+                best_delta = delta
+                best_label = label
+    return best_label
+
+
+def selected_goodput(metrics: dict[str, Any], probe_label: str | None) -> float | None:
+    if probe_label:
+        probe = (metrics.get("slo_probe_metrics") or {}).get(probe_label)
+        if probe and probe.get("goodput_total_tokens_per_second") is not None:
+            return probe.get("goodput_total_tokens_per_second")
+    return metrics.get("goodput_total_tokens_per_second")
+
+
+def selected_class_goodput(
+    metrics: dict[str, Any], class_name: str, probe_label: str | None
+) -> float | None:
+    if probe_label:
+        probe_class = (
+            ((metrics.get("slo_probe_metrics") or {}).get(probe_label) or {})
+            .get("class_metrics") or {}
+        ).get(class_name)
+        if probe_class and probe_class.get("goodput_total_tokens_per_second") is not None:
+            return probe_class.get("goodput_total_tokens_per_second")
+    return ((metrics.get("class_metrics") or {}).get(class_name) or {}).get(
+        "goodput_total_tokens_per_second"
+    )
+
+
+def selected_segment_goodput(
+    metrics: dict[str, Any], segment_name: str, probe_label: str | None
+) -> float | None:
+    if probe_label:
+        probe_segment = (
+            ((metrics.get("slo_probe_metrics") or {}).get(probe_label) or {})
+            .get("segment_metrics") or {}
+        ).get(segment_name)
+        if probe_segment and probe_segment.get("goodput_total_tokens_per_second") is not None:
+            return probe_segment.get("goodput_total_tokens_per_second")
+    return ((metrics.get("segment_metrics") or {}).get(segment_name) or {}).get(
+        "goodput_total_tokens_per_second"
+    )
 
 
 def collect_policy(run_root: Path, policy: str) -> dict[str, Any]:
@@ -113,6 +178,8 @@ def build_summary(run_root: Path) -> str:
     policies = [collect_policy(run_root, policy) for policy in discover_policies(run_root)]
     lru_metrics = policies[0]["metrics"] or {}
     lru_lifecycle = policies[0]["lifecycle"] or {}
+    selected_probe_label = selected_slo_probe_label(policies)
+    lru_selected_goodput = selected_goodput(lru_metrics, selected_probe_label)
 
     lines: list[str] = [
         "# KVFabric Benchmark Summary",
@@ -192,7 +259,9 @@ def build_summary(run_root: Path) -> str:
     for item in policies:
         metrics = item["metrics"]
         if not metrics:
-            rows.append([item["policy"], "pending", "", "", "", "", "", "", "", "", "", "", "", ""])
+            rows.append(
+                [item["policy"], "pending", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+            )
             continue
         rows.append(
             [
@@ -201,22 +270,22 @@ def build_summary(run_root: Path) -> str:
                 number(metrics.get("errors"), 0),
                 number(metrics.get("offered_requests_per_second"), 4),
                 number(metrics.get("requests_per_second"), 4),
-                number(metrics.get("goodput_total_tokens_per_second"), 2),
+                number(selected_goodput(metrics, selected_probe_label), 2),
                 number(metrics.get("e2e_goodput_total_tokens_per_second"), 2),
-                number(metrics.get("total_tokens_per_second"), 2),
                 pct_delta(
-                    metrics.get("goodput_total_tokens_per_second")
-                    or metrics.get("total_tokens_per_second"),
-                    lru_metrics.get("goodput_total_tokens_per_second")
-                    or lru_metrics.get("total_tokens_per_second"),
+                    selected_goodput(metrics, selected_probe_label),
+                    lru_selected_goodput,
                 ),
                 pct_delta(
                     metrics.get("e2e_goodput_total_tokens_per_second"),
                     lru_metrics.get("e2e_goodput_total_tokens_per_second"),
                 ),
-                number(metrics.get("latency_avg_seconds"), 3),
+                number(metrics.get("latency_p50_seconds"), 3),
                 number(metrics.get("latency_p95_seconds"), 3),
+                number(metrics.get("latency_p99_seconds"), 3),
+                number(metrics.get("e2e_latency_p50_seconds"), 3),
                 number(metrics.get("e2e_latency_p95_seconds"), 3),
+                number(metrics.get("e2e_latency_p99_seconds"), 3),
                 item["metric_source"],
             ]
         )
@@ -230,12 +299,14 @@ def build_summary(run_root: Path) -> str:
                 "Req/s",
                 "Goodput tok/s",
                 "E2E goodput tok/s",
-                "Total tok/s",
                 "Goodput vs LRU",
                 "E2E goodput vs LRU",
-                "Avg latency s",
+                "P50 latency s",
                 "P95 latency s",
+                "P99 latency s",
+                "E2E P50 latency s",
                 "E2E P95 latency s",
+                "E2E P99 latency s",
                 "Source",
             ],
             rows,
@@ -255,77 +326,6 @@ def build_summary(run_root: Path) -> str:
     if error_rows:
         lines.extend(["", "## Error Types", ""])
         lines.extend(table(["Policy", "Errors"], error_rows))
-
-    probe_labels = sorted(
-        {
-            probe_label
-            for item in policies
-            for probe_label in (
-                (item["metrics"] or {}).get("slo_probe_metrics") or {}
-            )
-        }
-    )
-    if probe_labels:
-        lines.extend(["", "## SLO Probe Metrics", ""])
-        for probe_label in probe_labels:
-            rows = []
-            lru_probe = (
-                (policies[0]["metrics"] or {}).get("slo_probe_metrics") or {}
-            ).get(probe_label, {})
-            lru_segments = lru_probe.get("segment_metrics") or {}
-            for item in policies:
-                metrics = item["metrics"] or {}
-                probe = (metrics.get("slo_probe_metrics") or {}).get(probe_label)
-                if not probe:
-                    rows.append([item["policy"], "pending", "", "", "", "", "", ""])
-                    continue
-                segments = probe.get("segment_metrics") or {}
-                high_main = segments.get("high_main") or {}
-                red_burst = segments.get("red_burst") or {}
-                lru_high_main = lru_segments.get("high_main") or {}
-                lru_red_burst = lru_segments.get("red_burst") or {}
-                rows.append(
-                    [
-                        item["policy"],
-                        number(probe.get("goodput_total_tokens_per_second"), 2),
-                        pct_delta(
-                            probe.get("goodput_total_tokens_per_second"),
-                            lru_probe.get("goodput_total_tokens_per_second"),
-                        ),
-                        percent(probe.get("slo_miss_rate"), 2),
-                        number(
-                            high_main.get("goodput_total_tokens_per_second"), 2
-                        ),
-                        pct_delta(
-                            high_main.get("goodput_total_tokens_per_second"),
-                            lru_high_main.get("goodput_total_tokens_per_second"),
-                        ),
-                        number(
-                            red_burst.get("goodput_total_tokens_per_second"), 2
-                        ),
-                        pct_delta(
-                            red_burst.get("goodput_total_tokens_per_second"),
-                            lru_red_burst.get("goodput_total_tokens_per_second"),
-                        ),
-                    ]
-                )
-            lines.extend([f"### {probe_label}", ""])
-            lines.extend(
-                table(
-                    [
-                        "Policy",
-                        "Goodput tok/s",
-                        "Goodput vs LRU",
-                        "SLO miss",
-                        "High-main goodput",
-                        "High-main vs LRU",
-                        "Red-burst goodput",
-                        "Red-burst vs LRU",
-                    ],
-                    rows,
-                )
-            )
-            lines.append("")
 
     lines.extend(["", "## Lifecycle", ""])
     rows = []
@@ -518,9 +518,11 @@ def build_summary(run_root: Path) -> str:
                     [
                         item["policy"],
                         number(class_metrics.get("completed"), 0),
-                        number(class_metrics.get("total_tokens_per_second"), 2),
                         number(
-                            class_metrics.get("goodput_total_tokens_per_second"), 2
+                            selected_class_goodput(
+                                metrics, class_name, selected_probe_label
+                            ),
+                            2,
                         ),
                         number(
                             class_metrics.get("e2e_goodput_total_tokens_per_second"),
@@ -538,7 +540,6 @@ def build_summary(run_root: Path) -> str:
                     [
                         "Policy",
                         "Completed",
-                        "Total tok/s",
                         "Goodput tok/s",
                         "E2E goodput tok/s",
                         "Avg latency s",
@@ -562,9 +563,9 @@ def build_summary(run_root: Path) -> str:
         lines.extend(["", "## Segment Metrics", ""])
         for segment_name in segment_names:
             rows = []
-            lru_segment = (
-                (policies[0]["metrics"] or {}).get("segment_metrics") or {}
-            ).get(segment_name, {})
+            lru_segment_goodput = selected_segment_goodput(
+                policies[0]["metrics"] or {}, segment_name, selected_probe_label
+            )
             for item in policies:
                 metrics = item["metrics"] or {}
                 segment_metrics = (metrics.get("segment_metrics") or {}).get(
@@ -573,7 +574,9 @@ def build_summary(run_root: Path) -> str:
                 if not segment_metrics:
                     rows.append([item["policy"], "pending", "", "", "", "", ""])
                     continue
-                goodput = segment_metrics.get("goodput_total_tokens_per_second")
+                goodput = selected_segment_goodput(
+                    metrics, segment_name, selected_probe_label
+                )
                 rows.append(
                     [
                         item["policy"],
@@ -582,7 +585,7 @@ def build_summary(run_root: Path) -> str:
                         number(goodput, 2),
                         pct_delta(
                             goodput,
-                            lru_segment.get("goodput_total_tokens_per_second"),
+                            lru_segment_goodput,
                         ),
                         number(segment_metrics.get("latency_avg_seconds"), 3),
                         number(segment_metrics.get("latency_p95_seconds"), 3),
@@ -612,24 +615,78 @@ def build_summary(run_root: Path) -> str:
     else:
         best = max(
             completed,
-            key=lambda item: (
-                item["metrics"].get("goodput_total_tokens_per_second")
-                or item["metrics"].get("total_tokens_per_second", 0)
-            ),
+            key=lambda item: selected_goodput(item["metrics"], selected_probe_label) or 0,
         )
         lines.append(
             f"- Best throughput policy: `{best['policy']}` "
-            f"({number(best['metrics'].get('goodput_total_tokens_per_second') or best['metrics'].get('total_tokens_per_second'), 2)} goodput tok/s)."
+            f"({number(selected_goodput(best['metrics'], selected_probe_label), 2)} goodput tok/s)."
         )
+        latency_key = "e2e_latency_p95_seconds"
+        latency_label = "E2E P95"
+        if not any(item["metrics"].get(latency_key) is not None for item in completed):
+            latency_key = "latency_p95_seconds"
+            latency_label = "P95"
+        latency_completed = [
+            item for item in completed
+            if item["metrics"].get(latency_key) is not None
+        ]
+        if latency_completed:
+            latency_best = min(
+                latency_completed,
+                key=lambda item: item["metrics"].get(latency_key) or float("inf"),
+            )
+            lines.append(
+                f"- Best latency policy by {latency_label}: "
+                f"`{latency_best['policy']}` "
+                f"({number(latency_best['metrics'].get(latency_key), 3)}s; "
+                f"reduction vs LRU: "
+                f"{pct_reduction(latency_best['metrics'].get(latency_key), lru_metrics.get(latency_key))})."
+            )
         for item in completed:
             if item["policy"] == "lru":
                 continue
+            promoted_classes = sorted(
+                (item["lifecycle"].get("scheduler_latency_promote_hint_classes") or {})
+            )
+            promoted_reductions: list[float] = []
+            for class_name in promoted_classes:
+                current_class = (item["metrics"].get("class_metrics") or {}).get(
+                    class_name,
+                    {},
+                )
+                lru_class = (lru_metrics.get("class_metrics") or {}).get(
+                    class_name,
+                    {},
+                )
+                current_latency = current_class.get("e2e_latency_p95_seconds")
+                baseline_latency = lru_class.get("e2e_latency_p95_seconds")
+                if current_latency is None:
+                    current_latency = current_class.get("latency_p95_seconds")
+                    baseline_latency = lru_class.get("latency_p95_seconds")
+                if current_latency is not None and baseline_latency not in (None, 0):
+                    promoted_reductions.append(
+                        (float(baseline_latency) - float(current_latency))
+                        / float(baseline_latency)
+                        * 100.0
+                    )
             lines.append(
-                f"- `{item['policy']}` total tok/s delta vs LRU: "
-                f"{pct_delta(item['metrics'].get('total_tokens_per_second'), lru_metrics.get('total_tokens_per_second'))}; "
+                f"- `{item['policy']}` goodput delta vs LRU: "
+                f"{pct_delta(selected_goodput(item['metrics'], selected_probe_label), lru_selected_goodput)}; "
+                f"E2E P95 latency reduction vs LRU: "
+                f"{pct_reduction(item['metrics'].get('e2e_latency_p95_seconds'), lru_metrics.get('e2e_latency_p95_seconds'))}; "
                 f"rebuilt delta vs LRU: "
                 f"{pct_delta(item['lifecycle'].get('rebuilt_from_eviction_blocks'), lru_lifecycle.get('rebuilt_from_eviction_blocks'))}."
             )
+            if promoted_reductions:
+                over_30 = sum(1 for value in promoted_reductions if value >= 30.0)
+                lines.append(
+                    f"- `{item['policy']}` latency-promoted class E2E P95 reductions: "
+                    f"{over_30}/{len(promoted_reductions)} classes >= 30%; "
+                    f"range {min(promoted_reductions):+.2f}% to "
+                    f"{max(promoted_reductions):+.2f}%."
+                )
+    if selected_probe_label:
+        lines.append(f"- Selected SLO probe: {selected_probe_label}.")
 
     lines.append("")
     return "\n".join(lines)

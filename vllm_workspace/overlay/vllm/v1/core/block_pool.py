@@ -259,26 +259,6 @@ class BlockPool:
         """
         if num_cached_blocks >= num_full_blocks:
             return
-        if self.kvfabric_lifecycle is not None:
-            total_blocks = max(self.num_gpu_blocks - 1, 0)
-            pressure = self.cache_pressure_snapshot(
-                self.kvfabric_lifecycle.admission_head_window
-            )
-            num_full_blocks = self.kvfabric_lifecycle.limit_cache_blocks(
-                request_id=request.request_id,
-                num_cached_blocks=num_cached_blocks,
-                num_full_blocks=num_full_blocks,
-                free_blocks=self.get_num_free_blocks(),
-                total_blocks=total_blocks,
-                block_size=block_size,
-                head_window_blocks=pressure["head_window_blocks"],
-                head_hashed_blocks=pressure["head_hashed_blocks"],
-                head_protected_blocks=pressure["head_protected_blocks"],
-                eviction_risk_ratio=pressure["eviction_risk_ratio"],
-                protected_risk_ratio=pressure["protected_risk_ratio"],
-            )
-            if num_cached_blocks >= num_full_blocks:
-                return
         new_full_blocks = blocks[num_cached_blocks:num_full_blocks]
         assert len(request.block_hashes) >= num_full_blocks
         assert block_mask is None or len(block_mask) == len(new_full_blocks)

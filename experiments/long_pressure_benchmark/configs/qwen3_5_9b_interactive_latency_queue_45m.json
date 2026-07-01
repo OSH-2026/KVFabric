@@ -1,0 +1,43 @@
+{
+  "name": "qwen3_5_9b_interactive_latency_queue_45m",
+  "description": "Qwen3.5-9B latency proof stage for realistic queue pressure: foreground short chat, workflow, agent, and project interactions share a medium-capacity KV cache with cold lookup and decode-heavy background jobs. Primary metric: protected foreground interactive class p95/e2e p95 latency reduction, with cold/decode guard metrics reported separately.",
+  "trace": {
+    "profile": "daily_dedicated_reuse",
+    "duration_seconds": 2700,
+    "request_rate": 0.9,
+    "seed": 20260714,
+    "max_model_len": 4096,
+    "load_mode": "interactive_latency_queue",
+    "hint_regime": "partial_hints",
+    "tenant_count": 3,
+    "client_count": 10,
+    "hot_family_count": 14,
+    "session_family_count": 20,
+    "session_reuse_probability": 0.72,
+    "session_interval_min_seconds": 8,
+    "session_interval_max_seconds": 100,
+    "burst_probability": 0.05,
+    "burst_multiplier_min": 1.7,
+    "burst_multiplier_max": 3.4,
+    "wave_amplitude": 0.10,
+    "class_weights": {
+      "tenant_workflow_hot": 0.18,
+      "short_chat_qa": 0.12,
+      "agent_tool_loop": 0.18,
+      "deep_multi_turn_chat": 0.14,
+      "background_cold_lookup": 0.10,
+      "project_code_followup": 0.14,
+      "decode_heavy_background": 0.06,
+      "long_doc_research_followup": 0.08
+    }
+  },
+  "loadgen": {
+    "max_in_flight": 96,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.03,
+    "raw_sample_limit": 1800,
+    "warmup_seconds": 120,
+    "timeout_seconds": 1200,
+    "slo_seconds": 60
+  }
+}

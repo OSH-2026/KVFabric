@@ -47,6 +47,9 @@ experiments/runs/*
 !experiments/runs/.gitkeep
 experiments/prebenchmark_validation/runs/*
 !experiments/prebenchmark_validation/runs/.gitkeep
+experiments/long_pressure_benchmark/final_12h_results/**/trace/prompts/
+experiments/long_pressure_benchmark/final_12h_results/**/*.jsonl
+experiments/long_pressure_benchmark/final_12h_results/**/*.pid
 vllm_baseline/runtime/*
 !vllm_baseline/runtime/.gitkeep
 vllm_baseline/runtime_kvfabric_0221/

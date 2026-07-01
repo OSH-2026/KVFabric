@@ -72,11 +72,9 @@ export KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_MIN_MS="${KVFABRIC_SCHEDULER_SLO_HEAD_G
 export KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO="${KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO:-0.85}"
 export KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS="${KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS:-5000}"
 
-export KVFABRIC_HINT_TRANSIENT_DISCOVERY_TOKENS="${KVFABRIC_HINT_TRANSIENT_DISCOVERY_TOKENS:-512}"
 export KVFABRIC_HINT_DURABLE_DISCOVERY_TOKENS="${KVFABRIC_HINT_DURABLE_DISCOVERY_TOKENS:-3072}"
 export KVFABRIC_HINT_DURABLE_MIN_HIT_TOKENS="${KVFABRIC_HINT_DURABLE_MIN_HIT_TOKENS:-256}"
 export KVFABRIC_HINT_DEFER_LOW_REUSE_RISK_DELTA="${KVFABRIC_HINT_DEFER_LOW_REUSE_RISK_DELTA:-0.05}"
-export KVFABRIC_ADMISSION_COLD_DISCOVERY_TOKENS="${KVFABRIC_ADMISSION_COLD_DISCOVERY_TOKENS:-512}"
 export KVFABRIC_ADMISSION_REUSE_MIN_HIT_TOKENS="${KVFABRIC_ADMISSION_REUSE_MIN_HIT_TOKENS:-512}"
 export KVFABRIC_ADMISSION_HEAD_WINDOW="${KVFABRIC_ADMISSION_HEAD_WINDOW:-1536}"
 export KVFABRIC_FAMILY_PROTECT_SOFT_BUDGET="${KVFABRIC_FAMILY_PROTECT_SOFT_BUDGET:-1}"
@@ -134,6 +132,80 @@ apply_capacity() {
   export KVFABRIC_CAPACITY_PROFILE="$profile"
   export VLLM_SERVE_GPU_MEMORY_UTILIZATION
   VLLM_SERVE_GPU_MEMORY_UTILIZATION=$(capacity_value "$profile")
+}
+
+apply_working_set_throughput_freeze() {
+  # Frozen from run 2026-06-29_224542_qwen3_5_9b_working_set_gap_quick_8m.
+  export KVFABRIC_ADMISSION_STRENGTH="0.95"
+  export KVFABRIC_EVICTION_STRENGTH="0.55"
+  export KVFABRIC_SCHEDULER_STRENGTH="0.0"
+  export KVFABRIC_SLO_PROTECTION_STRENGTH="0.0"
+  export KVFABRIC_LOW_REUSE_CACHE_FRACTION="0.0"
+  export KVFABRIC_TRANSIENT_CACHE_FRACTION="0.05"
+  export KVFABRIC_BYPASS_CACHE_FRACTION="0.0"
+  export KVFABRIC_DURABLE_CACHE_FRACTION="1.0"
+  export KVFABRIC_COLD_CACHE_FRACTION="0.0"
+  export KVFABRIC_EVICTION_SELECTOR="linear"
+  export KVFABRIC_EVICTION_CANDIDATE_WINDOW_MIN="64"
+  export KVFABRIC_EVICTION_CANDIDATE_WINDOW_MULTIPLIER="4"
+  export KVFABRIC_EVICTION_CANDIDATE_WINDOW_MAX="160"
+  export KVFABRIC_EVICTION_RANK_MIN_SCORE="0.0"
+  export KVFABRIC_EVICTION_SCORE_RECOMPUTE_WEIGHT="0.006"
+  export KVFABRIC_EVICTION_SCORE_RECOMPUTE_CAP="12.0"
+  export KVFABRIC_EVICTION_SCORE_ANCHOR_BONUS="28.0"
+  export KVFABRIC_RANK_LOG_EVENTS="0"
+  export KVFABRIC_RANK_LOG_CANDIDATES="0"
+  export LONG_BENCH_WARMUP_SECONDS="90"
+  export LONG_BENCH_TIMEOUT_SECONDS="600"
+  export LONG_BENCH_METRICS_INTERVAL="20"
+  export LONG_BENCH_RAW_SAMPLE_RATE="0.02"
+  export LONG_BENCH_RAW_SAMPLE_LIMIT="1000"
+}
+
+apply_latency_interactive_profile() {
+  # Tuned independently from the throughput proof stage. This keeps the
+  # controller general and lets the 12h latency module preserve its own knobs.
+  export KVFABRIC_ADMISSION_STRENGTH="0.0"
+  export KVFABRIC_EVICTION_STRENGTH="0.0"
+  export KVFABRIC_SCHEDULER_STRENGTH="1.0"
+  export KVFABRIC_SLO_PROTECTION_STRENGTH="0.90"
+  export KVFABRIC_LOW_REUSE_CACHE_FRACTION="0.0"
+  export KVFABRIC_TRANSIENT_CACHE_FRACTION="0.05"
+  export KVFABRIC_BYPASS_CACHE_FRACTION="0.0"
+  export KVFABRIC_DURABLE_CACHE_FRACTION="1.0"
+  export KVFABRIC_COLD_CACHE_FRACTION="0.0"
+  export KVFABRIC_SCHEDULER_AFFINITY="positive"
+  export KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW="0"
+  export KVFABRIC_SCHEDULER_LATENCY_SCAN_WINDOW="96"
+  export KVFABRIC_SCHEDULER_POSITIVE_MIN_RISK_RATIO="0.10"
+  export KVFABRIC_SCHEDULER_POSITIVE_SCORE_MARGIN="4.0"
+  export KVFABRIC_SCHEDULER_POSITIVE_MAX_PER_STEP="0"
+  export KVFABRIC_SCHEDULER_LATENCY_MAX_PER_STEP="16"
+  export KVFABRIC_SCHEDULER_POSITIVE_HIT_AWARE="1"
+  export KVFABRIC_SCHEDULER_POSITIVE_HIT_TOPK="8"
+  export KVFABRIC_SCHEDULER_DEFER_MIN_RISK_RATIO="0.80"
+  export KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP="0"
+  export KVFABRIC_SCHEDULER_DEFER_MAX_COUNT="0"
+  export KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT="0"
+  export KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS="3000"
+  export KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS="2500"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_CLASSES="short_chat_qa tenant_workflow_hot agent_tool_loop project_code_followup deep_multi_turn_chat long_doc_research_followup"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_OUTPUT_TOKENS="0"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_PROMOTE_AGE_MS="250"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_HEAD_GUARD_MS="0"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_RISK_RATIO="0.0"
+  export KVFABRIC_SCHEDULER_LATENCY_SHORT_OUTPUT_WEIGHT="10.0"
+  export KVFABRIC_SCHEDULER_LATENCY_SHORT_OUTPUT_REFERENCE_TOKENS="768"
+  export KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS="0"
+  export KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS="0"
+  export KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO="0.0"
+  export KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_MIN_MS="2500"
+  export KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO="0.0"
+  export KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS="2500"
+  export TRACE_BENCH_MAX_NUM_SEQS="32"
+  export TRACE_BENCH_MAX_NUM_BATCHED_TOKENS="24576"
+  export KVFABRIC_RANK_LOG_EVENTS="0"
+  export KVFABRIC_RANK_LOG_CANDIDATES="0"
 }
 
 apply_trace_loadgen_config() {
@@ -194,32 +266,47 @@ run_duration_module() {
   bash "$DURATION_RUNNER" "$PRESET" "$config_path"
 }
 
+should_run_module() {
+  local module="$1"
+  local selected="${KVFABRIC_QWEN9B_12H_MODULES:-all}"
+  if [[ "$selected" == "all" || -z "$selected" ]]; then
+    return 0
+  fi
+  local item
+  for item in $selected; do
+    if [[ "$item" == "$module" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 main() {
   load_common_env
   ensure_dirs
   ensure_long_benchmark_dirs
 
-  local throughput_policies="${KVFABRIC_QWEN9B_THROUGHPUT_POLICIES:-lru kvfabric_admission}"
-  local rebuilt_policies="${KVFABRIC_QWEN9B_REBUILT_POLICIES:-lru kvfabric_rebuilt}"
   local latency_policies="${KVFABRIC_QWEN9B_LATENCY_POLICIES:-lru kvfabric_latency}"
   local guard_policies="${KVFABRIC_QWEN9B_GUARD_POLICIES:-lru kvfabric_admission}"
 
-  run_duration_module "raw_prefill_throughput_medium" "medium" "$throughput_policies" "qwen3_5_9b_prefill_reuse_saturation_60m.json"
-  run_duration_module "slo_boundary_throughput_medium" "medium" "$throughput_policies" "qwen3_5_9b_saturation_reuse_proof_30m.json"
-  run_duration_module "rebuilt_pressure_medium" "medium" "$rebuilt_policies" "qwen3_5_9b_rebuilt_pressure_30m.json"
+  if should_run_module "prefill_throughput_medium"; then
+    (
+      apply_working_set_throughput_freeze
+      run_duration_module "prefill_throughput_medium" "medium" "lru kvfabric_throughput" "qwen3_5_9b_prefill_throughput_medium.json"
+    )
+  fi
 
-  run_trace_module "interactive_latency_medium" "medium" "$latency_policies" "qwen3_5_9b_interactive_latency_reuse_45m.json"
-  run_trace_module "daily_dedicated_medium" "medium" "$guard_policies" "qwen3_5_9b_daily_dedicated_reuse_40m.json"
-
-  run_trace_module "capacity_sweep_small" "small" "$throughput_policies" "qwen3_5_9b_capacity_sweep_6m.json"
-  run_trace_module "capacity_sweep_medium" "medium" "$throughput_policies" "qwen3_5_9b_capacity_sweep_6m.json"
-  run_trace_module "capacity_sweep_large" "large" "$throughput_policies" "qwen3_5_9b_capacity_sweep_6m.json"
-
-  run_trace_module "enterprise_normal_medium" "medium" "$guard_policies" "qwen3_5_9b_enterprise_normal_25m.json"
-  run_trace_module "low_reuse_large" "large" "$guard_policies" "qwen3_5_9b_low_reuse_low_frequency_20m.json"
-
-  if [[ "${KVFABRIC_QWEN9B_INCLUDE_MIXED_SATURATION:-0}" == "1" ]]; then
-    run_duration_module "mixed_saturation_guard_medium" "medium" "$guard_policies" "qwen3_5_9b_saturation_medium_60m.json"
+  if should_run_module "interactive_latency_medium"; then
+    (
+      apply_latency_interactive_profile
+      run_trace_module "interactive_latency_medium" "medium" "$latency_policies" "qwen3_5_9b_foreground_latency_background_90m.json"
+    )
+  fi
+  if should_run_module "enterprise_normal_medium"; then
+    run_trace_module "enterprise_normal_medium" "medium" "$guard_policies" "qwen3_5_9b_enterprise_normal_75m.json"
+  fi
+  if should_run_module "low_reuse"; then
+    run_trace_module "low_reuse" "large" "$guard_policies" "qwen3_5_9b_low_reuse_45m.json"
   fi
 }
 

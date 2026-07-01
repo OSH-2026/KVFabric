@@ -1,0 +1,78 @@
+{
+  "actual_request_rate": 0.927037037037037,
+  "burst_request_ratio": 0.051685393258426963,
+  "burst_requests": 259,
+  "cache_priority_counts": {
+    "high": 3825,
+    "low": 832,
+    "normal": 349
+  },
+  "class_counts": {
+    "agent_tool_loop": 1159,
+    "background_cold_lookup": 382,
+    "decode_heavy_background": 450,
+    "deep_multi_turn_chat": 641,
+    "long_doc_research_followup": 450,
+    "project_code_followup": 1192,
+    "short_chat_qa": 349,
+    "tenant_workflow_hot": 382
+  },
+  "duration_seconds": 5400.0,
+  "expected_reuse_counts": {
+    "durable": 3825,
+    "none": 832,
+    "unknown": 349
+  },
+  "request_rate": 0.9,
+  "requests": 5006,
+  "session_request_ratio": 0.6876404494382022,
+  "session_requests": 3442,
+  "session_turn_counts": {
+    "1": 1170,
+    "2": 878,
+    "3": 574,
+    "4": 428,
+    "5": 248,
+    "6": 124,
+    "7": 22
+  },
+  "settings": {
+    "background_class_weights": {
+      "background_cold_lookup": 0.45,
+      "decode_heavy_background": 0.55
+    },
+    "background_mix_probability": 0.2,
+    "burst_multiplier_max": 3.4,
+    "burst_multiplier_min": 1.7,
+    "burst_probability": 0.05,
+    "class_weights": {
+      "agent_tool_loop": 0.2,
+      "deep_multi_turn_chat": 0.14,
+      "long_doc_research_followup": 0.1,
+      "project_code_followup": 0.18,
+      "short_chat_qa": 0.2,
+      "tenant_workflow_hot": 0.18
+    },
+    "client_count": 10,
+    "config_name": "qwen3_5_9b_foreground_latency_background_90m",
+    "duration_seconds": 5400,
+    "hint_regime": "partial_hints",
+    "hot_family_count": 14,
+    "load_mode": "foreground_latency_background",
+    "max_model_len": 4096,
+    "profile": "daily_dedicated_reuse",
+    "request_rate": 0.9,
+    "seed": 20260718,
+    "session_family_count": 20,
+    "session_interval_max_seconds": 100,
+    "session_interval_min_seconds": 8,
+    "session_reuse_probability": 0.68,
+    "tenant_count": 3,
+    "wave_amplitude": 0.1
+  },
+  "trace_sha256": "e65dab704c82640248a51679a0d51055b525d967cee79730c14ce550821591a2",
+  "unique_clients": 10,
+  "unique_families": 137,
+  "unique_sessions": 104,
+  "unique_tenants": 3
+}

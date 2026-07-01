@@ -493,6 +493,9 @@ class KVFabricLifecycleTracker:
         self.scheduler_positive_scan_window = int(
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW", "0")
         )
+        self.scheduler_latency_scan_window = int(
+            os.environ.get("KVFABRIC_SCHEDULER_LATENCY_SCAN_WINDOW", "0")
+        )
         self.scheduler_positive_min_risk_ratio = float(
             os.environ.get(
                 "KVFABRIC_SCHEDULER_POSITIVE_MIN_RISK_RATIO",
@@ -504,6 +507,9 @@ class KVFabricLifecycleTracker:
         )
         self.scheduler_positive_max_per_step = int(
             os.environ.get("KVFABRIC_SCHEDULER_POSITIVE_MAX_PER_STEP", "4")
+        )
+        self.scheduler_latency_max_per_step = int(
+            os.environ.get("KVFABRIC_SCHEDULER_LATENCY_MAX_PER_STEP", "0")
         )
         self.scheduler_positive_hit_aware = os.environ.get(
             "KVFABRIC_SCHEDULER_POSITIVE_HIT_AWARE", "0"
@@ -552,6 +558,18 @@ class KVFabricLifecycleTracker:
                 "KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_RISK_RATIO",
                 "0.0",
             )
+        )
+        self.scheduler_latency_short_output_weight = float(
+            os.environ.get("KVFABRIC_SCHEDULER_LATENCY_SHORT_OUTPUT_WEIGHT", "0.0")
+        )
+        self.scheduler_latency_short_output_reference_tokens = max(
+            1,
+            int(
+                os.environ.get(
+                    "KVFABRIC_SCHEDULER_LATENCY_SHORT_OUTPUT_REFERENCE_TOKENS",
+                    "512",
+                )
+            ),
         )
         self.scheduler_slo_head_guard_ratio = float(
             os.environ.get("KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO", "0.65")
@@ -663,6 +681,8 @@ class KVFabricLifecycleTracker:
             self.scheduler_defer_max_per_step = 0
             self.scheduler_positive_scan_window = 0
             self.scheduler_positive_max_per_step = 0
+            self.scheduler_latency_scan_window = 0
+            self.scheduler_latency_max_per_step = 0
         else:
             scheduler_strength = self.control_config.scheduler_strength
             if not _env_has_any("KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW"):
@@ -678,6 +698,14 @@ class KVFabricLifecycleTracker:
             if not _env_has_any("KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP"):
                 self.scheduler_defer_max_per_step = int(
                     round(2 * scheduler_strength)
+                )
+            if not _env_has_any("KVFABRIC_SCHEDULER_LATENCY_SCAN_WINDOW"):
+                self.scheduler_latency_scan_window = (
+                    self.scheduler_positive_scan_window
+                )
+            if not _env_has_any("KVFABRIC_SCHEDULER_LATENCY_MAX_PER_STEP"):
+                self.scheduler_latency_max_per_step = (
+                    self.scheduler_positive_max_per_step
                 )
         if self.control_config.slo_protection_strength <= 0.0:
             if not _env_has_any("KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO"):
@@ -741,11 +769,13 @@ class KVFabricLifecycleTracker:
             admission_cold_discovery_tokens=self.admission_cold_discovery_tokens,
             scheduler_affinity=self.scheduler_affinity,
             scheduler_positive_scan_window=self.scheduler_positive_scan_window,
+            scheduler_latency_scan_window=self.scheduler_latency_scan_window,
             scheduler_positive_min_risk_ratio=(
                 self.scheduler_positive_min_risk_ratio
             ),
             scheduler_positive_score_margin=self.scheduler_positive_score_margin,
             scheduler_positive_max_per_step=self.scheduler_positive_max_per_step,
+            scheduler_latency_max_per_step=self.scheduler_latency_max_per_step,
             scheduler_positive_hit_aware=self.scheduler_positive_hit_aware,
             scheduler_positive_hit_topk=self.scheduler_positive_hit_topk,
             scheduler_positive_hit_weight=self.scheduler_positive_hit_weight,
@@ -773,6 +803,12 @@ class KVFabricLifecycleTracker:
             ),
             scheduler_latency_protected_min_risk_ratio=(
                 self.scheduler_latency_protected_min_risk_ratio
+            ),
+            scheduler_latency_short_output_weight=(
+                self.scheduler_latency_short_output_weight
+            ),
+            scheduler_latency_short_output_reference_tokens=(
+                self.scheduler_latency_short_output_reference_tokens
             ),
             scheduler_slo_head_guard_ratio=self.scheduler_slo_head_guard_ratio,
             scheduler_slo_head_guard_min_ms=self.scheduler_slo_head_guard_min_ms,
@@ -1936,11 +1972,11 @@ class KVFabricLifecycleTracker:
             return False
         if not self.enable_hints or not self.hint_scheduler:
             return False
-        if self.scheduler_positive_scan_window <= 1:
+        if self.scheduler_latency_scan_window <= 1:
             return False
         if waiting_queue_size < self.scheduler_defer_min_waiting:
             return False
-        if promotions_this_step >= self.scheduler_positive_max_per_step:
+        if promotions_this_step >= self.scheduler_latency_max_per_step:
             return False
         return eviction_risk_ratio >= self.scheduler_latency_protected_min_risk_ratio
 
@@ -1990,6 +2026,74 @@ class KVFabricLifecycleTracker:
         if not thresholds:
             return False, request_age_ms
         return request_age_ms >= min(thresholds), request_age_ms
+
+    def latency_protected_request_score(
+        self,
+        request_id: str,
+        prompt_tokens: int,
+        queue_index: int,
+        request_age_ms: float,
+        max_output_tokens: int = 0,
+    ) -> float:
+        hints = self._get_request_hints(request_id)
+        score = min(request_age_ms / 1000.0, 90.0)
+        score -= min(queue_index, 64) * 0.05
+        if hints is None or not hints.has_hints:
+            if self.scheduler_latency_short_output_weight > 0.0:
+                short_output_ratio = max(
+                    0.0,
+                    (
+                        self.scheduler_latency_short_output_reference_tokens
+                        - max_output_tokens
+                    )
+                    / self.scheduler_latency_short_output_reference_tokens,
+                )
+                score += self.scheduler_latency_short_output_weight * short_output_ratio
+            return score
+
+        confidence = max(min(hints.hint_confidence, 1.0), 0.0)
+        if self.scheduler_latency_short_output_weight > 0.0:
+            short_output_ratio = max(
+                0.0,
+                (
+                    self.scheduler_latency_short_output_reference_tokens
+                    - max_output_tokens
+                )
+                / self.scheduler_latency_short_output_reference_tokens,
+            )
+            score += (
+                self.scheduler_latency_short_output_weight
+                * short_output_ratio
+                * max(confidence, 0.25)
+            )
+        if self._is_latency_protected_request(hints, max_output_tokens):
+            score += 10.0 * confidence
+        if hints.is_durable:
+            score += 5.0 * confidence
+        if hints.cache_priority == "high":
+            score += 3.0 * confidence
+        if hints.expected_reuse == "durable":
+            score += 3.0 * confidence
+        if hints.session_id and hints.turn_index > 0:
+            score += min(hints.turn_index, 16) * 0.35 * confidence
+        if prompt_tokens >= self.scheduler_defer_min_prompt_tokens:
+            score += min(prompt_tokens / 1024.0, 5.0)
+
+        runtime = self.hint_family_index.get(hints)
+        if runtime is not None:
+            score += min(runtime.request_count, 32) * 0.10
+            score += min(runtime.prefix_hit_tokens / 1024.0, 10.0)
+
+        request_class = hints.request_class
+        if hints.cache_priority == "bypass":
+            score -= 18.0
+        elif hints.is_low_reuse:
+            score -= 10.0
+        if "cold" in request_class or "unique" in request_class:
+            score -= 6.0
+        if "decode" in request_class:
+            score -= 6.0
+        return score
 
     def positive_request_score(
         self,
@@ -2216,6 +2320,7 @@ class KVFabricLifecycleTracker:
         max_output_tokens: int,
         queue_index: int,
         request_age_ms: float,
+        selected_score: float,
         waiting_queue_size: int,
         eviction_risk_ratio: float,
     ) -> None:
@@ -2229,10 +2334,13 @@ class KVFabricLifecycleTracker:
             "max_output_tokens": max_output_tokens,
             "queue_index": queue_index,
             "request_age_ms": request_age_ms,
+            "selected_score": selected_score,
             "waiting_queue_size": waiting_queue_size,
             "eviction_risk_ratio": eviction_risk_ratio,
             "scheduler_affinity": self.scheduler_affinity,
             "promote_reason": "latency_protected_age",
+            "latency_scan_window": self.scheduler_latency_scan_window,
+            "latency_max_per_step": self.scheduler_latency_max_per_step,
             "latency_protected_promote_age_ms": (
                 self.scheduler_latency_protected_promote_age_ms
             ),

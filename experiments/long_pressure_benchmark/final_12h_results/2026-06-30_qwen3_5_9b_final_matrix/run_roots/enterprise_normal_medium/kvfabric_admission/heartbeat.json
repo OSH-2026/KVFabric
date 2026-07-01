@@ -1,0 +1,7 @@
+{
+  "policy": "kvfabric_admission",
+  "phase": "loadgen",
+  "pid": 2373210,
+  "updated_at_epoch_seconds": 1782814309,
+  "updated_at": "2026-06-30T18:11:49+08:00"
+}

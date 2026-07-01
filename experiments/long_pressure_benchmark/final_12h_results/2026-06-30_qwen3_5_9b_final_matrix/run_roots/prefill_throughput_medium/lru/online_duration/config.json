@@ -1,0 +1,87 @@
+{
+  "concurrency": 64,
+  "description": "Formal 12h-matrix prefill throughput proof stage for medium KV capacity. This is the former working-set SLO throughput proof promoted to the main prefill_throughput_medium slot: durable project/user working sets are explicitly warmed, then cold RAG churn pressures LRU, then durable families are revisited.",
+  "generation": {
+    "max_tokens": 48,
+    "temperature": 0.0
+  },
+  "loadgen": {
+    "class_slo_seconds": {
+      "decode_heavy": 120.0
+    },
+    "random_seed": 20260717,
+    "request_selection": "sequential",
+    "segments": [
+      {
+        "concurrency": 32,
+        "duration_seconds": 900,
+        "include_classes": [
+          "durable_hot_family",
+          "sticky_session_followup"
+        ],
+        "name": "working_set_warmup",
+        "score": false
+      },
+      {
+        "concurrency": 64,
+        "duration_seconds": 4500,
+        "name": "cold_churn_main",
+        "score": true
+      },
+      {
+        "concurrency": 68,
+        "duration_seconds": 1800,
+        "include_classes": [
+          "durable_hot_family",
+          "sticky_session_followup"
+        ],
+        "name": "durable_revisit",
+        "score": true
+      }
+    ],
+    "slo_probe_seconds": [
+      18.0,
+      20.0,
+      22.0,
+      24.0,
+      28.0,
+      32.0,
+      40.0
+    ],
+    "slo_seconds": 24.0
+  },
+  "name": "qwen3_5_9b_prefill_throughput_medium",
+  "scenario": {
+    "burst_cold_repeat": 112,
+    "burst_cold_requests": 8,
+    "burst_every_rounds": 3,
+    "cold_rag_per_round": 10,
+    "cold_repeat": 94,
+    "cold_unit": "Unique evidence paragraph with one-off ticket notes, retrieval snippets, timestamps, numeric fields, customer details, attachments, and context that should not be reused later. ",
+    "decode_every_rounds": 24,
+    "decode_repeat": 12,
+    "decode_unit": "Content generation brief with objectives, audience, tone, risk notes, examples, and constraints for a longer answer that stresses decode time rather than reusable prefill. ",
+    "family_repeat": 38,
+    "family_unit": "Reusable workflow definitions, shared business rules, previous decision criteria, field normalization rules, approval thresholds, and repeated tool-call patterns define this family. ",
+    "global_repeat": 46,
+    "global_unit": "Stable enterprise assistant policy with tool rules, response schema, audit tags, permission boundaries, escalation logic, tenant routing hints, and long lived operational constraints. ",
+    "hot_family_count": 8,
+    "hot_family_per_round": 8,
+    "rounds": 1200,
+    "seed": 20260717,
+    "sticky_followup_per_round": 3,
+    "sticky_history_growth": 0,
+    "sticky_history_repeat": 18,
+    "sticky_history_turn_cap": 8,
+    "sticky_max_tokens": 48,
+    "sticky_session_count": 24,
+    "sticky_unit": "Conversation history preserves prior user intent, assistant decisions, extracted fields, unresolved actions, tool observations, and follow-up constraints from earlier turns. ",
+    "tenant_count": 2,
+    "tenant_repeat": 20,
+    "tenant_unit": "Tenant catalog metadata, integration names, data retention rules, field aliases, pricing groups, compliance tags, and formatting preferences remain stable across requests. ",
+    "transient_per_round": 1,
+    "transient_repeat": 30,
+    "transient_unit": "Temporary campaign template with near-duplicate labels, short lived field names, partial overlap, and suffix evidence that expires after a few requests. ",
+    "type": "saturation_throughput_pressure"
+  }
+}

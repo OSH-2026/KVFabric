@@ -1,0 +1,23 @@
+# qwen3_5_9b_prefill_throughput_medium
+
+- Duration seconds: 7374.31
+- Requests: 11520
+- Errors: 0
+- Payload pool size: 29650
+- Concurrency: 68
+- Segments: [{"concurrency": 32, "duration": 900.0, "end": 900.0, "name": "working_set_warmup", "score": false, "start": 0.0}, {"concurrency": 64, "duration": 4500.0, "end": 5400.0, "name": "cold_churn_main", "score": true, "start": 900.0}, {"concurrency": 68, "duration": 1800.0, "end": 7200.0, "name": "durable_revisit", "score": true, "start": 5400.0}]
+- SLO seconds: 24.00
+- Class SLO seconds: {"decode_heavy": 120.0}
+- SLO probe seconds: [18.0, 20.0, 22.0, 24.0, 28.0, 32.0, 40.0]
+- Request selection: sequential
+- Random seed: 20260717
+- KVFabric headers: True
+- Requests/s: 1.562
+- Prompt tokens/s: 4760.25
+- Completion tokens/s: 97.47
+- Total tokens/s: 4857.72
+- Goodput tokens/s: 440.16
+- Latency avg seconds: 37.91
+- Latency p50 seconds: 40.93
+- Latency p95 seconds: 45.71
+- Latency p99 seconds: 47.46

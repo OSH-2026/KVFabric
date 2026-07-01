@@ -1,0 +1,7 @@
+{
+  "policy": "kvfabric_latency",
+  "phase": "loadgen",
+  "pid": 2012594,
+  "updated_at_epoch_seconds": 1782780303,
+  "updated_at": "2026-06-30T08:45:03+08:00"
+}

@@ -30,6 +30,14 @@ KVFABRIC_HINT_HEADERS = [
     "x-kvfabric-reuse",
     "x-kvfabric-phase",
     "x-kvfabric-burst",
+    "x-kvfabric-session-id",
+    "x-kvfabric-session",
+    "x-kvfabric-turn-index",
+    "x-kvfabric-turn",
+    "x-kvfabric-slo-ms",
+    "x-kvfabric-slo",
+    "x-kvfabric-hint-confidence",
+    "x-kvfabric-confidence",
 ]
 
 

@@ -1,0 +1,7 @@
+{
+  "policy": "lru",
+  "phase": "loadgen",
+  "pid": 1953816,
+  "updated_at_epoch_seconds": 1782777137,
+  "updated_at": "2026-06-30T07:52:17+08:00"
+}

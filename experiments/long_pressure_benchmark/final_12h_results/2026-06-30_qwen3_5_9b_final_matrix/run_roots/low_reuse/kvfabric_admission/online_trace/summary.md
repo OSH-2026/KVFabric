@@ -1,0 +1,21 @@
+# Trace replay: low_reuse_low_frequency
+
+- Trace SHA256: 4150873b548f3c9ace769eba57aab581612617e41fcca0c641d22aeefdbfe838
+- Hint regime: partial_hints
+- Warmup seconds: 60.0
+- Offered: 742
+- Completed: 727
+- Errors: 0
+- Measured offered req/s: 0.2751
+- Measured completed req/s: 0.2751
+- Measured total tok/s: 448.88
+- SLO seconds: 120.0
+- Goodput tokens/s: 448.88
+- E2E goodput tokens/s: 448.88
+- SLO miss rate: 0.0000
+- E2E SLO miss rate: 0.0000
+- Latency avg seconds: 5.473
+- Latency p95 seconds: 15.796
+- E2E latency avg seconds: 5.475
+- E2E latency p95 seconds: 15.798
+- Send delay p95 seconds: 0.007

@@ -1,0 +1,71 @@
+{
+  "name": "qwen3_5_9b_working_set_hot_gap_quick_8m",
+  "description": "Hot-dominant medium-capacity throughput workload. Most scored traffic comes from a few durable project and sticky-session working sets, while periodic cold RAG bursts are large enough to make LRU evict reusable prefixes. This targets overall token/s uplift rather than only SLO goodput.",
+  "concurrency": 72,
+  "generation": {
+    "temperature": 0.0,
+    "max_tokens": 48
+  },
+  "loadgen": {
+    "request_selection": "sequential",
+    "random_seed": 20260719,
+    "slo_seconds": 24.0,
+    "slo_probe_seconds": [18.0, 20.0, 22.0, 24.0, 28.0, 32.0, 40.0],
+    "class_slo_seconds": {
+      "decode_heavy": 120.0
+    },
+    "segments": [
+      {
+        "name": "working_set_warmup",
+        "duration_seconds": 80,
+        "concurrency": 36,
+        "score": false
+      },
+      {
+        "name": "hot_reuse_main",
+        "duration_seconds": 280,
+        "concurrency": 72,
+        "score": true
+      },
+      {
+        "name": "post_burst_revisit",
+        "duration_seconds": 120,
+        "concurrency": 76,
+        "score": true
+      }
+    ]
+  },
+  "scenario": {
+    "type": "saturation_throughput_pressure",
+    "seed": 20260719,
+    "tenant_count": 2,
+    "hot_family_count": 8,
+    "sticky_session_count": 20,
+    "rounds": 1200,
+    "hot_family_per_round": 12,
+    "sticky_followup_per_round": 4,
+    "cold_rag_per_round": 4,
+    "transient_per_round": 1,
+    "decode_every_rounds": 32,
+    "burst_every_rounds": 4,
+    "burst_cold_requests": 16,
+    "global_unit": "Stable enterprise assistant policy with tool rules, response schema, audit tags, permission boundaries, escalation logic, tenant routing hints, and long lived operational constraints. ",
+    "tenant_unit": "Tenant catalog metadata, integration names, data retention rules, field aliases, pricing groups, compliance tags, and formatting preferences remain stable across requests. ",
+    "family_unit": "Reusable workflow definitions, shared business rules, previous decision criteria, field normalization rules, approval thresholds, and repeated tool-call patterns define this family. ",
+    "sticky_unit": "Conversation history preserves prior user intent, assistant decisions, extracted fields, unresolved actions, tool observations, and follow-up constraints from earlier turns. ",
+    "cold_unit": "Unique evidence paragraph with one-off ticket notes, retrieval snippets, timestamps, numeric fields, customer details, attachments, and context that should not be reused later. ",
+    "transient_unit": "Temporary campaign template with near-duplicate labels, short lived field names, partial overlap, and suffix evidence that expires after a few requests. ",
+    "decode_unit": "Content generation brief with objectives, audience, tone, risk notes, examples, and constraints for a longer answer that stresses decode time rather than reusable prefill. ",
+    "global_repeat": 52,
+    "tenant_repeat": 22,
+    "family_repeat": 46,
+    "sticky_history_repeat": 18,
+    "sticky_history_growth": 0,
+    "sticky_history_turn_cap": 8,
+    "sticky_max_tokens": 48,
+    "cold_repeat": 88,
+    "burst_cold_repeat": 118,
+    "transient_repeat": 28,
+    "decode_repeat": 10
+  }
+}

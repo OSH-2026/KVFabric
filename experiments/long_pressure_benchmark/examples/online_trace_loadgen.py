@@ -127,9 +127,13 @@ def derive_headers(
         if tenant_id:
             headers["x-kvfabric-tenant-id"] = str(tenant_id)
         if session_id:
+            headers["x-kvfabric-session-id"] = str(session_id)
             headers["x-kvfabric-family-id"] = str(session_id)
         elif family_id and hint_regime != "partial_hints":
             headers["x-kvfabric-family-id"] = str(family_id)
+        turn_index = entry.get("turn_index")
+        if turn_index is not None:
+            headers["x-kvfabric-turn-index"] = str(turn_index)
 
     if hint_regime in {"full_hints", "noisy_hints"}:
         headers["x-kvfabric-cache-priority"] = cache_priority

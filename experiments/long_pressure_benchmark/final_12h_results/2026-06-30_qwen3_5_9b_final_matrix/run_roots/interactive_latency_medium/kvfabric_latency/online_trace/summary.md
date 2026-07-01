@@ -1,0 +1,21 @@
+# Trace replay: daily_dedicated_reuse
+
+- Trace SHA256: e65dab704c82640248a51679a0d51055b525d967cee79730c14ce550821591a2
+- Hint regime: partial_hints
+- Warmup seconds: 120.0
+- Offered: 5006
+- Completed: 4162
+- Errors: 11
+- Measured offered req/s: 0.6006
+- Measured completed req/s: 0.5836
+- Measured total tok/s: 1271.90
+- SLO seconds: 60.0
+- Goodput tokens/s: 423.34
+- E2E goodput tokens/s: 305.23
+- SLO miss rate: 0.6161
+- E2E SLO miss rate: 0.7271
+- Latency avg seconds: 82.308
+- Latency p95 seconds: 203.591
+- E2E latency avg seconds: 90.495
+- E2E latency p95 seconds: 221.542
+- Send delay p95 seconds: 41.727

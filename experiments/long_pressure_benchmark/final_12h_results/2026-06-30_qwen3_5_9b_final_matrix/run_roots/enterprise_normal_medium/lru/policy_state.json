@@ -1,0 +1,11 @@
+{
+  "policy": "lru",
+  "phase": "completed",
+  "status": "completed",
+  "exit_code": 0,
+  "message": "policy completed",
+  "run_root": "/home/zhoujiarun/KVFabric/experiments/long_pressure_benchmark/runs/2026-06-30_153344_qwen3_5_9b_qwen3_5_9b_enterprise_normal_75m_trace_long",
+  "policy_dir": "/home/zhoujiarun/KVFabric/experiments/long_pressure_benchmark/runs/2026-06-30_153344_qwen3_5_9b_qwen3_5_9b_enterprise_normal_75m_trace_long/lru",
+  "updated_at_epoch_seconds": 1782809694,
+  "updated_at": "2026-06-30T16:54:54+08:00"
+}

@@ -88,6 +88,81 @@ apply_common_env() {
   export KVFABRIC_RANK_LOG_CANDIDATES="${KVFABRIC_RANK_LOG_CANDIDATES:-0}"
 }
 
+apply_working_set_throughput_freeze() {
+  # Frozen from run 2026-06-29_224542_qwen3_5_9b_working_set_gap_quick_8m.
+  export KVFABRIC_ADMISSION_STRENGTH="0.95"
+  export KVFABRIC_EVICTION_STRENGTH="0.55"
+  export KVFABRIC_SCHEDULER_STRENGTH="0.0"
+  export KVFABRIC_SLO_PROTECTION_STRENGTH="0.0"
+  export KVFABRIC_LOW_REUSE_CACHE_FRACTION="0.0"
+  export KVFABRIC_TRANSIENT_CACHE_FRACTION="0.05"
+  export KVFABRIC_BYPASS_CACHE_FRACTION="0.0"
+  export KVFABRIC_DURABLE_CACHE_FRACTION="1.0"
+  export KVFABRIC_COLD_CACHE_FRACTION="0.0"
+  export KVFABRIC_EVICTION_SELECTOR="linear"
+  export KVFABRIC_EVICTION_CANDIDATE_WINDOW_MIN="64"
+  export KVFABRIC_EVICTION_CANDIDATE_WINDOW_MULTIPLIER="4"
+  export KVFABRIC_EVICTION_CANDIDATE_WINDOW_MAX="160"
+  export KVFABRIC_EVICTION_RANK_MIN_SCORE="0.0"
+  export KVFABRIC_EVICTION_SCORE_RECOMPUTE_WEIGHT="0.006"
+  export KVFABRIC_EVICTION_SCORE_RECOMPUTE_CAP="12.0"
+  export KVFABRIC_EVICTION_SCORE_ANCHOR_BONUS="28.0"
+  export KVFABRIC_RANK_LOG_EVENTS="0"
+  export KVFABRIC_RANK_LOG_CANDIDATES="0"
+  export LONG_BENCH_WARMUP_SECONDS="90"
+  export LONG_BENCH_TIMEOUT_SECONDS="600"
+  export LONG_BENCH_METRICS_INTERVAL="20"
+  export LONG_BENCH_RAW_SAMPLE_RATE="0.02"
+  export LONG_BENCH_RAW_SAMPLE_LIMIT="1000"
+}
+
+apply_latency_interactive_profile() {
+  # Keep this scoped to latency quick loops. The profile targets reusable
+  # interactive/session requests in the daily-dedicated trace, while avoiding
+  # expensive eviction ranking on the latency hot path.
+  export KVFABRIC_ADMISSION_STRENGTH="0.0"
+  export KVFABRIC_EVICTION_STRENGTH="0.0"
+  export KVFABRIC_SCHEDULER_STRENGTH="1.0"
+  export KVFABRIC_SLO_PROTECTION_STRENGTH="0.90"
+  export KVFABRIC_LOW_REUSE_CACHE_FRACTION="0.0"
+  export KVFABRIC_TRANSIENT_CACHE_FRACTION="0.05"
+  export KVFABRIC_BYPASS_CACHE_FRACTION="0.0"
+  export KVFABRIC_DURABLE_CACHE_FRACTION="1.0"
+  export KVFABRIC_COLD_CACHE_FRACTION="0.0"
+  export KVFABRIC_SCHEDULER_AFFINITY="positive"
+  export KVFABRIC_SCHEDULER_POSITIVE_SCAN_WINDOW="0"
+  export KVFABRIC_SCHEDULER_LATENCY_SCAN_WINDOW="96"
+  export KVFABRIC_SCHEDULER_POSITIVE_MIN_RISK_RATIO="0.10"
+  export KVFABRIC_SCHEDULER_POSITIVE_SCORE_MARGIN="4.0"
+  export KVFABRIC_SCHEDULER_POSITIVE_MAX_PER_STEP="0"
+  export KVFABRIC_SCHEDULER_LATENCY_MAX_PER_STEP="16"
+  export KVFABRIC_SCHEDULER_POSITIVE_HIT_AWARE="1"
+  export KVFABRIC_SCHEDULER_POSITIVE_HIT_TOPK="8"
+  export KVFABRIC_SCHEDULER_DEFER_MIN_RISK_RATIO="0.80"
+  export KVFABRIC_SCHEDULER_DEFER_MAX_PER_STEP="0"
+  export KVFABRIC_SCHEDULER_DEFER_MAX_COUNT="0"
+  export KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_COUNT="0"
+  export KVFABRIC_SCHEDULER_DEFER_MAX_AGE_MS="3000"
+  export KVFABRIC_SCHEDULER_DEFER_LOW_REUSE_MAX_AGE_MS="2500"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_CLASSES="short_chat_qa tenant_workflow_hot agent_tool_loop project_code_followup deep_multi_turn_chat long_doc_research_followup"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_OUTPUT_TOKENS="0"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_PROMOTE_AGE_MS="250"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_HEAD_GUARD_MS="0"
+  export KVFABRIC_SCHEDULER_LATENCY_PROTECTED_MIN_RISK_RATIO="0.0"
+  export KVFABRIC_SCHEDULER_LATENCY_SHORT_OUTPUT_WEIGHT="10.0"
+  export KVFABRIC_SCHEDULER_LATENCY_SHORT_OUTPUT_REFERENCE_TOKENS="768"
+  export KVFABRIC_SCHEDULER_HEAD_AGE_GUARD_MS="0"
+  export KVFABRIC_SCHEDULER_LOW_REUSE_HEAD_AGE_GUARD_MS="0"
+  export KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_RATIO="0.0"
+  export KVFABRIC_SCHEDULER_SLO_HEAD_GUARD_MIN_MS="2500"
+  export KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_RATIO="0.0"
+  export KVFABRIC_SCHEDULER_SLO_LATENCY_PROMOTE_MIN_MS="2500"
+  export TRACE_BENCH_MAX_NUM_SEQS="32"
+  export TRACE_BENCH_MAX_NUM_BATCHED_TOKENS="24576"
+  export KVFABRIC_RANK_LOG_EVENTS="0"
+  export KVFABRIC_RANK_LOG_CANDIDATES="0"
+}
+
 run_duration_quick() {
   local capacity="$1"
   local policies="$2"
@@ -153,19 +228,42 @@ case "$module" in
   throughput_gap)
     run_duration_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_throughput}" "qwen3_5_9b_lru_gap_throughput_quick_12m.json"
     ;;
+  throughput_working_set)
+    (
+      apply_working_set_throughput_freeze
+      run_duration_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_throughput}" "qwen3_5_9b_working_set_gap_quick_8m.json"
+    )
+    ;;
+  prefill_legacy_60m)
+    run_duration_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_prefill_reuse_saturation_60m.json"
+    ;;
+  slo_boundary)
+    run_duration_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_saturation_reuse_proof_30m.json"
+    ;;
   rebuilt)
     run_duration_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_rebuilt}" "qwen3_5_9b_rebuilt_quick_12m.json"
     ;;
+  rebuilt_pressure)
+    run_duration_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_rebuilt}" "qwen3_5_9b_rebuilt_pressure_30m.json"
+    ;;
   latency)
-    run_trace_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_latency}" "qwen3_5_9b_interactive_latency_quick_12m.json"
+    (
+      apply_latency_interactive_profile
+      run_trace_quick "$capacity" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_latency}" "qwen3_5_9b_foreground_latency_background_quick_8m.json"
+    )
     ;;
   capacity)
     run_duration_quick "small" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_prefill_reuse_quick_12m.json"
     run_duration_quick "medium" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_prefill_reuse_quick_12m.json"
     run_duration_quick "large" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_prefill_reuse_quick_12m.json"
     ;;
+  capacity_sweep_trace)
+    run_trace_quick "small" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_capacity_sweep_6m.json"
+    run_trace_quick "medium" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_capacity_sweep_6m.json"
+    run_trace_quick "large" "${KVFABRIC_QWEN9B_QUICK_POLICIES:-lru kvfabric_admission}" "qwen3_5_9b_capacity_sweep_6m.json"
+    ;;
   *)
-    echo "Usage: $0 [throughput|throughput_gap|rebuilt|latency|capacity] [small|medium|large]" >&2
+    echo "Usage: $0 [throughput|throughput_gap|throughput_working_set|prefill_legacy_60m|slo_boundary|rebuilt|rebuilt_pressure|latency|capacity|capacity_sweep_trace] [small|medium|large]" >&2
     exit 2
     ;;
 esac

@@ -1,0 +1,28 @@
+{
+  "name": "qwen3_5_9b_enterprise_normal_75m",
+  "description": "Formal 12h-matrix normal enterprise mixed traffic guard for Qwen3.5-9B. This is a non-regression/generalization stage, not the main throughput proof.",
+  "trace": {
+    "profile": "enterprise_mixed",
+    "duration_seconds": 4500,
+    "request_rate": 0.75,
+    "seed": 20260702,
+    "max_model_len": 4096,
+    "load_mode": "normal_mixed",
+    "hint_regime": "partial_hints",
+    "tenant_count": 10,
+    "client_count": 64,
+    "hot_family_count": 48,
+    "session_family_count": 64,
+    "session_reuse_probability": 0.62,
+    "burst_probability": 0.03
+  },
+  "loadgen": {
+    "max_in_flight": 48,
+    "metrics_interval": 30,
+    "raw_sample_rate": 0.015,
+    "raw_sample_limit": 1800,
+    "warmup_seconds": 90,
+    "timeout_seconds": 900,
+    "slo_seconds": 90
+  }
+}

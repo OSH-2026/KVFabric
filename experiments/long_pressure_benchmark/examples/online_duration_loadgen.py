@@ -449,6 +449,14 @@ def build_segments(
             continue
         name = str(item.get("name", f"segment_{len(segments)}"))
         concurrency = int(item.get("concurrency", fallback_concurrency))
+        request_selection = item.get("request_selection")
+        if request_selection is not None:
+            request_selection = str(request_selection)
+            if request_selection not in {"sequential", "shuffle", "random"}:
+                raise ValueError(
+                    f"Invalid request_selection={request_selection!r} "
+                    f"for segment {name!r}"
+                )
         segments.append(
             {
                 "name": name,
@@ -457,6 +465,19 @@ def build_segments(
                 "duration": duration,
                 "concurrency": max(concurrency, 1),
                 "score": bool(item.get("score", True)),
+                "request_selection": request_selection,
+                "include_classes": _parse_filter_values(
+                    item.get("include_classes")
+                ),
+                "exclude_classes": _parse_filter_values(
+                    item.get("exclude_classes")
+                ),
+                "include_phases": _parse_filter_values(
+                    item.get("include_phases")
+                ),
+                "exclude_phases": _parse_filter_values(
+                    item.get("exclude_phases")
+                ),
             }
         )
         cursor += duration
@@ -489,6 +510,57 @@ def segment_elapsed_map(
     return output
 
 
+def _parse_filter_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [
+            part.strip()
+            for part in value.replace(",", " ").split()
+            if part.strip()
+        ]
+    if isinstance(value, list):
+        return [str(part).strip() for part in value if str(part).strip()]
+    raise ValueError(f"Segment filter must be a string or list, got {type(value)}")
+
+
+def _segment_has_filters(segment: dict[str, Any]) -> bool:
+    return any(
+        segment.get(key)
+        for key in (
+            "include_classes",
+            "exclude_classes",
+            "include_phases",
+            "exclude_phases",
+        )
+    )
+
+
+def payload_matches_segment(item: dict[str, Any], segment: dict[str, Any]) -> bool:
+    meta = item.get("meta", {})
+    request_class = str(
+        meta.get("class")
+        or meta.get("request_class")
+        or "unclassified"
+    )
+    phase = str(meta.get("phase") or "")
+
+    include_classes = set(segment.get("include_classes") or [])
+    exclude_classes = set(segment.get("exclude_classes") or [])
+    include_phases = set(segment.get("include_phases") or [])
+    exclude_phases = set(segment.get("exclude_phases") or [])
+
+    if include_classes and request_class not in include_classes:
+        return False
+    if request_class in exclude_classes:
+        return False
+    if include_phases and phase not in include_phases:
+        return False
+    if phase and phase in exclude_phases:
+        return False
+    return True
+
+
 class PayloadSelector:
     def __init__(
         self,
@@ -517,6 +589,74 @@ class PayloadSelector:
             self.position += 1
             return self.payloads[index]
         return self.payloads[request_no % len(self.payloads)]
+
+
+class SegmentPayloadRouter:
+    """Route requests through optional segment-specific payload pools."""
+
+    def __init__(
+        self,
+        payloads: list[dict[str, Any]],
+        default_mode: str,
+        random_seed: int,
+        segments: list[dict[str, Any]],
+    ) -> None:
+        self.default_selector = PayloadSelector(
+            payloads,
+            default_mode,
+            random.Random(random_seed),
+        )
+        self.segment_selectors: dict[str, PayloadSelector] = {}
+        self.segment_request_counts: dict[str, int] = defaultdict(int)
+        self.segment_payloads: dict[str, list[dict[str, Any]]] = {}
+
+        for index, segment in enumerate(segments):
+            if not _segment_has_filters(segment):
+                continue
+            name = str(segment["name"])
+            filtered = [
+                item for item in payloads
+                if payload_matches_segment(item, segment)
+            ]
+            if not filtered:
+                raise ValueError(
+                    f"Segment {name!r} filters matched zero payloads."
+                )
+            mode = str(segment.get("request_selection") or default_mode)
+            if mode not in {"sequential", "shuffle", "random"}:
+                raise ValueError(
+                    f"Invalid request_selection={mode!r} for segment {name!r}"
+                )
+            self.segment_payloads[name] = filtered
+            self.segment_selectors[name] = PayloadSelector(
+                filtered,
+                mode,
+                random.Random(random_seed + 1009 * (index + 1)),
+            )
+
+    def select(self, request_no: int, segment: dict[str, Any]) -> dict[str, Any]:
+        name = str(segment["name"])
+        selector = self.segment_selectors.get(name)
+        if selector is None:
+            return self.default_selector.select(request_no)
+        local_no = self.segment_request_counts[name]
+        self.segment_request_counts[name] = local_no + 1
+        return selector.select(local_no)
+
+    def summary(self, payloads: list[dict[str, Any]]) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for name, items in sorted(self.segment_payloads.items()):
+            output[name] = {
+                "payload_pool_size": len(items),
+                "classes": summarize_payload_classes(items),
+                "phases": summarize_payload_phases(items),
+            }
+        output["_default"] = {
+            "payload_pool_size": len(payloads),
+            "classes": summarize_payload_classes(payloads),
+            "phases": summarize_payload_phases(payloads),
+        }
+        return output
 
 
 def build_payloads(config: dict[str, Any], model: str) -> list[dict[str, Any]]:
@@ -695,7 +835,7 @@ async def worker(
     client: httpx.AsyncClient,
     url: str,
     payloads: list[dict[str, Any]],
-    selector: PayloadSelector,
+    router: SegmentPayloadRouter,
     stats: RunStats,
     stats_lock: asyncio.Lock,
     index_lock: asyncio.Lock,
@@ -726,7 +866,7 @@ async def worker(
                 return
             request_no = counter["issued"]
             counter["issued"] += 1
-            item = selector.select(request_no)
+            item = router.select(request_no, segment)
         request_meta = dict(item.get("meta", {}))
         request_meta["segment"] = segment_name
         request_class = str(request_meta.get("class", "unclassified"))
@@ -893,16 +1033,21 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         if args.random_seed is not None
         else int(loadgen_config.get("random_seed", 0))
     )
-    selector_rng = random.Random(random_seed)
     sample_rng = random.Random(random_seed + 1)
     payloads = build_payloads(config, args.model)
-    selector = PayloadSelector(payloads, request_selection, selector_rng)
     kvfabric_headers_enabled = not args.disable_kvfabric_headers
     segments = build_segments(
         config,
         args.duration_seconds,
         configured_concurrency,
     )
+    router = SegmentPayloadRouter(
+        payloads,
+        request_selection,
+        random_seed,
+        segments,
+    )
+    segment_payload_summary = router.summary(payloads)
     total_segment_duration = max(float(segment["end"]) for segment in segments)
     effective_duration = min(args.duration_seconds, total_segment_duration)
     concurrency = max(int(segment["concurrency"]) for segment in segments)
@@ -943,6 +1088,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "class_slo_seconds": class_slo_seconds,
                 "slo_probe_seconds": slo_probe_seconds,
                 "payload_pool_size": len(payloads),
+                "segment_payloads": segment_payload_summary,
                 "max_requests": args.max_requests,
                 "request_selection": request_selection,
                 "random_seed": random_seed,
@@ -973,7 +1119,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         client=client,
                         url=url,
                         payloads=payloads,
-                        selector=selector,
+                        router=router,
                         stats=stats,
                         stats_lock=stats_lock,
                         index_lock=index_lock,
@@ -1016,6 +1162,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "requests": stats.completed,
             "issued_requests": counter["issued"],
             "payload_pool_size": len(payloads),
+            "segment_payloads": segment_payload_summary,
             "concurrency": concurrency,
             "total_seconds": total_seconds,
             "warmup_seconds": args.warmup_seconds,
@@ -1108,6 +1255,14 @@ def summarize_payload_classes(payloads: list[dict[str, Any]]) -> dict[str, int]:
     for item in payloads:
         request_class = str(item.get("meta", {}).get("class", "unclassified"))
         counts[request_class] += 1
+    return dict(sorted(counts.items()))
+
+
+def summarize_payload_phases(payloads: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for item in payloads:
+        phase = str(item.get("meta", {}).get("phase", "unclassified"))
+        counts[phase] += 1
     return dict(sorted(counts.items()))
 
 

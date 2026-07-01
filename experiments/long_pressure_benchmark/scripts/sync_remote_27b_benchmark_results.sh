@@ -9,7 +9,7 @@ REMOTE_HOST="${REMOTE_HOST:-robowalker}"
 REMOTE_SSH_TARGET="${REMOTE_SSH_TARGET:-$REMOTE_HOST}"
 REMOTE_SSH_OPTS="${REMOTE_SSH_OPTS:-}"
 REMOTE_PROJECT="${REMOTE_PROJECT:-/home/zhoujiarun/KVFabric}"
-REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_27b_*_long}"
+REMOTE_RUN_PATTERN="${REMOTE_RUN_PATTERN:-*qwen3_5_*_long}"
 REMOTE_RUN_ROOT="${REMOTE_RUN_ROOT:-}"
 REMOTE_JOB_LOG="${REMOTE_JOB_LOG:-}"
 INCLUDE_RAW_JSONL="${INCLUDE_RAW_JSONL:-0}"
@@ -26,7 +26,7 @@ fi
 
 if [[ -z "$REMOTE_JOB_LOG" ]]; then
   REMOTE_JOB_LOG=$(ssh $REMOTE_SSH_OPTS "$REMOTE_SSH_TARGET" \
-    "cd '$REMOTE_PROJECT' && ls -t vllm_baseline/runtime_kvfabric_0221/jobs/remote_27b_*.log 2>/dev/null | head -n 1 || true")
+    "cd '$REMOTE_PROJECT' && ls -t vllm_baseline/runtime_kvfabric_0221/jobs/remote_*.log 2>/dev/null | head -n 1 || true")
 fi
 
 if [[ -z "$REMOTE_RUN_ROOT" ]]; then

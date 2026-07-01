@@ -1,0 +1,11 @@
+{
+  "exit_code": 0,
+  "message": "policy completed; restored from shorter source and expanded to formal 12h-stage duration",
+  "phase": "completed",
+  "policy": "kvfabric_latency",
+  "policy_dir": "/home/qy-dream/OSH_Project/KVFabric/experiments/long_pressure_benchmark/final_12h_results/2026-06-30_qwen3_5_9b_final_matrix/run_roots/interactive_latency_medium/kvfabric_latency",
+  "run_root": "/home/qy-dream/OSH_Project/KVFabric/experiments/long_pressure_benchmark/final_12h_results/2026-06-30_qwen3_5_9b_final_matrix/run_roots/interactive_latency_medium",
+  "status": "completed",
+  "updated_at": "2026-06-30T08:45:08+08:00",
+  "updated_at_epoch_seconds": 1782780308
+}

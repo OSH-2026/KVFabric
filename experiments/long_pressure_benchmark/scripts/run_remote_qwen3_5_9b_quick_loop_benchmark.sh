@@ -13,6 +13,7 @@ REMOTE_VENV="${REMOTE_VENV:-.venv_kvfabric_0221}"
 REMOTE_JOB_NAME="${REMOTE_JOB_NAME:-remote_qwen3_5_9b_quick_loop}"
 QUICK_MODULE="${KVFABRIC_QWEN9B_QUICK_MODULE:-${1:-throughput}}"
 QUICK_CAPACITY="${KVFABRIC_QWEN9B_QUICK_CAPACITY:-${2:-medium}}"
+QUICK_POLICIES="${KVFABRIC_QWEN9B_QUICK_POLICIES:-}"
 
 load_common_env
 
@@ -47,6 +48,7 @@ REMOTE_VENV="$REMOTE_VENV" \\
 PRESET="qwen3_5_9b" \\
 KVFABRIC_QWEN9B_QUICK_MODULE="$QUICK_MODULE" \\
 KVFABRIC_QWEN9B_QUICK_CAPACITY="$QUICK_CAPACITY" \\
+KVFABRIC_QWEN9B_QUICK_POLICIES="$QUICK_POLICIES" \\
 nohup bash "\$job_script" > "\$job_log" 2>&1 &
 echo \$! > "\$job_pid"
 ln -sf "\$(basename "\$job_log")" vllm_baseline/runtime_kvfabric_0221/jobs/remote_qwen3_5_9b_quick_loop_latest.log

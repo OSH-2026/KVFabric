@@ -1,0 +1,73 @@
+{
+  "trace_sha256": "1aca4731d4ac8a652b4a07197dddff5139fad622dcb4111542939735736cbcd3",
+  "settings": {
+    "tenant_count": 10,
+    "client_count": 64,
+    "hot_family_count": 48,
+    "session_family_count": 64,
+    "session_reuse_probability": 0.62,
+    "session_interval_min_seconds": 10.0,
+    "session_interval_max_seconds": 180.0,
+    "burst_probability": 0.03,
+    "burst_multiplier_min": 1.8,
+    "burst_multiplier_max": 3.2,
+    "wave_amplitude": 0.25,
+    "profile": "enterprise_mixed",
+    "duration_seconds": 4500,
+    "request_rate": 0.75,
+    "seed": 20260702,
+    "max_model_len": 4096,
+    "load_mode": "normal_mixed",
+    "hint_regime": "partial_hints",
+    "config_name": "qwen3_5_9b_enterprise_normal_75m"
+  },
+  "requests": 4149,
+  "duration_seconds": 4500.0,
+  "request_rate": 0.75,
+  "actual_request_rate": 0.922,
+  "class_counts": {
+    "agent_tool_loop": 1215,
+    "decode_heavy_report": 145,
+    "extraction_classification": 108,
+    "multi_turn_support": 1142,
+    "rag_qa_cold_docs": 635,
+    "rag_qa_hot_docs": 383,
+    "tenant_workflow_hot": 521
+  },
+  "expected_reuse_counts": {
+    "durable": 3406,
+    "none": 635,
+    "unknown": 108
+  },
+  "cache_priority_counts": {
+    "high": 3406,
+    "low": 635,
+    "normal": 108
+  },
+  "session_turn_counts": {
+    "1": 770,
+    "2": 479,
+    "3": 363,
+    "4": 250,
+    "5": 126,
+    "6": 99,
+    "7": 69,
+    "8": 53,
+    "9": 28,
+    "10": 25,
+    "11": 23,
+    "12": 21,
+    "13": 17,
+    "14": 15,
+    "15": 11,
+    "16": 8
+  },
+  "session_requests": 2357,
+  "session_request_ratio": 0.5680886960713425,
+  "burst_requests": 145,
+  "burst_request_ratio": 0.03494818028440588,
+  "unique_sessions": 770,
+  "unique_families": 917,
+  "unique_tenants": 10,
+  "unique_clients": 64
+}

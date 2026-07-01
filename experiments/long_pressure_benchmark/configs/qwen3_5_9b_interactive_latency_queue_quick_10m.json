@@ -1,0 +1,43 @@
+{
+  "name": "qwen3_5_9b_interactive_latency_queue_quick_10m",
+  "description": "Short tuning proxy for queue-pressure latency protection. A small shared 9B service handles foreground short chat, workflow, agent, and project interactions plus background/decode jobs; max_in_flight intentionally exceeds the latency-stage max_num_seqs so KVFabric scheduler protection has real queue work to do.",
+  "trace": {
+    "profile": "daily_dedicated_reuse",
+    "duration_seconds": 480,
+    "request_rate": 0.9,
+    "seed": 20260714,
+    "max_model_len": 4096,
+    "load_mode": "interactive_latency_queue_quick",
+    "hint_regime": "partial_hints",
+    "tenant_count": 3,
+    "client_count": 10,
+    "hot_family_count": 14,
+    "session_family_count": 20,
+    "session_reuse_probability": 0.72,
+    "session_interval_min_seconds": 8,
+    "session_interval_max_seconds": 100,
+    "burst_probability": 0.05,
+    "burst_multiplier_min": 1.7,
+    "burst_multiplier_max": 3.4,
+    "wave_amplitude": 0.10,
+    "class_weights": {
+      "tenant_workflow_hot": 0.18,
+      "short_chat_qa": 0.12,
+      "agent_tool_loop": 0.18,
+      "deep_multi_turn_chat": 0.14,
+      "background_cold_lookup": 0.10,
+      "project_code_followup": 0.14,
+      "decode_heavy_background": 0.06,
+      "long_doc_research_followup": 0.08
+    }
+  },
+  "loadgen": {
+    "max_in_flight": 96,
+    "metrics_interval": 20,
+    "raw_sample_rate": 0.05,
+    "raw_sample_limit": 900,
+    "warmup_seconds": 60,
+    "timeout_seconds": 900,
+    "slo_seconds": 60
+  }
+}

@@ -580,10 +580,14 @@ class Scheduler(SchedulerInterface):
                         ),
                     ):
                         scan_window = min(
-                            tracker.scheduler_positive_scan_window,
+                            tracker.scheduler_latency_scan_window,
                             len(request_queue),
                         )
                         candidates = list(itertools.islice(request_queue, scan_window))
+                        head_request = candidates[0] if candidates else None
+                        latency_candidates: list[
+                            tuple[Request, int, float, float]
+                        ] = []
                         for queue_index, candidate in enumerate(candidates):
                             tracker.on_request_hints(
                                 request_id=candidate.request_id,
@@ -606,6 +610,58 @@ class Scheduler(SchedulerInterface):
                             )
                             if not should_promote:
                                 continue
+                            selected_score = (
+                                tracker.latency_protected_request_score(
+                                    request_id=candidate.request_id,
+                                    prompt_tokens=candidate.num_tokens,
+                                    queue_index=queue_index,
+                                    request_age_ms=request_age_ms,
+                                    max_output_tokens=candidate.max_tokens,
+                                )
+                            )
+                            latency_candidates.append(
+                                (
+                                    candidate,
+                                    queue_index,
+                                    request_age_ms,
+                                    selected_score,
+                                )
+                            )
+                        for (
+                            candidate,
+                            queue_index,
+                            request_age_ms,
+                            selected_score,
+                        ) in sorted(
+                            latency_candidates,
+                            key=lambda item: item[3],
+                            reverse=True,
+                        ):
+                            if (
+                                head_request is not None
+                                and candidate is not head_request
+                                and tracker.should_guard_positive_promotion(
+                                    head_request_id=head_request.request_id,
+                                    head_prompt_tokens=head_request.num_tokens,
+                                    head_max_output_tokens=head_request.max_tokens,
+                                    head_arrival_time=float(
+                                        getattr(
+                                            head_request,
+                                            "arrival_time",
+                                            0.0,
+                                        )
+                                        or 0.0
+                                    ),
+                                    best_request_id=candidate.request_id,
+                                    best_score=0.0,
+                                    head_score=0.0,
+                                    waiting_queue_size=waiting_queue_size,
+                                    eviction_risk_ratio=float(
+                                        pressure["eviction_risk_ratio"]
+                                    ),
+                                )
+                            ):
+                                break
                             request_queue.remove_request(candidate)
                             request_queue.prepend_request(candidate)
                             kvfabric_promotions_this_step += 1
@@ -615,6 +671,7 @@ class Scheduler(SchedulerInterface):
                                 max_output_tokens=candidate.max_tokens,
                                 queue_index=queue_index,
                                 request_age_ms=request_age_ms,
+                                selected_score=selected_score,
                                 waiting_queue_size=waiting_queue_size,
                                 eviction_risk_ratio=float(
                                     pressure["eviction_risk_ratio"]

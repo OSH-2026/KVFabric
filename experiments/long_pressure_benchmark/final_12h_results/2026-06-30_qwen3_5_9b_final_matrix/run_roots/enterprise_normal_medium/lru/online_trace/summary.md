@@ -1,0 +1,21 @@
+# Trace replay: enterprise_mixed
+
+- Trace SHA256: 1aca4731d4ac8a652b4a07197dddff5139fad622dcb4111542939735736cbcd3
+- Hint regime: partial_hints
+- Warmup seconds: 90.0
+- Offered: 4149
+- Completed: 4071
+- Errors: 0
+- Measured offered req/s: 0.8635
+- Measured completed req/s: 0.8635
+- Measured total tok/s: 1748.87
+- SLO seconds: 90.0
+- Goodput tokens/s: 1383.78
+- E2E goodput tokens/s: 520.11
+- SLO miss rate: 0.1700
+- E2E SLO miss rate: 0.6836
+- Latency avg seconds: 53.469
+- Latency p95 seconds: 139.672
+- E2E latency avg seconds: 154.571
+- E2E latency p95 seconds: 316.015
+- Send delay p95 seconds: 236.815

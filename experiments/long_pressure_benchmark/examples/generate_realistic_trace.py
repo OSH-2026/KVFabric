@@ -319,6 +319,26 @@ def choose_weighted(rng: random.Random, weights: dict[str, float]) -> str:
     return next(reversed(weights))
 
 
+def configured_class_weights(
+    settings: dict[str, Any],
+    key: str,
+    default: dict[str, float] | None = None,
+) -> dict[str, float]:
+    configured = settings.get(key)
+    if isinstance(configured, dict) and configured:
+        weights = {
+            str(name): float(weight)
+            for name, weight in configured.items()
+            if float(weight) > 0.0
+        }
+    else:
+        weights = dict(default or {})
+    unknown_classes = sorted(set(weights) - set(CLASS_LENGTHS))
+    if unknown_classes:
+        raise ValueError(f"Unknown {key} entries: {unknown_classes}")
+    return weights
+
+
 def setting_int(settings: dict[str, Any], key: str, default: int) -> int:
     return max(1, int(settings.get(key, default)))
 
@@ -590,7 +610,16 @@ def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
     effective_settings.update(settings)
     settings = effective_settings
     rng = random.Random(int(settings["seed"]))
-    weights = PROFILE_WEIGHTS[profile]
+    weights = configured_class_weights(settings, "class_weights", PROFILE_WEIGHTS[profile])
+    background_weights = configured_class_weights(
+        settings,
+        "background_class_weights",
+        {},
+    )
+    background_mix_probability = max(
+        0.0,
+        min(1.0, float(settings.get("background_mix_probability", 0.0))),
+    )
     duration = float(settings["duration_seconds"])
     request_rate = float(settings["request_rate"])
 
@@ -610,7 +639,15 @@ def generate_trace(settings: dict[str, Any], output_dir: Path) -> None:
         request_no += 1
 
         due_sessions = [s for s in active_sessions if s.next_time <= now]
-        if due_sessions and rng.random() < setting_float(
+        inject_background = bool(background_weights) and (
+            rng.random() < background_mix_probability
+        )
+        if inject_background:
+            request_class = choose_weighted(rng, background_weights)
+            entry = make_single_request(
+                rng, request_no, request_class, now, profile, settings
+            )
+        elif due_sessions and rng.random() < setting_float(
             settings, "session_reuse_probability", 0.65
         ):
             session = min(due_sessions, key=lambda item: item.next_time)

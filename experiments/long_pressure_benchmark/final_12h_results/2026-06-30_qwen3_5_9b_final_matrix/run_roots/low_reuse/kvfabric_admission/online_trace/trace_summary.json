@@ -1,0 +1,53 @@
+{
+  "trace_sha256": "4150873b548f3c9ace769eba57aab581612617e41fcca0c641d22aeefdbfe838",
+  "settings": {
+    "tenant_count": 12,
+    "client_count": 96,
+    "hot_family_count": 96,
+    "session_family_count": 96,
+    "session_reuse_probability": 0.1,
+    "session_interval_min_seconds": 60.0,
+    "session_interval_max_seconds": 300.0,
+    "burst_probability": 0.01,
+    "burst_multiplier_min": 1.2,
+    "burst_multiplier_max": 2.0,
+    "wave_amplitude": 0.08,
+    "profile": "low_reuse_low_frequency",
+    "duration_seconds": 2700,
+    "request_rate": 0.25,
+    "seed": 20260703,
+    "max_model_len": 4096,
+    "load_mode": "guardrail_low_reuse",
+    "hint_regime": "partial_hints",
+    "cold_family_reuse_probability": 0.0,
+    "config_name": "qwen3_5_9b_low_reuse_45m"
+  },
+  "requests": 742,
+  "duration_seconds": 2700.0,
+  "request_rate": 0.25,
+  "actual_request_rate": 0.2748148148148148,
+  "class_counts": {
+    "decode_heavy_background": 179,
+    "extraction_classification": 138,
+    "rag_qa_cold_docs": 194,
+    "short_chat_qa": 109,
+    "single_turn_api_task": 122
+  },
+  "expected_reuse_counts": {
+    "none": 373,
+    "unknown": 369
+  },
+  "cache_priority_counts": {
+    "low": 373,
+    "normal": 369
+  },
+  "session_turn_counts": {},
+  "session_requests": 0,
+  "session_request_ratio": 0.0,
+  "burst_requests": 7,
+  "burst_request_ratio": 0.009433962264150943,
+  "unique_sessions": 0,
+  "unique_families": 648,
+  "unique_tenants": 12,
+  "unique_clients": 96
+}

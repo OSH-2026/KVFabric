@@ -1,0 +1,12 @@
+{
+  "run_root": "/home/zhoujiarun/KVFabric/experiments/long_pressure_benchmark/runs/2026-06-30_153344_qwen3_5_9b_qwen3_5_9b_enterprise_normal_75m_trace_long",
+  "model_preset": "qwen3_5_9b",
+  "suite_name": "qwen3_5_9b_enterprise_normal_75m",
+  "config_path": "/home/zhoujiarun/KVFabric/experiments/long_pressure_benchmark/configs/qwen3_5_9b_enterprise_normal_75m.json",
+  "phase": "completed",
+  "status": "completed",
+  "current_policy": "",
+  "message": "run completed",
+  "updated_at_epoch_seconds": 1782814324,
+  "updated_at": "2026-06-30T18:12:04+08:00"
+}
