@@ -10,7 +10,7 @@ This document is the persistent handoff for the current KVFabric experiment iter
 2. Keep KV cache capacity as an explicit variable, with medium capacity as the default proof setting.
 3. Temporarily treat `working_set_gap_quick_8m` as the frozen throughput proof candidate.
 4. For reports that include multiple SLO probe thresholds, show only the SLO goodput rate with the highest uplift. Do not show the selected SLO time beside that rate; record the selected SLO time only once at the end of the report.
-5. Do not emphasize raw total token/s in final-facing records. Raw metrics may remain in JSON for auditability, but generated markdown summaries should focus on SLO goodput, latency, prefix hit, rebuilt, and lifecycle evidence.
+5. In final-facing records, focus on SLO goodput, latency, prefix hit, rebuilt, and lifecycle evidence. Raw total token/s can remain in JSON for auditability.
 6. Start a separate low-latency iteration. Record rebuilt/rebuild, p50/p95/p99/e2e latency, class latency, and SLO latency behavior. Target 30%+ latency reduction if a realistic workload can support it.
 7. After each metric-specific short experiment is tuned, integrate its stable config and parameters into one 12h matrix run. Each proof stage may have unique parameters, but the implementation must remain one general KVFabric controller rather than hard-coded one-off code paths.
 

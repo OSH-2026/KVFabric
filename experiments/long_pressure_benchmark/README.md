@@ -1,99 +1,109 @@
 # Long Pressure Benchmark
 
-This directory contains the current long-running KVFabric pressure benchmarks.
-`experiments/prebenchmark_validation` is kept for early smoke tests and short
-validation suites.
+This directory contains the remote long-running experiment suite for KVFabric. It is the main entry for Qwen3.5-9B experiments on the 2 x RTX 3090 server and also keeps earlier Qwen3.5-27B scripts for historical comparison and high-pressure exploration.
 
-Design notes:
+`experiments/prebenchmark_validation/` remains the entry for local smoke tests and short A/B validation.
 
-- `docs/current/kvfabric_12h_acceptance_experiment_design.md`
-- `docs/current/kvfabric_30pct_throughput_refactor_research.md`
+## Related Design Notes
+
+- `docs/current/kvfabric_qwen9b_experiment_design_2026-06-30.md`
+- `docs/current/kvfabric_june_iteration_history_2026-06-30.md`
+- `docs/current/kvfabric_9b_final_matrix_and_latency_iteration_2026-06-30.md`
 - `docs/current/kvfabric_medium_capacity_generalization_design_2026-06-29.md`
+- `docs/current/kvfabric_12h_acceptance_experiment_design.md`
 
-Main entry points:
+## Main Qwen3.5-9B Entries
 
 - `scripts/run_remote_qwen3_5_9b_12h_matrix_benchmark.sh`
-  starts the current Qwen3.5-9B medium-capacity matrix on the remote 2 x RTX
-  3090 server. This is the preferred next-round suite for proving high-pressure
-  SLO goodput, suitable-scenario e2e latency improvement, capacity sensitivity,
-  and low-reuse non-regression within roughly 12 hours.
+  Starts the current remote Qwen3.5-9B 12h matrix on the 2 x RTX 3090 server. This is the preferred acceptance suite.
+
 - `scripts/run_qwen3_5_9b_12h_matrix.sh`
-  runs the same Qwen3.5-9B matrix from inside a prepared repository checkout,
-  useful when already logged in to the remote server.
+  Runs the same matrix from inside a prepared repository checkout on the remote server.
+
 - `scripts/run_qwen3_5_9b_quick_loop.sh`
-  runs the short daily-dedicated tuning loop, defaulting to medium and small KV
-  capacity profiles.
-- `scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh`
-  starts the current 12h realistic trace benchmark on the remote 2 x RTX 3090
-  server. This is the enterprise mixed trace path.
-- `scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh`
-  starts the closed-loop saturation benchmark. This is the main throughput
-  uplift experiment and uses segmented pressure inside each 4h policy run.
-- `scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh`
-  starts the sticky multi-turn conversation trace benchmark.
-- `scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh`,
-  `scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh`, and
-  `scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh`
-  start short acceptance runs. These keep the same workload mix and pressure
-  settings as the formal suites, but reduce each policy run to 80 minutes so
-  the three-policy A/B finishes in roughly 4 hours.
-- `scripts/run_remote_27b_4h_benchmark_suite.sh`
-  starts the three short suites in order and skips suites that already have a
-  remote run directory by default.
+  Runs shorter tuning loops for workload/SLO calibration, capacity checks, and controller parameter adjustments.
+
+The 9B matrix is the main source for final evaluation. It covers high-pressure throughput, enterprise mixed traffic, multi-turn long-dialogue reuse, low-reuse guards, and capacity sensitivity.
+
+## Workload and Loadgen
+
+- `examples/online_trace_loadgen.py`
+  Replays a trace in open-loop mode. Each request uses `scheduled_at_seconds`, so A/B runs share the same request plan and avoid workload drift.
+
+- `examples/online_duration_loadgen.py`
+  Generates mixed requests for a fixed duration. It is useful for quick tuning, pressure calibration, and smoke checks.
+
+Trace fields commonly used by the 9B experiments:
+
+```text
+tenant
+family
+session
+turn
+phase
+request_class
+scheduled_at_seconds
+expected_output_tokens / max_tokens
+SLO hints
+KVFabric admission/scheduler hints
+```
+
+## Final 12h Matrix
+
+The final 12h matrix uses one KVFabric codebase and one unified controller. Stage-local presets change the emphasis of Admission, Eviction, Schedule, and SLO protect.
+
+| Stage | Simulated scenario | Main checks |
+| --- | --- | --- |
+| High pressure throughput | Stable shared prefixes under capacity pressure | SLO goodput, prefix-hit tokens, rebuilt-from-eviction, segment throughput |
+| Enterprise mixed traffic | Multi-tenant foreground queries, background jobs, cold RAG, session reuse | class latency, foreground protection, admission behavior |
+| Multi-turn long dialogue | Long sessions with growing shared trunks and branch turns | family-protect, scheduler affinity, lifecycle family signals |
+| Low-reuse guard | Low-frequency, decode-heavy, cold or low-reuse traffic | overhead, tail latency, non-regression |
+
+## Remote Tooling
+
 - `scripts/deploy_remote_27b_long_benchmark.sh`
-  syncs the overlay, configs, load generators, and long-benchmark scripts to the
-  remote server.
+  Historical deployment script name. It syncs overlay, configs, load generators, and benchmark scripts to the remote host. It is still useful for the shared remote workflow.
+
 - `scripts/status_remote_27b_benchmark.sh`
-  checks remote process, GPU, job log, rolling metrics, and per-policy status.
+  Checks remote process, GPU status, job logs, rolling metrics, and per-policy run state.
+
 - `scripts/sync_remote_27b_benchmark_results.sh`
-  pulls summary, sampled outputs, Prometheus samples, and lifecycle metrics.
+  Pulls summaries, sampled outputs, Prometheus samples, lifecycle metrics, and selected artifacts.
+
 - `scripts/run_remote_27b_dashboard.sh`
-  starts the Streamlit dashboard on the remote server. Use
-  `ssh -L 8501:127.0.0.1:8501 robowalker` and open
-  `http://127.0.0.1:8501` locally. It installs
-  `dashboard/requirements.txt` into the remote benchmark venv by default. If the
-  remote host cannot install Python packages, it falls back to a dependency-free
-  HTML dashboard backed by `run_kvfabric_dashboard_static.py`.
-- `scripts/start_remote_27b_sticky_with_dashboard.sh`
-  starts the Sticky 4h benchmark and then opens the dashboard for the new run.
-- `scripts/start_remote_27b_4h_suite_with_dashboard.sh`
-  starts the three 4h experiments in sequence with `KVFABRIC_4H_SUITE_SKIP_EXISTING=0`
-  by default and opens a dashboard that follows the newest run directory.
+  Starts the Streamlit dashboard on the remote server. Use `ssh -L 8501:127.0.0.1:8501 robowalker` and open `http://127.0.0.1:8501` locally. If dependencies cannot be installed, the script falls back to a static HTML dashboard.
+
 - `scripts/export_kv_cache_replay.sh`
-  renders a GIF from a policy's `kvfabric_lifecycle.jsonl` for report demos.
+  Renders a replay artifact from a policy's `kvfabric_lifecycle.jsonl` for debugging and report demos.
 
-Planned formal 12h experiments:
+Some remote scripts still contain `27b` in their names because they were introduced during the first remote long-pressure phase. Their current role is broader than the original name.
 
-```text
-qwen3_5_9b_12h_matrix
-saturation_throughput_12h
-enterprise_mixed_trace_12h
-sticky_conversation_trace_12h
-```
+## Historical 27B Entries
 
-Qwen3.5-9B matrix modules:
+These scripts are retained for reference and reruns:
 
-```text
-capacity_sweep_6m
-daily_dedicated_reuse_40m
-saturation_medium_60m
-sticky_burst_45m
-enterprise_normal_25m
-low_reuse_low_frequency_20m
-```
+- `scripts/run_remote_27b_enterprise_mixed_trace_12h_benchmark.sh`
+- `scripts/run_remote_27b_saturation_throughput_12h_benchmark.sh`
+- `scripts/run_remote_27b_sticky_conversation_trace_12h_benchmark.sh`
+- `scripts/run_remote_27b_saturation_throughput_4h_benchmark.sh`
+- `scripts/run_remote_27b_enterprise_mixed_trace_4h_benchmark.sh`
+- `scripts/run_remote_27b_sticky_conversation_trace_4h_benchmark.sh`
+- `scripts/run_remote_27b_4h_benchmark_suite.sh`
+- `scripts/start_remote_27b_sticky_with_dashboard.sh`
+- `scripts/start_remote_27b_4h_suite_with_dashboard.sh`
 
-Short 4h mirrors:
+## Artifacts
 
-```text
-saturation_throughput_4h
-enterprise_mixed_trace_4h
-sticky_conversation_trace_4h
-```
+Formal runs should keep:
 
-`saturation_throughput_12h` writes `segment_metrics.json` in addition to the
-normal per-policy metrics so low-pressure guard, high-pressure main, and red
-burst can be scored separately.
+- run config and environment;
+- trace file or trace generation parameters;
+- loadgen output;
+- server log;
+- lifecycle summary;
+- Prometheus or sampled metrics;
+- SLO goodput summary;
+- run state and heartbeat;
+- selected dashboard/replay screenshots when used in reports.
 
-Raw `kvfabric_lifecycle.jsonl` streams are intentionally not included by
-default. Set `INCLUDE_RAW_JSONL=1` only when a specific run needs full event
-replay.
+Raw `kvfabric_lifecycle.jsonl` streams can be large. Set `INCLUDE_RAW_JSONL=1` only when full event replay is needed.

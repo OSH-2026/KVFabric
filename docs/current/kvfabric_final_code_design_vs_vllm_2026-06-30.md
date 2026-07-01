@@ -464,4 +464,4 @@ metrics/loggers.py
 
 可以这样表述：
 
-> KVFabric 把 vLLM 中原本作为缓存页使用的 KV block 提升为可观测、可解释、可调度的生命周期资源。它不改变 vLLM PagedAttention 数据面，而是在 BlockPool、KVCacheManager、Scheduler、OpenAI serving 和 metrics 路径上加入轻量 overlay：记录 block 生命周期和 prefix family，识别错误驱逐后的重建，用 hint-aware admission 减少冷长尾污染，在需要时用 shared-aware/family-protect 保护共享主干，并用 scheduler affinity 保护可复用或前台交互请求。相对 vLLM 的 LRU prefix cache，KVFabric 的优势不是“所有请求都更快”，而是在有稳定共享前缀和容量竞争的场景中提高 KV cache 使用质量，在 SLO 边界上提升 goodput，并在普通/低复用场景保持低干预。
+> KVFabric 把 vLLM 中原本作为缓存页使用的 KV block 提升为可观测、可解释、可调度的生命周期资源。它不改变 vLLM PagedAttention 数据面，而是在 BlockPool、KVCacheManager、Scheduler、OpenAI serving 和 metrics 路径上加入轻量 overlay：记录 block 生命周期和 prefix family，识别错误驱逐后的重建，用 hint-aware admission 减少冷长尾污染，在需要时用 shared-aware/family-protect 保护共享主干，并用 scheduler affinity 保护可复用或前台交互请求。相对 vLLM 的 LRU prefix cache，KVFabric 的优势集中在有稳定共享前缀和容量竞争的场景中：提高 KV cache 使用质量，在 SLO 边界上提升 goodput，并在普通/低复用场景保持低干预。

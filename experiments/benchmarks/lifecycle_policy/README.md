@@ -33,4 +33,4 @@ bash experiments/benchmarks/lifecycle_policy/scripts/run_minimal_closed_loop.sh
 
 ## 注
 
-该基准不宣称真实 GPU 性能提升。它证明当前项目已经实现闭环：负载生成器、生命周期元数据、共享感知驱逐、与 LRU 的对比。
+该基准用于解释策略行为和指标口径，不用于宣称真实 GPU 性能提升。它证明当前项目已经实现闭环：负载生成器、生命周期元数据、共享感知驱逐、与 LRU 的对比。

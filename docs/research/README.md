@@ -32,9 +32,9 @@ docs/research/
 
 ## Current Focus
 
-当前调研部分已经完成从“方向探索”到“问题收敛”的过渡。接下来研究工作的重点不再是提前写自研框架代码，而是：
+当前调研部分已经完成“方向探索”和“问题收敛”的任务，后续主要作为前期依据保留。项目主线已经进入 vLLM overlay、远程 9B 实验和最终报告整理阶段：
 
-- 本地部署并验证官方 `vLLM`
-- 读清其 scheduler、prefix cache 与 KV Cache 管理路径
-- 如果进入源码原型，优先在 `vLLM` Python 控制面验证生命周期元数据、共享感知驱逐和观测指标
-- 为后续以 `C++` 为核心实现语言的自研系统冻结模块边界
+- baseline、scheduler、prefix cache 与 KV Cache 管理路径的阅读结论沉淀在 `docs/baseline/`、`docs/architecture/` 和 `vllm_workspace/`。
+- 6 月中下旬的实现迭代和实验复盘集中在 `docs/current/` 和 `logs/`。
+- 远程 Qwen3.5-9B 长周期实验、dashboard、summary 和 replay 工具集中在 `experiments/long_pressure_benchmark/`。
+- 本目录保留早期选型、平台比较和问题定义材料，不再作为当前进度跟踪入口。

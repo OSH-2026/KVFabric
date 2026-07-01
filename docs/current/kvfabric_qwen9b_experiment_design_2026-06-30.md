@@ -44,7 +44,7 @@
 
 ## 2. 请求是怎么发送到 vLLM 的
 
-9B 实验不是离线模拟，而是通过 vLLM 的 OpenAI-compatible server 真实发送请求。
+9B 实验通过 vLLM 的 OpenAI-compatible server 真实发送请求，离线脚本只负责生成 trace、payload 和后处理 summary。
 
 ### 2.1 请求接口
 
@@ -154,7 +154,7 @@ vLLM serving 层读取这些 headers 后，写入 `RequestMeta`，后续 admissi
 3. 工作流或 family 提示词：同一 family 的请求共享，例如同一 RAG 文档、同一代码仓库说明、同一客服流程。
 4. 会话历史：同一 session 的多轮对话共享前面 turn 的 messages。
 
-KVFabric 要保护的不是随机 token，而是这些在真实服务中会反复出现的前缀主干。
+KVFabric 的保护对象是这些在真实服务中会反复出现的前缀主干。
 
 ### 3.2 duration workload 的请求类型
 
@@ -231,7 +231,7 @@ trace 里的 session 请求会随着时间继续增长历史：
 
 结论口径：
 
-- 该实验不是最终主结果，而是帮助确定 medium capacity 作为主实验默认值。
+- 该实验用于帮助确定 medium capacity 作为主实验默认值，不作为最终主结果。
 
 ### 4.2 `qwen3_5_9b_quick_daily_8m.json`
 
@@ -459,7 +459,7 @@ admission 侧观察：
 - saved blocks 68,475。
 - 限制主要集中在 `cold_rag_burst` 和 `cold_rag_unique`。
 
-这说明 KVFabric 不是简单地少缓存所有请求，而是主要限制低复用冷流量，把容量留给 durable hot family 和 sticky session。
+这说明 KVFabric 主要限制低复用冷流量，把容量留给 durable hot family 和 sticky session。
 
 ## 7. rebuilt pressure 实验
 
@@ -772,7 +772,7 @@ KVFabric latency profile 适合前台交互和后台任务混部的服务场景�
 验证目标：
 
 - 证明 KVFabric 在更普通、更分散的企业混合流量下不会为了保护共享前缀而引入明显负担。
-- 这个实验的预期不是打出最大收益，而是验证策略边界和工程稳健性。
+- 这个实验用于验证策略边界和工程稳健性，收益规模不是主要目标。
 
 截至本文记录，最终本地 summary 以前两个 stage 为主，enterprise tail 结果需要以最终同步目录为准。
 

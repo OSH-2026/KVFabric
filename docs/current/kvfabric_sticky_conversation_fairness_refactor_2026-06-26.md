@@ -52,8 +52,8 @@ The earlier scheduler behavior had two incomplete parts:
 
 That creates an unfair high-pressure trace. The benchmark then measures a mix of
 real KV-cache improvement and avoidable queue starvation. For a server workload,
-low-reuse traffic should not dominate the cache, but it still needs bounded
-service time. Enterprise users send one-off RAG questions, exports, summaries,
+low-reuse traffic still needs bounded service time even when it should not
+dominate the cache. Enterprise users send one-off RAG questions, exports, summaries,
 and decode-heavy jobs alongside sticky sessions. Dropping or timing them out is
 not an acceptable way to show throughput improvement.
 
@@ -167,8 +167,8 @@ The new 4h rerun should be judged by four checks:
 3. Scheduler evidence: promotions should remain concentrated in sticky reusable
    classes, and defer-skip events should appear mostly for `cold_rag_noise` or
    `decode_heavy_noise`.
-4. Performance: latency should stay below LRU for sticky classes. Throughput may
-   not jump dramatically in a fixed open-loop trace, but total tok/s and goodput
+4. Performance: latency should stay below LRU for sticky classes. A fixed
+   open-loop trace may show modest throughput movement, while total tok/s and goodput
    should not regress materially. If errors disappear while rebuilt blocks stay
    low, the architecture is behaving more like a real service.
 

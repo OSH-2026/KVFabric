@@ -14,7 +14,7 @@ KVFabric 关注的是 LLM serving 中 KVCache 的资源管理问题。vLLM 已�
 - 如果驱逐后很快重建，如何记录这次策略后悔；
 - 策略是否真的改善 prefix-hit tokens、rebuilt-from-eviction、TTFT 或 requests/s。
 
-因此，KVFabric 当前不是替换 vLLM，也不是重写推理执行路径，而是在 vLLM 控制面中实现一层轻量的 lifecycle manager。
+因此，KVFabric 当前选择在 vLLM 控制面中实现一层轻量的 lifecycle manager，保留 vLLM 的推理执行路径和底层 block 语义。
 
 ## 当前架构
 
@@ -121,7 +121,7 @@ protected block 的判定依据包括：
 
 ### 6. Admission Control
 
-KVFabric 还加入了 request-aware / length-aware admission control。它的作用不是直接提高 prefix hit，而是在低 free ratio 时减少冷长尾请求对 prefix cache 的污染。
+KVFabric 还加入了 request-aware / length-aware admission control。它在低 free ratio 时减少冷长尾请求对 prefix cache 的污染，为稳定复用请求保留缓存空间。
 
 典型参数：
 

@@ -2,7 +2,7 @@
 
 `vllm_baseline/` 是 KVFabric 仓库里的可运行基线工作区。它负责把 `vLLM` 的本地 bring-up 流程整理成一套可以复用、可以共享、也方便后续扩展的脚本和说明。
 
-这个目录覆盖的内容很明确：
+这个目录覆盖的是官方 vLLM baseline 的运行流程：
 
 - 环境配置
 - 模型下载
@@ -12,7 +12,7 @@
 
 默认情况下，它会复用仓库根目录下的 `.venv` 和 `.cache`，避免重复安装与重复下载。
 
-注意：这个目录只维护官方 `vLLM` 的基线运行流程，不直接承载 `vLLM` 源码 patch。若后续开始功能原型，当前建议先在 `vLLM` 的 Python 控制面修改 scheduler、KV cache manager、block pool 和元数据/指标路径；C++/CUDA kernel 不作为第一阶段默认修改目标。
+注意：这个目录只维护官方 `vLLM` 的基线运行流程，不直接承载 `vLLM` 源码 patch。KVFabric 的源码改动维护在 `vllm_workspace/overlay/`，远程长周期实验入口维护在 `experiments/long_pressure_benchmark/`。
 
 ## 目录结构
 
@@ -26,6 +26,7 @@ vllm_baseline/
 │  └─ openai_client_smoke.py
 ├─ profiles/
 │  ├─ qwen3_5_2b.env
+│  ├─ qwen3_5_9b.env
 │  └─ qwen3_5_27b.env
 └─ scripts/
    ├─ collect_env.sh
@@ -38,7 +39,7 @@ vllm_baseline/
    └─ verify_server.sh
 ```
 
-## 已验证环境
+## 已验证环境与用途
 
 以下环境已经在本机实际验证通过：
 
@@ -71,7 +72,7 @@ vllm_baseline/
 
 换句话说，仓库里应该保留的是脚本、profile 和文档，而不是本地机器专属的运行结果。
 
-## 两个模型预设
+## 模型预设
 
 ### 1. 默认验证模型
 
@@ -81,17 +82,28 @@ vllm_baseline/
 - 运行方式：text-only，脚本会启用 `--language-model-only`
 - 结论：已在本机跑通 offline + online
 
-### 2. 可选大模型
+### 2. 远程主实验模型
+
+- 预设名：`qwen3_5_9b`
+- 官方模型：`Qwen/Qwen3.5-9B`
+- 用途：2 x RTX 3090 远程服务器上的主实验模型
+- 备注：
+  - 6 月下旬后，最终 12h 长测矩阵以该模型为主。
+  - 远程实验入口位于 `experiments/long_pressure_benchmark/`。
+  - 相比 27B，它更适合在双 3090 上进行多轮重复实验、SLO 校准和完整矩阵验收。
+
+### 3. 高压力探索模型
 
 - 预设名：`qwen3_5_27b`
 - 官方模型：`Qwen/Qwen3.5-27B-FP8`
-- 用途：RTX 3090 服务器上的主实验模型
+- 用途：RTX 3090 服务器上的早期大模型探索和高显存压力对照
 - 备注：
   - profile 名称统一写作 `qwen3_5_27b`
   - 实际模型 ID 是 `Qwen/Qwen3.5-27B-FP8`
   - 选择 FP8 权重是为了在 2x24 GiB RTX 3090 上保留 KV cache 空间
   - 启动时使用 `--tensor-parallel-size 2`、`--quantization fp8` 和 `--language-model-only`
   - 这个预设不适合当前这张 `8 GiB` 显存的 GPU，请只在 3090 服务器或同级资源上使用
+  - 由于运行成本较高，最终验收主线已转为 Qwen3.5-9B
 
 ## 默认路径约定
 

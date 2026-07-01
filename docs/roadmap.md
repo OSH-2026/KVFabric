@@ -1,10 +1,10 @@
 # Roadmap
 
-本文档记录 KVFabric 从选题、baseline、源码探针到策略原型验证的实际推进路线。当前项目主线是基于 vLLM Python 控制面的 KVCache 生命周期管理原型，而不是独立 runtime 或底层 kernel 改造。
+本文档记录 KVFabric 从选题、baseline、源码探针到远程长周期实验的实际推进路线。当前项目主线是基于 vLLM 0.22.1 Python 控制面的 KVCache 生命周期管理原型。
 
 ## 时间范围
 
-当前阶段覆盖 **2026-03-09** 到 **2026-06-08**。前半段用于方向收敛、vLLM baseline 和评测工具链搭建；后半段进入 vLLM 控制面探针、生命周期封装、共享感知策略和长对话/模板化 workload 验证。
+当前阶段覆盖 **2026-03-09** 到 **2026-07-01**。前半段用于方向收敛、vLLM baseline 和评测工具链搭建；中段完成生命周期探针、共享感知策略和长对话 workload；后半段完成远程 9B 长周期实验、调试工具、实时可视化和最终 12h 矩阵。
 
 ## Milestones
 
@@ -27,7 +27,7 @@
 - 时间：`2026-03-23` - `2026-03-30`
 - 内容：
   - 明确以 KVCache 生命周期管理、共享复用和驱逐策略为主要问题。
-  - 将项目定位从单点性能优化调整为 LLM serving 中的 KVCache 资源管理。
+  - 将项目定位为 LLM serving 中的 KVCache 资源管理。
 
 ### M3: 环境准备与早期验证
 
@@ -80,14 +80,52 @@
   - 完成长时间对话压测程序设计与实现。
   - 初步加入并验证 `shared_aware`、`family_protect`、admission control 等策略。
   - 构造普通无共享、模板 family 回访、多周期回访、cache pressure 等 workload。
-  - 通过 A/B 对比验证：普通无共享场景低开销退化；模板化和相似多轮场景中，KVFabric 能减少共享主干误驱逐，提高 prefix-hit tokens，并带来小幅请求级收益。
+  - 通过 A/B 对比验证普通无共享场景的低开销、模板化和相似多轮场景中的共享主干保护，以及 prefix-hit tokens 的改善。
   - 整理阶段文档、日志、报告和复跑交接说明。
+
+### M9: 远程大规模实验准备
+
+- 时间：`2026-06-15`
+- 内容：
+  - 讨论大规模实验和实验平台。
+  - 确定在 2 x RTX 3090 服务器上开展远程实验，由周家润主要进行部署、运行和结果同步。
+  - 使用 Qwen3.5-9B 作为主要长测模型，保留 Qwen3.5-27B 的探索和对照价值。
+  - 计划重跑早期 A/B 和长对话实验，为后续策略迭代提供 baseline。
+
+### M10: 指标、请求模型与工具链迭代
+
+- 时间：`2026-06-15` - `2026-06-22`
+- 内容：
+  - 设计更合理的评测指标，包括 e2e latency、class latency、segment throughput、SLO goodput、rebuilt-from-eviction 和 lifecycle summary。
+  - 用 tenant、family、session、turn、phase 和 request class 构造更接近真实服务的 trace。
+  - 使用 `scheduled_at_seconds` 实现 open-loop replay，降低 A/B 实验中的 workload drift。
+  - 完成远程 runner、结果同步、summary、duration loadgen、trace loadgen 和调试脚本。
+  - 周家润在服务器上持续运行实验，根据结果推动代码迭代。
+
+### M11: 批量实验、dashboard 与最终 12h 矩阵
+
+- 时间：`2026-06-22` - `2026-06-29`
+- 内容：
+  - 进行批量远程实验并取得可解释的结果。
+  - 修正 admission 进入位置、block hash 一致性、header whitelist、scheduler promotion 和 latency guard 等问题。
+  - 实现 run state、heartbeat、rolling class metrics、实时 dashboard 和 lifecycle replay。
+  - 设计最终完整 12h 实验矩阵，覆盖高压吞吐、企业混合流量、多轮长对话和低复用保护。
+  - 将 Admission、Eviction、Schedule 和 SLO protect 收敛为统一 controller 参数。
+
+### M12: 期末汇报材料整理
+
+- 时间：`2026-06-30` - `2026-07-01`
+- 内容：
+  - 讨论期末汇报内容和分工。
+  - 整理当前代码设计、相对 vLLM 的改进、接手后的迭代过程、调试工具、9B 实验设计和主要结果。
+  - 将 12h 实验结果、summary、dashboard 截图和 lifecycle replay 素材整理为可汇报材料。
+  - 更新 README、日志和 current docs，使项目入口文档与最终状态一致。
 
 ## 当前收尾重点
 
-当前阶段的重点不是继续扩大功能边界，而是把已有原型和实验结果整理成可信交付：
+当前阶段重点是保证代码、实验和文档之间能够相互追溯：
 
-- 更新 README、overlay README、prebenchmark README 和 current docs，使其与实际实现一致。
-- 补齐 `2026-05-31` 和 `2026-06-07` 两次小组讨论与实现日志。
-- 复跑并保留少量代表性 A/B 结果。
-- 明确当前尚未实现的内容：非严格 chunk 级共享、真实 CoW、显式 prefix-family tree、scheduler 改调度等均作为后续工作。
+- README、overlay README、experiment README 和 current docs 需要反映 9B 主矩阵和远程工具链的真实状态。
+- 长测结果需要保留 run config、trace、run state、heartbeat、summary 和关键日志。
+- 报告结论需要能追溯到具体实验、统计口径和代码路径。
+- 未完成内容应清楚标注：token 级 trie、真实 CoW、跨请求物理 block 去重和更深层 scheduler 改造仍属于后续工作。

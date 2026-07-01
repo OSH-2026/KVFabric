@@ -1,6 +1,6 @@
 # Prebenchmark Validation
 
-本目录承接 KVFabric 当前阶段的真实 vLLM serving 验证。它不再只是 baseline 后的 prefix caching smoke test，也承担 KVFabric lifecycle prototype 的小到中等规模 A/B 验收。
+本目录承接 KVFabric 的真实 vLLM serving 短验证。它保留 baseline 后的 prefix caching smoke test，也承担 KVFabric lifecycle prototype 的本地小规模 A/B 验收。远程 9B 长周期实验已经迁移到 `experiments/long_pressure_benchmark/`。
 
 当前职责：
 
@@ -9,7 +9,7 @@
 - 收集 lifecycle JSONL 事件；
 - 汇总 Prometheus metrics；
 - 比较 vLLM LRU 路径与 KVFabric `family_protect` / `shared_aware` 策略；
-- 为最终报告提供少量可复现代表性结果。
+- 为最终报告提供少量可复现代表性结果和本地回归入口。
 
 ## 目录结构
 

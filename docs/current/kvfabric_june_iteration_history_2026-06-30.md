@@ -147,7 +147,7 @@ KVFabric 已经有控制面策略，但缺少围绕远程实验的运行基础�
 
 ### 根因分析
 
-KVFabric 的目标场景不是任意请求，而是存在稳定 prefix reuse 的真实 serving 场景，例如企业 RAG、agent loop、多轮对话、长文档 follow-up、租户工作流。workload 需要显式模拟这些结构，否则无法证明策略适用边界。
+KVFabric 的目标场景是存在稳定 prefix reuse 的真实 serving 场景，例如企业 RAG、agent loop、多轮对话、长文档 follow-up、租户工作流。workload 需要显式模拟这些结构，否则无法证明策略适用边界。
 
 ### 代码与架构修改
 
@@ -667,7 +667,7 @@ Scheduler scoring：
 - 6 个前台 foreground classes 的 e2e p95 均改善 30% 以上；
 - background classes 出现明确退化。
 
-因此最终口径不是“所有请求都更快”，而是 foreground-priority latency protection。
+因此最终口径收敛为 foreground-priority latency protection，并明确收益集中在有复用和 SLO 压力的请求类别上。
 
 汇报口径：
 
@@ -690,7 +690,7 @@ latency tuned8 暴露了 trace generator 的一个隐藏问题：
 
 trace generator 的权重语义会受到 session reuse 的二次放大。要稳定构造后台流量，不能只靠 class weights，而应独立注入 background 请求。
 
-此外，guard 场景的作用不是追求最大收益，而是说明策略不会只在定制场景中成立。
+此外，guard 场景用于说明策略边界和非回归风险，收益规模本身不是该场景的核心目标。
 
 ### 代码与架构修改
 
@@ -738,7 +738,7 @@ Final matrix：
 - prefill throughput：selected SLO goodput +97.80%，rebuilt -85.37%。
 - interactive latency：overall e2e p95 改善 19.11%，6 个 foreground classes 均改善 30% 以上。
 - enterprise normal：goodput +17.37%，e2e p95 改善 64.33%，但 lifecycle 证据显示主要来自 admission 降低 churn/backlog，而不是纯 prefix reuse。
-- low reuse：prefix hit 和 rebuilt 均为 0，但 admission saved blocks、evictions 下降，说明不是 prefix reuse win，而是低价值 cache admission 控制。
+- low reuse：prefix hit 和 rebuilt 均为 0，但 admission saved blocks、evictions 下降，说明收益来自低价值 cache admission 控制。
 
 汇报口径：
 

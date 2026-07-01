@@ -49,6 +49,69 @@ V10: 普通场景无害 + 模板/多轮收益验证
 
 对应日志见 [logs/2026-06-07.md](../../logs/2026-06-07.md)。
 
+### 2026-06-15：远程大规模实验准备
+
+这一天对应项目从本地短验证进入远程长周期实验的节点。阶段产出包括：
+
+- 确定在 2 x RTX 3090 服务器上开展实验，由周家润主要负责远程部署、运行和结果同步；
+- 选择 Qwen3.5-9B 作为后续主实验模型，同时保留 Qwen3.5-27B 的探索和对比价值；
+- 计划重跑早期 A/B、长对话和压力实验，方便后续代码迭代对照；
+- 开始把 deploy、runner、sync、summary 和 run root 归档串成远程实验闭环。
+
+该节点可概括为：
+
+```text
+本地策略验证 -> 远程 9B/27B 长周期实验准备
+```
+
+对应日志见 [logs/2026-06-15.md](../../logs/2026-06-15.md)。
+
+### 2026-06-22：指标、请求模型与调试工具成型
+
+6 月 15 日至 6 月 22 日，项目围绕远程实验暴露的问题补齐指标和工具链。阶段产出包括：
+
+- 将 workload 从人工 hot/cold prompt 扩展为 tenant、family、session、turn、phase 和 request class 组成的 trace；
+- 使用 `scheduled_at_seconds` 做 open-loop replay，降低 A/B 对比中的 workload drift；
+- 增加 e2e、class、segment、SLO goodput、rebuilt-from-eviction 和 lifecycle summary；
+- 完成远程 runner、结果同步、duration loadgen、trace loadgen 和 summary 工具。
+
+该节点可概括为：
+
+```text
+远程能跑 -> 远程实验可解释、可复现
+```
+
+对应日志见 [logs/2026-06-22.md](../../logs/2026-06-22.md)。
+
+### 2026-06-29：批量实验、dashboard 与最终 12h 矩阵
+
+6 月 22 日至 6 月 29 日，周家润在远程服务器上进行了批量实验，并根据结果推动代码迭代。阶段产出包括：
+
+- 重构 admission 进入位置，减少 cold / burst 请求进入 cache 后立即驱逐造成的 churn；
+- 在 scheduler 中引入 hit-aware promotion、age guard、defer cap 和 latency-protected class；
+- 修复 SLO、session、turn、request class 和 hint 的 header plumbing；
+- 增加 run state、heartbeat、rolling class metrics、dashboard 和 lifecycle replay；
+- 设计最终 12h 实验矩阵，覆盖高压吞吐、企业混合流量、多轮长对话和低复用保护。
+
+该节点可概括为：
+
+```text
+中等规模调参 -> 可验收的 12h 长测矩阵
+```
+
+对应日志见 [logs/2026-06-29.md](../../logs/2026-06-29.md)。
+
+### 2026-06-30 至 2026-07-01：期末汇报材料整理
+
+这一阶段把代码设计、实验过程和结果整理为汇报材料。阶段产出包括：
+
+- 梳理当前代码设计与相对 vLLM 的改进；
+- 按远程实验暴露的问题整理接手后的主要迭代；
+- 说明 Qwen3.5-9B 实验中的请求组成、发送方式、指标口径和验证目标；
+- 从最终 12h 矩阵中挑选可解释、可复查的结果展示。
+
+对应日志见 [logs/2026-06-30_2026-07-01.md](../../logs/2026-06-30_2026-07-01.md)。
+
 ## 0. 背景和目标
 
 老师的核心意见是：KVFabric 不应只被表述为“改 vLLM 的 KV cache 策略”，而应被抽象成面向模型原生 OS 的 inference memory manager。当前交付重点是在 vLLM Python 控制面完成最小闭环，保持底层执行路径稳定：
@@ -571,7 +634,7 @@ shared_anchor_eviction_ratio: 0.008282 -> 0
 prefix_hit_tokens: 5440 -> 5984
 ```
 
-但端到端吞吐仍是负优化。原因不是策略方向错，而是实现成本太高：为了保护极少数热 block，Python 层反复对候选窗口做 retain-score 排序和候选日志展开。
+但端到端吞吐仍是负优化。复盘后主要原因是实现成本太高：为了保护极少数热 block，Python 层反复对候选窗口做 retain-score 排序和候选日志展开。
 
 ### 改动
 
@@ -913,7 +976,7 @@ python experiments/prebenchmark_validation/examples/compare_kvfabric_ablation.py
 
 ## 20. 阶段成果与解释
 
-KVFabric 的目标不是优化所有 workload 的 raw throughput，而是优化 KV cache 作为 OS-style resource 的生命周期管理质量。
+KVFabric 的目标是优化 KV cache 作为 OS-style resource 的生命周期管理质量，并在适合的 workload 中把这种管理质量转化为 SLO goodput 或请求级延迟收益。
 
 在普通无共享请求中，KVFabric 不触发保护路径，requests/s 仅 -0.30%，基本退化为低开销路径。
 

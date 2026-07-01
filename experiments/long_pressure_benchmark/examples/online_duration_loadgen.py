@@ -22,6 +22,10 @@ except ImportError as exc:  # pragma: no cover
 from online_batch import expand_requests, percentile
 
 
+HINT_NOISE_RATE = 0.25
+HINT_NOISE_SEED = 20260701
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a duration-based async online vLLM load generator."
@@ -740,7 +744,49 @@ def _derive_reuse_and_priority(request_class: str, burst: bool) -> tuple[str, st
     return "unknown", "normal"
 
 
-def build_kvfabric_headers(meta: dict[str, Any]) -> dict[str, str]:
+def hint_kind(
+    request_class: str,
+    expected_reuse: str,
+    cache_priority: str,
+) -> str:
+    normalized = request_class.lower().replace("-", "_")
+    expected_reuse = expected_reuse.lower().replace("-", "_")
+    cache_priority = cache_priority.lower().replace("-", "_")
+    if expected_reuse == "durable" or cache_priority == "high":
+        return "durable"
+    if expected_reuse == "none" or cache_priority in {"low", "bypass"}:
+        return "low_reuse"
+    if "hot" in normalized or "workflow" in normalized:
+        return "durable"
+    if any(token in normalized for token in ("cold", "unique", "noise", "background")):
+        return "low_reuse"
+    if expected_reuse == "transient" or "transient" in normalized:
+        return "transient"
+    return "unknown"
+
+
+def confuse_hint(
+    request_class: str,
+    expected_reuse: str,
+    cache_priority: str,
+    rng: random.Random,
+) -> tuple[str, str, str, str]:
+    kind = hint_kind(request_class, expected_reuse, cache_priority)
+    if kind == "durable":
+        return "cold_rag_unique", "none", "low", "durable_as_low_reuse"
+    if kind == "low_reuse":
+        return "durable_hot_family", "durable", "high", "low_reuse_as_durable"
+    if kind == "transient":
+        return "durable_hot_family", "durable", "high", "transient_as_durable"
+    if rng.random() < 0.5:
+        return "cold_rag_unique", "none", "low", "unknown_as_low_reuse"
+    return "durable_hot_family", "durable", "high", "unknown_as_durable"
+
+
+def build_kvfabric_headers(
+    meta: dict[str, Any],
+    rng: random.Random | None = None,
+) -> dict[str, str]:
     request_class = _meta_value(meta, "class", "request_class") or "unclassified"
     burst = bool(meta.get("burst", False)) or "burst" in request_class
     expected_reuse, cache_priority = _derive_reuse_and_priority(
@@ -750,20 +796,28 @@ def build_kvfabric_headers(meta: dict[str, Any]) -> dict[str, str]:
 
     headers = {
         "x-kvfabric-request-class": request_class,
-        "x-kvfabric-cache-priority": _meta_value(
-            meta,
-            "cache_priority",
-            "priority",
-        )
-        or cache_priority,
-        "x-kvfabric-expected-reuse": _meta_value(
-            meta,
-            "expected_reuse",
-            "reuse",
-        )
-        or expected_reuse,
+        "x-kvfabric-cache-priority": (
+            _meta_value(meta, "cache_priority", "priority") or cache_priority
+        ),
+        "x-kvfabric-expected-reuse": (
+            _meta_value(meta, "expected_reuse", "reuse") or expected_reuse
+        ),
         "x-kvfabric-burst": "true" if burst else "false",
     }
+    expected_reuse = headers["x-kvfabric-expected-reuse"]
+    cache_priority = headers["x-kvfabric-cache-priority"]
+    hint_noise_reason = "none"
+    if rng is not None and rng.random() < HINT_NOISE_RATE:
+        request_class, expected_reuse, cache_priority, hint_noise_reason = (
+            confuse_hint(request_class, expected_reuse, cache_priority, rng)
+        )
+        headers["x-kvfabric-request-class"] = request_class
+        headers["x-kvfabric-expected-reuse"] = expected_reuse
+        headers["x-kvfabric-cache-priority"] = cache_priority
+    headers["x-kvfabric-hint-noise"] = (
+        "true" if hint_noise_reason != "none" else "false"
+    )
+    headers["x-kvfabric-hint-noise-reason"] = hint_noise_reason
     tenant = _meta_value(meta, "tenant_id", "tenant")
     family = _meta_value(meta, "family_id", "family")
     segment = _meta_value(meta, "segment")
@@ -879,7 +933,10 @@ async def worker(
         if request_slo_seconds > 0 and "slo_ms" not in request_meta:
             request_meta["slo_ms"] = int(request_slo_seconds * 1000)
         headers = (
-            build_kvfabric_headers(request_meta)
+            build_kvfabric_headers(
+                request_meta,
+                random.Random(HINT_NOISE_SEED + request_no * 1009),
+            )
             if kvfabric_headers_enabled
             else None
         )
@@ -1092,6 +1149,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "max_requests": args.max_requests,
                 "request_selection": request_selection,
                 "random_seed": random_seed,
+                "hint_noise_rate": HINT_NOISE_RATE,
                 "payload_classes": summarize_payload_classes(payloads),
                 "kvfabric_headers_enabled": kvfabric_headers_enabled,
                 "kvfabric_header_summary": summarize_kvfabric_headers(payloads)
@@ -1183,6 +1241,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "latency_p99_seconds": percentile(latencies, 0.99),
             "request_selection": request_selection,
             "random_seed": random_seed,
+            "hint_noise_rate": HINT_NOISE_RATE,
             "class_metrics": stats.final_class_metrics(total_seconds),
             "segment_metrics": stats.final_segment_metrics(
                 segment_elapsed_map(segments, total_seconds)
@@ -1233,6 +1292,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Request selection: {metrics['request_selection']}",
                 f"- Random seed: {metrics['random_seed']}",
                 f"- KVFabric headers: {kvfabric_headers_enabled}",
+                f"- Hint noise rate: {HINT_NOISE_RATE:.2f}",
                 f"- Requests/s: {metrics['requests_per_second']:.3f}",
                 f"- Prompt tokens/s: {metrics['prompt_tokens_per_second']:.2f}",
                 f"- Completion tokens/s: {metrics['completion_tokens_per_second']:.2f}",
@@ -1271,8 +1331,11 @@ def summarize_kvfabric_headers(payloads: list[dict[str, Any]]) -> dict[str, Any]
     reuse_counts: dict[str, int] = defaultdict(int)
     with_family = 0
     with_tenant = 0
-    for item in payloads:
-        headers = build_kvfabric_headers(item.get("meta", {}))
+    for request_no, item in enumerate(payloads):
+        headers = build_kvfabric_headers(
+            item.get("meta", {}),
+            random.Random(HINT_NOISE_SEED + request_no * 1009),
+        )
         priority_counts[headers.get("x-kvfabric-cache-priority", "unknown")] += 1
         reuse_counts[headers.get("x-kvfabric-expected-reuse", "unknown")] += 1
         if "x-kvfabric-family-id" in headers:

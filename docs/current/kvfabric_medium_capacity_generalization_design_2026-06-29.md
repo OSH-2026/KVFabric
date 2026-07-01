@@ -111,7 +111,7 @@ RAGCache、CacheBlend、CacheGen 与 LMCache 说明业界趋势正在从单机 L
 
 ### 旧 27B 高压阶段 30%+ uplift 的真实来源
 
-之前 saturation 4h/12h 中出现的 35% 甚至 95% 阶段 uplift，主要不是 raw token/s 暴涨，而是 SLO goodput 的边界放大效应：
+之前 saturation 4h/12h 中出现的 35% 甚至 95% 阶段 uplift，主要来自 SLO goodput 的边界放大效应：
 
 - raw total tok/s 只小幅变化。4h saturation 中 shared_aware raw total tok/s 约 +1.70%，12h saturation 中约 +1.73%。
 - shared_aware 显著减少错误驱逐后的 rebuild。4h rebuilt-from-eviction 下降约 66.16%，12h 下降约 71.88%。
@@ -138,7 +138,7 @@ RAGCache、CacheBlend、CacheGen 与 LMCache 说明业界趋势正在从单机 L
 
 - full shared_aware 在旧 mixed saturation 上 goodput 明显低于 LRU，主要原因是 admission/scheduler 组合过强，让大量请求落到 35s SLO 外；raw total tok/s 只小幅下降，但 SLO goodput 被放大成失败。
 - eviction-only shared_aware 减少了极端 admission/scheduler 负面影响，但 high_main 仍显示 mixed saturation 对 9B 太苛刻，不适合作为主吞吐证明。
-- 这说明问题不是“shared-aware retain score 一定无效”，而是 9B 模型、hybrid KV 容量、负载并发和 SLO 边界都变了，必须重新校准 trace。
+- 这说明 9B 模型、hybrid KV 容量、负载并发和 SLO 边界都发生了变化，需要重新校准 trace。
 
 据此已做三项修正：
 
@@ -147,7 +147,7 @@ RAGCache、CacheBlend、CacheGen 与 LMCache 说明业界趋势正在从单机 L
 3. duration loadgen 增加 `slo_probe_seconds`，同一轮 run 同时报告 18/20/22/25/30/35s goodput，避免为了选 SLO 反复重跑。
 4. 新增 `qwen3_5_9b_saturation_reuse_proof_30m.json`，先用少用户/团队高复用高压场景校准 30%+ SLO goodput，再把普通 mixed saturation 放回可选 guard。
 
-当前 9B reuse-proof LRU 实测显示 high_main p50/p95 约 24/27s，red_burst p50/p95 约 32/34s；35s SLO 下 `goodput == total throughput`，无法产生 SLO goodput 分化。离线按 lifecycle 重算后，20s/22s 对 high_main 过苛刻，而 25s 下 high_main 约 22% miss、red_burst 约 92% miss，更接近“可恢复的高压 SLO 边界”。下一轮主 SLO 因此改为 25s，并保留 18/20/22/25/30/35s probe。这个 SLO 调整不是人为压低结果，而是按模型大小和硬件速度重新设定服务目标：9B 在 2 x 3090 上本来就应比 27B-FP8 有更紧的响应 SLO。
+当前 9B reuse-proof LRU 实测显示 high_main p50/p95 约 24/27s，red_burst p50/p95 约 32/34s；35s SLO 下 `goodput == total throughput`，无法产生 SLO goodput 分化。离线按 lifecycle 重算后，20s/22s 对 high_main 过苛刻，而 25s 下 high_main 约 22% miss、red_burst 约 92% miss，更接近“可恢复的高压 SLO 边界”。下一轮主 SLO 因此改为 25s，并保留 18/20/22/25/30/35s probe。这个 SLO 调整按模型大小和硬件速度重新设定服务目标：9B 在 2 x 3090 上本来就应比 27B-FP8 有更紧的响应 SLO。
 
 同一轮 partial shared_aware 显示 full scheduler 在 9B high_main 初期仍可能拖慢 p50/p95，因此下一轮 throughput proof 默认收敛 scheduler：
 
@@ -289,7 +289,7 @@ RAGCache、CacheBlend、CacheGen 与 LMCache 说明业界趋势正在从单机 L
 
 ### 少用户长会话是真实且重要的场景
 
-需要把“少数用户长期使用同一张卡或同一组卡”作为一等场景，而不是只做多租户高压网关。很多真实 AI 使用并不是上百个租户不断混合请求，而是：
+需要把“少数用户长期使用同一张卡或同一组卡”作为一等场景。很多真实 AI 使用来自少量长期活跃用户或固定团队，而不是上百个租户不断混合请求：
 
 - 一张卡或一组卡服务少数几个稳定用户。
 - 一个用户长期围绕同一项目、同一篇论文、同一个代码库、同一个知识库或同一组 agent 工具工作。
@@ -297,7 +297,7 @@ RAGCache、CacheBlend、CacheGen 与 LMCache 说明业界趋势正在从单机 L
 - 用户请求间隔可能是几十秒到数分钟，cache 有机会长时间驻留。
 - 偶尔插入新的文档、临时查询、decode-heavy 任务或另一个用户的请求，造成温和 churn。
 
-这种场景下，eligible hit rate 可能显著高于当前 saturation/sticky 压测结果。KVFabric 也更可能体现出价值：不是靠极端 cache 紧张制造收益，而是在温和 churn 下避免少数高价值长上下文被低复用请求挤掉。
+这种场景下，eligible hit rate 可能显著高于当前 saturation/sticky 压测结果。KVFabric 更可能在温和 churn 下避免少数高价值长上下文被低复用请求挤掉。
 
 需要注意事实边界：
 
@@ -495,7 +495,7 @@ ENABLE_PREFIX_CACHING=1
 
 ### C. capacity_sweep
 
-目标：证明收益不是过度迎合“极小 cache”，而是随容量变化合理衰减。
+目标：验证收益是否随容量变化合理衰减，排除只适配“极小 cache”的情况。
 
 建议三个容量点固定同一 workload，只改变 `VLLM_SERVE_GPU_MEMORY_UTILIZATION`：
 
@@ -768,7 +768,7 @@ or block is shallow shared prefix
 - 当 `send_delay_p95` 或 class SLO miss 上升时，降低 positive scan window。
 - 对带 `x-kvfabric-slo-ms` 的请求启用 SLO-aware guard：如果队首请求年龄超过 `SLO * ratio`，positive promotion 不能继续绕过它；如果非队首请求已经接近 SLO，可以进入 latency-protected lane。
 
-目标不是最大化 cache hit，而是在 cache hit 和用户可见延迟之间做有界权衡。
+目标是在 cache hit 和用户可见延迟之间做有界权衡。
 
 2026-06-29 已先落地轻量版 SLO-aware scheduler guard：
 
@@ -818,7 +818,7 @@ or block is shallow shared prefix
 
 ### 原则
 
-现在只有 3-4 天做反复试错，因此完整一轮必须压到约 12h。12h run 的目标不是替代最终长测，而是在一天内同时拿到：
+现在只有 3-4 天做反复试错，因此完整一轮必须压到约 12h。12h run 的目标是在一天内同时拿到：
 
 - 容量敏感性：`kv_small/kv_medium/kv_large`。
 - 高压吞吐：saturation goodput。
@@ -891,7 +891,7 @@ or block is shallow shared prefix
 
 ### 12h 完整矩阵
 
-这是建议的“一次完整跑”。它不是 12h x 每个实验，而是把多个实验压进 12h 总预算。
+这是建议的“一次完整跑”。多个实验共同压进约 12h 总预算。
 
 | 模块 | capacity | policy | 单组合时长 | run 时间 | 目的 |
 |---|---|---|---:|---:|---|

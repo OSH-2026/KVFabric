@@ -11,14 +11,15 @@
 
 - 默认验证模型：`Qwen/Qwen3.5-2B`
 - 已验证能力：offline inference + online serving
-- 3090 主实验预设：`qwen3_5_27b`，实际使用 `Qwen/Qwen3.5-27B-FP8`
+- 早期 3090 主实验预设：`qwen3_5_27b`，实际使用 `Qwen/Qwen3.5-27B-FP8`
+- 当前远程主实验模型：`Qwen/Qwen3.5-9B`
 - 运行方式：相对仓库根目录的脚本化工作流
 
-`qwen3_5_27b` 保留为 RTX 3090 服务器上的主实验目标，不作为当前这台 `8 GiB` GPU 的默认 bring-up 目标。该预设选择 FP8 权重，是为了在 2x24 GiB 3090 上为 KV cache 留出足够空间。
+`qwen3_5_27b` 保留为 RTX 3090 服务器上的高压力探索目标，不作为当前这台 `8 GiB` GPU 的默认 bring-up 目标。该预设选择 FP8 权重，是为了在 2x24 GiB 3090 上为 KV cache 留出足够空间。6 月下旬后，最终长测矩阵以 Qwen3.5-9B 为主，便于在双 3090 上进行多轮重复实验和 12h 完整矩阵。
 
 ## 为什么先做 vLLM
 
-KVFabric 的长期方向是独立的 KV Cache scheduler / runtime，但第一步不是自己写一套运行时，而是先把参考系统跑通、看清、测明白。对于当前仓库，这个参考系统就是官方 `vLLM`。
+KVFabric 的长期方向是独立的 KV Cache scheduler / runtime。当前仓库先把参考系统跑通、看清、测明白，这个参考系统就是官方 `vLLM`。
 
 这一阶段最关心的是：
 

@@ -24,6 +24,9 @@ except ImportError as exc:  # pragma: no cover
 from online_batch import percentile
 
 
+HINT_NOISE_RATE = 0.25
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Replay a deterministic open-loop trace against vLLM."
@@ -89,6 +92,45 @@ def prompt_summary(
     }
 
 
+def hint_kind(
+    request_class: str,
+    expected_reuse: str,
+    cache_priority: str,
+) -> str:
+    request_class = request_class.lower().replace("-", "_")
+    expected_reuse = expected_reuse.lower().replace("-", "_")
+    cache_priority = cache_priority.lower().replace("-", "_")
+    if expected_reuse == "durable" or cache_priority == "high":
+        return "durable"
+    if expected_reuse == "none" or cache_priority in {"low", "bypass"}:
+        return "low_reuse"
+    if "hot" in request_class or "workflow" in request_class:
+        return "durable"
+    if any(token in request_class for token in ("cold", "unique", "noise", "background")):
+        return "low_reuse"
+    if expected_reuse == "transient" or "transient" in request_class:
+        return "transient"
+    return "unknown"
+
+
+def confuse_hint(
+    request_class: str,
+    expected_reuse: str,
+    cache_priority: str,
+    rng: random.Random,
+) -> tuple[str, str, str, str]:
+    kind = hint_kind(request_class, expected_reuse, cache_priority)
+    if kind == "durable":
+        return "rag_qa_cold_docs", "none", "low", "durable_as_low_reuse"
+    if kind == "low_reuse":
+        return "tenant_workflow_hot", "durable", "high", "low_reuse_as_durable"
+    if kind == "transient":
+        return "tenant_workflow_hot", "durable", "high", "transient_as_durable"
+    if rng.random() < 0.5:
+        return "rag_qa_cold_docs", "none", "low", "unknown_as_low_reuse"
+    return "tenant_workflow_hot", "durable", "high", "unknown_as_durable"
+
+
 def derive_headers(
     entry: dict[str, Any],
     hint_regime: str,
@@ -101,22 +143,21 @@ def derive_headers(
     request_class = str(entry.get("request_class", "unknown"))
     cache_priority = str(entry.get("cache_priority", "normal"))
     expected_reuse = str(entry.get("expected_reuse", "unknown"))
+    hint_noise_reason = "none"
 
-    if hint_regime == "noisy_hints" and rng.random() < 0.15:
-        if expected_reuse == "durable":
-            expected_reuse = "none"
-            cache_priority = "low"
-        elif expected_reuse == "none":
-            expected_reuse = "durable"
-            cache_priority = "high"
-        else:
-            expected_reuse = "unknown"
-            cache_priority = "normal"
+    if rng.random() < HINT_NOISE_RATE:
+        request_class, expected_reuse, cache_priority, hint_noise_reason = (
+            confuse_hint(request_class, expected_reuse, cache_priority, rng)
+        )
 
     headers = {
         "x-kvfabric-request-class": request_class,
         "x-kvfabric-trace-request-id": str(entry.get("request_id", "")),
         "x-kvfabric-burst": "true" if entry.get("burst") else "false",
+        "x-kvfabric-hint-noise": (
+            "true" if hint_noise_reason != "none" else "false"
+        ),
+        "x-kvfabric-hint-noise-reason": hint_noise_reason,
     }
     tenant_id = entry.get("tenant_id")
     session_id = entry.get("session_id")
@@ -717,6 +758,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                 "trace_dir": str(trace_dir),
                 "trace_sha256": trace_summary.get("trace_sha256"),
                 "hint_regime": hint_regime,
+                "hint_noise_rate": HINT_NOISE_RATE,
                 "warmup_seconds": args.warmup_seconds,
                 "max_in_flight": args.max_in_flight,
                 "slo_seconds": args.slo_seconds,
@@ -821,6 +863,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                     args.prompt_excerpt_chars,
                                 ),
                                 "hint_regime": hint_regime,
+                                "hint_noise_rate": HINT_NOISE_RATE,
                                 "headers": headers or {},
                                 "send_delay_seconds": send_delay,
                                 "latency_seconds": latency,
@@ -880,6 +923,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                                         "prompt_ref": entry.get("prompt_ref"),
                                         **prompt_info,
                                         "hint_regime": hint_regime,
+                                        "hint_noise_rate": HINT_NOISE_RATE,
                                         "headers": headers or {},
                                         "send_delay_seconds": send_delay,
                                         "error_type": error_type,
@@ -915,6 +959,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
             "trace_sha256": trace_summary.get("trace_sha256"),
             "trace_profile": trace_summary.get("settings", {}).get("profile"),
             "hint_regime": hint_regime,
+            "hint_noise_rate": HINT_NOISE_RATE,
             "requests": metrics["completed"],
             "errors": metrics["errors"],
             "total_seconds": elapsed,
@@ -935,6 +980,7 @@ async def replay(args: argparse.Namespace) -> dict[str, Any]:
                 "",
                 f"- Trace SHA256: {metrics.get('trace_sha256')}",
                 f"- Hint regime: {hint_regime}",
+                f"- Hint noise rate: {HINT_NOISE_RATE:.2f}",
                 f"- Warmup seconds: {args.warmup_seconds:.1f}",
                 f"- Offered: {metrics['offered']}",
                 f"- Completed: {metrics['completed']}",
