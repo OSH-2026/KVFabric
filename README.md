@@ -6,6 +6,8 @@ KVFabric 是一个面向大模型推理服务的 KV Cache 生命周期管理系�
 
 [English README](README_en.md) | [Architecture](docs/architecture/overview.md) | [Current Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Long Pressure Benchmark](experiments/long_pressure_benchmark/README.md) | [Endterm PPT](docs/endterm/KVFabric期末汇报.pptx)
 
+![photo](docs/media/ai_photo.jpg)
+
 ## 项目成员
 
 - [周家润](https://github.com/QY-dream)

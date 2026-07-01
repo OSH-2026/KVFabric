@@ -4,6 +4,8 @@ KVFabric is a KV Cache lifecycle management prototype for LLM serving. It is bui
 
 [中文 README](README.md) | [Architecture](docs/architecture/overview.md) | [Iteration Log](docs/current/kvfabric_iteration_log.md) | [vLLM Overlay](vllm_workspace/README.md) | [Long Pressure Benchmark](experiments/long_pressure_benchmark/README.md)
 
+![photo](docs/media/ai_photo.jpg)
+
 ## Team
 
 - [Zhou Jiarun](https://github.com/QY-dream)
